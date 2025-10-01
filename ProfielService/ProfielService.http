@@ -1,0 +1,11 @@
+@ProfielService_HostAddress = http://localhost:5132
+
+GET {{ProfielService_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{ProfielService_HostAddress}}/todos/1
+Accept: application/json
+
+###
