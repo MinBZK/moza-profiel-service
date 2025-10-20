@@ -1,0 +1,14 @@
+version: '3.4'
+
+services:
+  moza-profiel-db:
+    image: postgres:17.5
+    container_name: moza-profiel-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=ProfielDb
+    volumes:
+      - ./.containers/moza-profiel-db:/var/lib/postgresql/data
+    ports:
+      - 5432:5432

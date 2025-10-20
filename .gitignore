@@ -10,10 +10,6 @@
 *.userosscache
 *.sln.docstates
 
-
-/ProfielService/profiel.db*
-
-
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
@@ -354,3 +350,6 @@ healthchecksdb
 .vscode
 .scannerwork
 .sonarqube
+
+# Container volumes
+.containers/

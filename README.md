@@ -1,11 +1,10 @@
 # Profiel service
 
-## hoe generate ik een client gebaseerd op een openapi spec
+## Hoe generate ik een client gebaseerd op een openapi spec
 
 dotnet tool install --global NSwag.ConsoleCore //indien nodig
 
-nswag openapi2csclient /input:api_basisprofiel.yaml /output:ProfielService/services/clients/KvkClient.cs /classname:KvkProfielClient /namespace:ProfielService.services.clients
-
+nswag openapi2csclient /input:src/Moza.ProfielService.Api/External/OpenApiSpecs/api_basisprofiel.yaml /output:src/Moza.ProfielService.Api/External/Clients/KvkProfielClient.cs /classname:KvkProfielClient /namespace:Moza.ProfielService.Api.External.Clients
 
 ## Database lokaal todo
 

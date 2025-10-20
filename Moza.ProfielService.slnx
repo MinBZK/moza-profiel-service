@@ -1,0 +1,5 @@
+﻿<Solution>
+  <Folder Name="/src/">
+    <Project Path="src\Moza.ProfielService.Api\Moza.ProfielService.Api.csproj" Type="Classic C#" />
+  </Folder>
+</Solution>
