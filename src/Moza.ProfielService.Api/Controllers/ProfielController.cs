@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 using Moza.ProfielService.Api.External.Clients;
@@ -8,7 +7,6 @@ using Moza.ProfielService.Api.Services;
 namespace Moza.ProfielService.Api.Controllers;
 
 [ApiController]
-[Authorize]
 [Route("ondernemingen")]
 public class ProfielController(
     EmailVerificatieClient emailVerificatieClient,

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Protocols.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -19,7 +20,7 @@ builder.WebHost.UseKestrel(options => options.AddServerHeader = false);
 builder.Host.UseDefaultServiceProvider(options => options.ValidateScopes = true);
 
 var authSection = builder.Configuration.GetSection("Authentication");
-var authSettings = authSection.Get<AuthenticationSettings>() ?? throw new InvalidOperationException("Authentication settings not found");
+var authSettings = authSection.Get<AuthenticationSettings>() ?? throw new InvalidConfigurationException("Authentication settings not found");
 
 builder.Services.Configure<AuthenticationSettings>(authSection);
 

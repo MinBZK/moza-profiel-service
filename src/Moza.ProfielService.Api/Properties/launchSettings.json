@@ -10,22 +10,12 @@
       "dotnetRunMessages": true,
       "applicationUrl": "https://localhost:5551;http://localhost:5550"
     },
-    "Test": {
-      "commandName": "Project",
-      "launchBrowser": true,
-      "launchUrl": "swagger",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Test"
-      },
-      "dotnetRunMessages": true,
-      "applicationUrl": "https://localhost:5551;http://localhost:5550"
-    },
     "Docker:Development": {
       "commandName": "Docker",
       "launchBrowser": true,
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}/swagger",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_ENVIRONMENT": "DockerDevelopment",
         "ASPNETCORE_URLS": "https://+5551:;http://+:5550"
       },
       "sslPort": 5551,
