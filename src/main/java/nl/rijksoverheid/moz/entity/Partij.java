@@ -1,68 +1,68 @@
 package nl.rijksoverheid.moz.entity;
+import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.annotation.Nullable;
-import jakarta.validation.constraints.NotNull;
 import jakarta.persistence.*;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
 @Entity
-@Table(uniqueConstraints=@UniqueConstraint(name="uk_identificatie", columnNames={"identificatieType","identificatieNummer"}))
 @Audited
 public class Partij extends PanacheEntity {
 
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    private IdentificatieType identificatieType;
+    @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Identificatie> identificaties = new ArrayList<>();
 
-    @NotNull
-    private String identificatieNummer;
+    @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Contactgegeven> contactgegevens = new ArrayList<>();
 
-    @OneToMany(mappedBy = "eigenaarPartij", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @Nullable
-    private List<Contactvoorkeur> eigenaar;
+    @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Voorkeur> voorkeuren = new ArrayList<>();
 
-    @OneToMany(mappedBy = "betreffendePartij", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @Nullable
-    private List<Contactvoorkeur> betreffende;
-
-    public static Partij findByIdentificatieNummer(IdentificatieType identificatieType, String identificatieNummer) {
-        return find("identificatieType = ?1 and identificatieNummer = ?2", identificatieType, identificatieNummer).firstResult();
+    public List<Voorkeur> getVoorkeuren() {
+        return voorkeuren;
     }
 
-    public IdentificatieType getIdentificatieType() {
-        return identificatieType;
+    public void setVoorkeuren(List<Voorkeur> voorkeuren) {
+        this.voorkeuren = voorkeuren;
     }
 
-    public void setIdentificatieType(IdentificatieType identificatieType) {
-        this.identificatieType = identificatieType;
+    public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
+        return find("""
+        SELECT p FROM Partij p
+        JOIN p.identificaties i
+        WHERE i.identificatieType = ?1
+          AND i.identificatieNummer = ?2
+    """, type, nummer).firstResult();
     }
 
-    public String getIdentificatieNummer() {
-        return identificatieNummer;
+
+
+    public void addIdentificatie(Identificatie identificatie) {
+        identificaties.add(identificatie);
+        identificatie.setPartij(this);
     }
 
-    public void setIdentificatieNummer(String identificatieNummer) {
-        this.identificatieNummer = identificatieNummer;
+    public void addVoorkeur(Voorkeur voorkeur) {
+        voorkeuren.add(voorkeur);
+        voorkeur.setPartij(this);
     }
 
-    @Nullable
-    public List<Contactvoorkeur> getEigenaar() {
-        return eigenaar;
+    public List<Identificatie> getIdentificaties() {
+        return identificaties;
     }
 
-    public void setEigenaar(@Nullable List<Contactvoorkeur> eigenaar) {
-        this.eigenaar = eigenaar;
+    public void setIdentificaties(List<Identificatie> identificaties) {
+        this.identificaties = identificaties;
     }
 
-    @Nullable
-    public List<Contactvoorkeur> getBetreffende() {
-        return betreffende;
+    public List<Contactgegeven> getContactgegevens() {
+        return contactgegevens;
     }
 
-    public void setBetreffende(@Nullable List<Contactvoorkeur> betreffende) {
-        this.betreffende = betreffende;
+    public void setContactgegevens(List<Contactgegeven> contactgegevens) {
+        this.contactgegevens = contactgegevens;
     }
 }
+
