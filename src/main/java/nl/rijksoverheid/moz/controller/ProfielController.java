@@ -8,6 +8,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
@@ -40,8 +41,6 @@ public class ProfielController {
 
     @Inject
     PartijService partijService;
-    @Inject
-    PartijMapper partijMapper;
 
     /**
      * Haalt een profiel op van een partij.
@@ -69,9 +68,10 @@ public class ProfielController {
     })
     public Response getPartij(
             @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer) {
+            @PathParam("identificatieNummer") String identificatieNummer,
+            @BeanParam PartijRequest partijRequest) {
 
-        PartijResponse result = partijMapper.toResponse(partijService.getPartij(identificatieType, identificatieNummer));
+        PartijResponse result = partijService.getPartijResponse(identificatieType, identificatieNummer, partijRequest);
 
         if (result == null) {
             return Response.status(Response.Status.NOT_FOUND).build();

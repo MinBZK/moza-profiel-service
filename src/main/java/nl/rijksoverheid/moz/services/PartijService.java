@@ -1,20 +1,32 @@
 package nl.rijksoverheid.moz.services;
 
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.entity.Afdeling;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.mapper.PartijMapper;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @ApplicationScoped
 public class PartijService {
+
+    @Inject
+    PartijMapper partijMapper;
 
     @Transactional
     public void addContactgegeven(
@@ -153,4 +165,54 @@ public class PartijService {
         voorkeur.delete();
         return true;
     }
+
+    public PartijResponse getPartijResponse(IdentificatieType identificatieType, String identificatieNummer, PartijRequest partijRequest) {
+        Partij partij;
+        if (partijRequest.isEmpty()) {
+            partij = getPartij(identificatieType, identificatieNummer);
+        } else {
+            partij = getPartijFiltered(identificatieType, identificatieNummer, partijRequest);
+        }
+
+        return partijMapper.toResponse(partij);
+    }
+
+    public Partij getPartijFiltered(IdentificatieType idType,
+                                    String idNummer,
+                                    PartijRequest request) {
+        Partij partij = getPartij(idType, idNummer);
+        if (partij == null) {
+            return null;
+        }
+
+        //Left join hier zodat hij altijd de default contactgegevens pakt.
+        StringBuilder query = new StringBuilder(
+                "select c from Contactgegeven c left join c.afdeling a left join a.dienstverlener d " +
+                        "where c.partij.id = :partijId"
+        );
+        Map<String, Object> params = new HashMap<>();
+        params.put("partijId", partij.id);
+
+        if (request.dienstverlener != null) {
+            query.append(" AND (a IS NULL OR d.naam = :dvNaam)");
+            params.put("dvNaam", request.dienstverlener);
+        }
+
+        if (request.dienstverlenerOin != null) {
+            query.append(" AND (a IS NULL OR d.oin = :oin)");
+            params.put("oin", request.dienstverlenerOin);
+        }
+
+        if (request.afdelingBeschrijving != null) {
+            query.append(" AND (a IS NULL OR a.beschrijving = :afdBeschr)");
+            params.put("afdBeschr", request.afdelingBeschrijving);
+        }
+
+        PanacheQuery<Contactgegeven> panacheQuery = Contactgegeven.find(query.toString(), params);
+        List<Contactgegeven> filtered = panacheQuery.list();
+
+        partij.setContactgegevens(filtered);
+        return partij;
+    }
+
 }
