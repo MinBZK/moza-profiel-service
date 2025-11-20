@@ -20,7 +20,7 @@ public class Contactgegeven extends PanacheEntity {
     private Partij partij;
 
     @JsonIgnore
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = true)
     @JoinColumn(name = "afdeling_id")
     private Afdeling afdeling;
 

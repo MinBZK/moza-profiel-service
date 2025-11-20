@@ -5,10 +5,9 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.entity.Afdeling;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-@Schema(description = "Request object voor het toevoegen van een contactgegeven een partij")
+@Schema(description = "Request object voor het toevoegen van een contactgegeven aan een partij")
 public class ContactgegevenRequest {
 
-    @NotNull
     public String afdeling;
 
     @NotNull
