@@ -173,6 +173,7 @@ public class PartijService {
         } else {
             partij = getPartijFiltered(identificatieType, identificatieNummer, partijRequest);
         }
+        if  (partij == null) return null;
 
         return partijMapper.toResponse(partij);
     }
