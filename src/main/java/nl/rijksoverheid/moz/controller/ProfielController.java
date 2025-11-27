@@ -1,6 +1,8 @@
-
 package nl.rijksoverheid.moz.controller;
 
+import LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.Logboek;
+import LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.LogboekContext;
+import io.opentelemetry.api.trace.StatusCode;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -13,7 +15,7 @@ import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.common.IdentificatieType;
-import nl.rijksoverheid.moz.mapper.PartijMapper;
+import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.services.PartijService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -42,6 +44,12 @@ public class ProfielController {
     @Inject
     PartijService partijService;
 
+    @Inject
+    LogboekContext logboekContext;
+
+    @Inject
+    HashHelper hashHelper;
+
     /**
      * Haalt een profiel op van een partij.
      * <p>     *
@@ -66,6 +74,7 @@ public class ProfielController {
                     description = "Partij niet gevonden of is verwijderd"
             )
     })
+    @Logboek(name= "getPartij", processingActivityId = "028")
     public Response getPartij(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -73,10 +82,17 @@ public class ProfielController {
 
         PartijResponse result = partijService.getPartijResponse(identificatieType, identificatieNummer, partijRequest);
 
+
+        // Usage
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         if (result == null) {
+            logboekContext.setStatus(StatusCode.ERROR);
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        logboekContext.setStatus(StatusCode.OK);
         return Response.ok(result).build();
     }
 
@@ -101,14 +117,19 @@ public class ProfielController {
                     description = "Contactgegeven succesvol toegevoegd"
             )
     })
+    @Logboek(name= "addContactgegeven", processingActivityId = "142")
     public Response addContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
             ContactgegevenRequest request) {
 
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         partijService.addContactgegeven(identificatieType, identificatieNummer, request);
 
         URI uri = URI.create(String.format("/contactgegeven/%s/%s", identificatieType, identificatieNummer));
+        logboekContext.setStatus(StatusCode.OK);
         return Response.created(uri).build();
     }
 
@@ -128,17 +149,23 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
+    @Logboek(name= "updateContactgegeven", processingActivityId = "367")
     public Response updateContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
             ContactgegevenUpdateRequest request) {
 
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         boolean updated = partijService.updateContactgegeven(identificatieType, identificatieNummer, request);
 
         if (!updated) {
+            logboekContext.setStatus(StatusCode.ERROR);
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        logboekContext.setStatus(StatusCode.OK);
         return Response.ok().build();
     }
 
@@ -156,17 +183,23 @@ public class ProfielController {
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
+    @Logboek(name= "deleteContactgegeven", processingActivityId = "591")
     public Response deleteContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
             @PathParam("contactgegevenId") Long contactgegevenId) {
 
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         boolean deleted = partijService.deleteContactgegeven(identificatieType, identificatieNummer, contactgegevenId);
 
         if (!deleted) {
+            logboekContext.setStatus(StatusCode.ERROR);
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        logboekContext.setStatus(StatusCode.OK);
         return Response.noContent().build();
     }
 
@@ -191,13 +224,18 @@ public class ProfielController {
                     description = "Voorkeur succesvol toegevoegd"
             )
     })
+    @Logboek(name= "addVoorkeur", processingActivityId = "824")
     public Response addVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
             VoorkeurRequest request) {
 
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         partijService.addVoorkeur(identificatieType, identificatieNummer, request);
 
+        logboekContext.setStatus(StatusCode.OK);
         URI uri = URI.create(String.format("/%s/%s", identificatieType, identificatieNummer));
         return Response.created(uri).build();
     }
@@ -218,17 +256,23 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
+    @Logboek(name= "updateVoorkeur", processingActivityId = "256")
     public Response updateVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
             VoorkeurUpdateRequest request) {
 
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         boolean updated = partijService.updateVoorkeur(identificatieType, identificatieNummer, request);
 
         if (!updated) {
+            logboekContext.setStatus(StatusCode.ERROR);
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        logboekContext.setStatus(StatusCode.OK);
         return Response.ok().build();
     }
 
@@ -246,17 +290,23 @@ public class ProfielController {
             @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
+    @Logboek(name= "deleteVoorkeur", processingActivityId = "478")
     public Response deleteVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
             @PathParam("voorkeurId") Long voorkeurId) {
 
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(identificatieType.toString());
+
         boolean deleted = partijService.deleteVoorkeur(identificatieType, identificatieNummer, voorkeurId);
 
         if (!deleted) {
+            logboekContext.setStatus(StatusCode.ERROR);
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        logboekContext.setStatus(StatusCode.OK);
         return Response.noContent().build();
     }
 }
