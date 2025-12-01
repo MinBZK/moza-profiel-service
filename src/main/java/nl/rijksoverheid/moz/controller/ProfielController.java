@@ -82,10 +82,8 @@ public class ProfielController {
 
         PartijResponse result = partijService.getPartijResponse(identificatieType, identificatieNummer, partijRequest);
 
-
-        // Usage
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
 
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -124,7 +122,12 @@ public class ProfielController {
             ContactgegevenRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+
+        if (request == null) {
+            logboekContext.setStatus(StatusCode.ERROR);
+            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        }
 
         partijService.addContactgegeven(identificatieType, identificatieNummer, request);
 
@@ -156,7 +159,12 @@ public class ProfielController {
             ContactgegevenUpdateRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+
+        if (request == null) {
+            logboekContext.setStatus(StatusCode.ERROR);
+            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        }
 
         boolean updated = partijService.updateContactgegeven(identificatieType, identificatieNummer, request);
 
@@ -190,7 +198,7 @@ public class ProfielController {
             @PathParam("contactgegevenId") Long contactgegevenId) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
 
         boolean deleted = partijService.deleteContactgegeven(identificatieType, identificatieNummer, contactgegevenId);
 
@@ -231,7 +239,12 @@ public class ProfielController {
             VoorkeurRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+
+        if (request == null) {
+            logboekContext.setStatus(StatusCode.ERROR);
+            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        }
 
         partijService.addVoorkeur(identificatieType, identificatieNummer, request);
 
@@ -263,7 +276,12 @@ public class ProfielController {
             VoorkeurUpdateRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+
+        if (request == null) {
+            logboekContext.setStatus(StatusCode.ERROR);
+            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        }
 
         boolean updated = partijService.updateVoorkeur(identificatieType, identificatieNummer, request);
 
@@ -297,7 +315,7 @@ public class ProfielController {
             @PathParam("voorkeurId") Long voorkeurId) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(identificatieType.toString());
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
 
         boolean deleted = partijService.deleteVoorkeur(identificatieType, identificatieNummer, voorkeurId);
 

@@ -51,10 +51,13 @@ public class DienstverlenerController {
     @Transactional
     public Response addDienstverlener(
             DienstverlenerRequest dienstverlenerRequest) {
-
+        if (dienstverlenerRequest == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        }
         dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
-        URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerRequest.naam));
+        String naam = dienstverlenerRequest.naam;
+        URI uri = URI.create(String.format("/dienstverlener/%s", naam == null ? "" : naam));
         return Response.created(uri).build();
     }
 
@@ -72,6 +75,9 @@ public class DienstverlenerController {
             @PathParam("DienstverlenerNaam") String dienstverlenerNaam,
             AfdelingRequest request
     ) {
+        if (request == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        }
         var afdeling = dienstverlenerService.addAfdelingToDienstverlener(dienstverlenerNaam, request);
         return Response.status(Response.Status.CREATED).entity(afdeling).build();
     }

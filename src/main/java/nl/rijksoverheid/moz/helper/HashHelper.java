@@ -12,6 +12,9 @@ public class HashHelper {
 
     // Helper method to create a hash
     public String hashIdentifier(String identifier) {
+        if (identifier == null) {
+            return null;
+        }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(identifier.getBytes(StandardCharsets.UTF_8));
