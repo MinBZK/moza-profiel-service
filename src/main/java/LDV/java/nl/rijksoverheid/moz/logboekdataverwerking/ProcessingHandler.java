@@ -37,7 +37,7 @@ public class ProcessingHandler {
                 .startSpan();
     }
 
-    public void addLogboekContextToSpan(Span span, LogboekContext logboekContext) {
+    public void addLogboekContextToSpan(Span span, LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.LogboekContext logboekContext) {
         span.setAttribute("dpl.core.processing_activity_id", logboekContext.getProcessingActivityId());
         span.setAttribute("dpl.core.data_subject_id", logboekContext.getDataSubjectId());
         span.setAttribute("dpl.core.data_subject_id_type", logboekContext.getDataSubjectType());

@@ -13,18 +13,18 @@ import jakarta.ws.rs.core.HttpHeaders;
 import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.data.SpanData;
 
-@Logboek
+@LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.Logboek
 @Interceptor
 public class LogboekInterceptor {
 
     @Inject
-    LogboekContext logboekContext;
+    LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.LogboekContext logboekContext;
 
     @Context
     HttpHeaders headers;
 
     @Inject
-    ProcessingHandler handler;
+    LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.ProcessingHandler handler;
 
     @AroundInvoke
     public Object log(InvocationContext context) throws Exception {
@@ -36,7 +36,7 @@ public class LogboekInterceptor {
                 new HttpHeadersGetter()
         );
 
-        Logboek annotation = context.getMethod().getAnnotation(Logboek.class);
+        LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.Logboek annotation = context.getMethod().getAnnotation(LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.Logboek.class);
         String name = annotation.name();
         String processingActivityId = annotation.processingActivityId();
 
