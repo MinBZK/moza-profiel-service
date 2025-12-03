@@ -38,10 +38,10 @@ public class EmailVerificatieController {
         //Todo Maak connectie met NotifyNL en verifieer email.
         VerificationRequestsPostRequest verificationRequestsPostRequest = new VerificationRequestsPostRequest();
         verificationRequestsPostRequest.setEmail(email);
-        verificationRequestsPostRequest.setApiKey();
-        verificationRequestsPostRequest.setPhoneNumber();
-        verificationRequestsPostRequest.setTemplateId();
-        verificationRequestsPostRequest.setReference();
+//        verificationRequestsPostRequest.setApiKey();
+//        verificationRequestsPostRequest.setPhoneNumber();
+//        verificationRequestsPostRequest.setTemplateId();
+//        verificationRequestsPostRequest.setReference();
         emailVerificatie.verificationRequestsPost(verificationRequestsPostRequest);
         return Response.ok(true).build();
     }

@@ -56,8 +56,7 @@ public class DienstverlenerController {
         }
         dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
-        String naam = dienstverlenerRequest.naam;
-        URI uri = URI.create(String.format("/dienstverlener/%s", naam == null ? "" : naam));
+        URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerRequest.naam));
         return Response.created(uri).build();
     }
 
@@ -79,7 +78,8 @@ public class DienstverlenerController {
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
         var afdeling = dienstverlenerService.addAfdelingToDienstverlener(dienstverlenerNaam, request);
-        return Response.status(Response.Status.CREATED).entity(afdeling).build();
+        URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerNaam));
+        return Response.created(uri).build();
     }
 
 

@@ -70,7 +70,7 @@ public class ProfielControllerTest {
     }
 
     @Test
-    void addPartij_Success() {
+    void addContactgegeven_Success() {
         var body = new ContactgegevenRequest();
         body.afdelingId = 0;
         body.type = ContactType.Email;
@@ -81,12 +81,13 @@ public class ProfielControllerTest {
                 .body(body)
                 .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
                 .then()
-                .statusCode(CREATED);
+                .statusCode(CREATED)
+                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven/BSN/123456789"));
 
     }
 
     @Test
-    void addPartij_BadRequest() {
+    void addContactgegeven_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
                 .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
@@ -206,7 +207,7 @@ public class ProfielControllerTest {
                 .body(body)
                 .post("/api/profielservice/v1/voorkeur/BSN/123456789")
                 .then()
-                .statusCode(CREATED);
+                .header("Location", org.hamcrest.Matchers.endsWith("/BSN/123456789"));
     }
 
     @Test
