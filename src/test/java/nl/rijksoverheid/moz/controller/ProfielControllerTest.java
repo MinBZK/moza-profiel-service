@@ -29,6 +29,9 @@ public class ProfielControllerTest {
     void setup() {
         Contactgegeven.deleteAll();
         Afdeling.deleteAll();
+        Identificatie.deleteAll();
+        Voorkeur.deleteAll();
+        Partij.deleteAll();
         Dienstverlener.deleteAll();
     }
 
@@ -102,7 +105,7 @@ public class ProfielControllerTest {
         AtomicLong id = new AtomicLong();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111112"));
+            p.addIdentificatie(new Identificatie(BSN, "111111111"));
             p.persist();
             Contactgegeven c = new Contactgegeven();
             c.setType(ContactType.Email);
@@ -121,7 +124,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegeven/BSN/111111112")
+                .put("/api/profielservice/v1/contactgegeven/BSN/111111111")
                 .then()
                 .statusCode(OK);
     }

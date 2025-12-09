@@ -206,8 +206,6 @@
 
     <build>
         <plugins>
-
-
             <plugin>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>

@@ -16,7 +16,7 @@ public class ProcessingHandler {
 
     public ProcessingHandler() {
         try {
-            String serviceName = ConfigurationLoader.getString("logboekdataverwerking.service-name");
+            String serviceName = ConfigurationLoader.getValueByKey("logboekdataverwerking.service-name", String.class);
 
             OpenTelemetry openTelemetry = TelemetryConfig.initOpenTelemetry(serviceName);
             this.tracer = openTelemetry.getTracer(serviceName);

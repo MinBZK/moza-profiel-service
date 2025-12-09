@@ -25,12 +25,10 @@ public class ClickHouseSpanExporter implements SpanExporter {
     private final boolean enabled;
 
     public ClickHouseSpanExporter() throws ConfigurationException {
-        this.enabled = ConfigurationLoader.getConfiguration()
-                .getBoolean("logboekdataverwerking.enabled", true);
-
+        this.enabled = ConfigurationLoader.getValueByKey("logboekdataverwerking.enabled", Boolean.class);
         if (enabled) {
             this.repository = new ClickHouseRepository();
-            this.tableName = ConfigurationLoader.getString("logboekdataverwerking.clickhouse.table");
+            this.tableName = ConfigurationLoader.getValueByKey("logboekdataverwerking.clickhouse.table", String.class);
             this.repository.ensureSchema();
         } else {
             this.repository = null;
