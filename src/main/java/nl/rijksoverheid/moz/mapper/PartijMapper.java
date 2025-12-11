@@ -48,9 +48,7 @@ public class PartijMapper {
         cr.isGeverifieerd = cg.getGeverifieerdAt() != null;
 
         if (cg.getAfdeling() != null) {
-            AfdelingResponse ar = new AfdelingResponse();
-            ar.beschrijving = cg.getAfdeling().getBeschrijving();
-            cr.afdeling = ar;
+            cr.afdeling = new AfdelingResponse(cg.getAfdeling());
         }
         return cr;
     }

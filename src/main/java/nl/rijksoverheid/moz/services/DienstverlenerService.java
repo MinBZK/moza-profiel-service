@@ -53,6 +53,14 @@ public class DienstverlenerService {
         dienstverlener = new Dienstverlener();
         dienstverlener.setNaam(naam);
         dienstverlener.setOin(oin);
+
+        // Voeg standaard afdeling 'Alles' toe bij het aanmaken van een nieuwe dienstverlener
+        Afdeling defaultAfdeling = new Afdeling();
+        defaultAfdeling.setBeschrijving("Alles");
+        defaultAfdeling.setDienstverlener(dienstverlener);
+        dienstverlener.getAfdelingen().add(defaultAfdeling);
+
+        // Persist de dienstverlener (cascadet ook de aangemaakte afdeling)
         dienstverlener.persist();
 
         return dienstverlener;

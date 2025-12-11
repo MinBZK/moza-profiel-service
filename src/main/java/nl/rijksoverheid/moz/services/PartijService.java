@@ -39,7 +39,7 @@ public class PartijService {
         Contactgegeven contactgegeven = new Contactgegeven();
         contactgegeven.setPartij(partij);
 
-        Afdeling afdeling = Afdeling.findByBeschrijving(request.afdeling);
+        Afdeling afdeling = Afdeling.findById(request.afdelingId);
 
         contactgegeven.setAfdeling(afdeling);
         contactgegeven.setType(request.type);
@@ -101,7 +101,7 @@ public class PartijService {
 
         contact.setType(request.type);
         contact.setWaarde(request.waarde);
-        contact.setAfdeling(Afdeling.findByBeschrijving((request.afdeling)));
+        contact.setAfdeling(Afdeling.findById((request.afdelingId)));
 
         return true;
     }
