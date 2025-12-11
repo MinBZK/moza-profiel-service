@@ -1,13 +1,13 @@
 package nl.rijksoverheid.moz.controller;
 
-import LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.Logboek;
-import LDV.java.nl.rijksoverheid.moz.logboekdataverwerking.LogboekContext;
 import io.opentelemetry.api.trace.StatusCode;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
