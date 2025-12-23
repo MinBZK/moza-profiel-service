@@ -1,0 +1,4 @@
+- prod database secret uit secrets laden: https://quarkus.io/guides/kubernetes-config
+- deployment file in application properties aanpassen zodat je `mvn clean deploy` kan uitvoeren en dit alles uitrolt op het sp
+- flyway vs liquibase voor database migrations
+- verificatie service aanroepen

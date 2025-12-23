@@ -1,14 +1,22 @@
-version: '3.4'
+version: '3.9'
 
 services:
-  moza-profiel-db:
-    image: postgres:17.5
-    container_name: moza-profiel-db
+  postgres:
+    image: postgres:16
+    container_name: quarkus_postgres
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=ProfielDb
-    volumes:
-      - ./.containers/moza-profiel-db:/var/lib/postgresql/data
+      POSTGRES_DB: profiel
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     ports:
-      - 5432:5432
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d profiel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
