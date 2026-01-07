@@ -4,6 +4,7 @@ import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
@@ -25,8 +26,14 @@ import java.util.Map;
 @ApplicationScoped
 public class PartijService {
 
+
     @Inject
     PartijMapper partijMapper;
+
+
+    @Inject
+    EmailVerificatieService emailVerificatieService;
+
 
     @Transactional
     public void addContactgegeven(
@@ -44,6 +51,11 @@ public class PartijService {
         contactgegeven.setAfdeling(afdeling);
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(request.waarde);
+
+        if (request.type == ContactType.Email) {
+            emailVerificatieService.requestEmailVerificationCode(request.waarde);
+        }
+
         contactgegeven.setGeverifieerdAt(null);
         contactgegeven.persist();
 

@@ -5,15 +5,12 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import nl.rijksoverheid.moz.external.clients.basisprofiel.api.BasisprofielApi;
-import nl.rijksoverheid.moz.external.clients.email.api.DefaultApi;
-import nl.rijksoverheid.moz.external.clients.email.model.VerificationRequestsPostRequest;
+import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
-import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
@@ -22,28 +19,17 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 public class EmailVerificatieController {
 
     @Inject
-    @RestClient
-    BasisprofielApi basisprofielApi;
-
-    @Inject
-    @RestClient
-    DefaultApi emailVerificatie;
-
+    EmailVerificatieService emailVerificatieService;
 
     @POST
-    @Path("/emailverificatie/{email}/{verificatiecode}")
-    public Response getAfdelingenDienstverlener(@PathParam("email") String email,
-                                                @PathParam("verificatiecode") String verificatiecode) {
-        //Todo Zet email verified in database
-        //Todo Maak connectie met NotifyNL en verifieer email.
-        VerificationRequestsPostRequest verificationRequestsPostRequest = new VerificationRequestsPostRequest();
-        verificationRequestsPostRequest.setEmail(email);
-//        verificationRequestsPostRequest.setApiKey();
-//        verificationRequestsPostRequest.setPhoneNumber();
-//        verificationRequestsPostRequest.setTemplateId();
-//        verificationRequestsPostRequest.setReference();
-        emailVerificatie.verificationRequestsPost(verificationRequestsPostRequest);
-        return Response.ok(true).build();
-    }
+    @Path("/emailverificatie")
+    public Response PostEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
+        boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
 
+        if (succes) {
+            return Response.ok(true).build();
+        } else {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+    }
 }
