@@ -53,6 +53,7 @@ public class PartijService {
         contactgegeven.setWaarde(request.waarde);
 
         if (request.type == ContactType.Email) {
+            //todo bepaal wat we doen als het versturen van een verificatie code mislukt
             emailVerificatieService.requestEmailVerificationCode(request.waarde);
         }
 

@@ -23,11 +23,11 @@ public class EmailVerificatieController {
 
     @POST
     @Path("/emailverificatie")
-    public Response PostEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
+    public Response postEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
 
         if (succes) {
-            return Response.ok(true).build();
+            return Response.ok().build();
         } else {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }

@@ -13,6 +13,7 @@ import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.*;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -33,15 +34,19 @@ public class ProfielControllerTest {
     @BeforeEach
     @Transactional
     void setup() {
+        // Mock the email verification service to do nothing
+        Mockito.doReturn(true).when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+    }
+
+    @AfterEach
+    @Transactional
+    void tearDown() {
         Contactgegeven.deleteAll();
         Afdeling.deleteAll();
         Identificatie.deleteAll();
         Voorkeur.deleteAll();
         Partij.deleteAll();
         Dienstverlener.deleteAll();
-
-        // Mock the email verification service to do nothing
-        Mockito.doNothing().when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
     }
 
     @Test

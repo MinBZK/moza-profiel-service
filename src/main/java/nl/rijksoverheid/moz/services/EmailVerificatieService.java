@@ -83,7 +83,7 @@ public class EmailVerificatieService {
         }
     }
 
-    public void requestEmailVerificationCode(String email) {
+    public boolean requestEmailVerificationCode(String email) {
         VerificationRequestsPostRequest request = new VerificationRequestsPostRequest();
         request.setEmail(email);
         request.setApiKey(apiKey);
@@ -92,17 +92,22 @@ public class EmailVerificatieService {
 
         try {
             VerificationRequestsPost201Response res = emailVerificatieApi.verificationRequestsPost(request);
-            if (res == null || !Boolean.TRUE.equals(res.getSuccess())) {
-                LOG.errorf("Email verificatie verzoek mislukt voor email: %s. Response success was false.", email);
-                throw new WebApplicationException("Email verificatie kon niet worden gestart", Response.Status.INTERNAL_SERVER_ERROR);
+
+            if (res != null) {
+                boolean success = res.getSuccess();
+                if (!success) {
+                    LOG.errorf("Email verificatie verzoek mislukt voor email: %s. Response success was false.", email);
+                }
+                return success;
             }
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
             LOG.errorf("NotifyNL API Error (%d) voor %s: %s", e.getResponse().getStatus(), email, errorBody);
-            throw e;
-        } catch (Exception e) {
+            return false;
+        } catch (RuntimeException e) {
             LOG.error("Onverwachte fout tijdens aanvragen email verificatie: " + e.getMessage(), e);
-            throw new WebApplicationException("Interne fout bij email verificatie", Response.Status.INTERNAL_SERVER_ERROR);
+            return false;
         }
+        return false;
     }
 }
