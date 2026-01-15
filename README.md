@@ -96,3 +96,8 @@ Gradle:
 Easily start your REST Web Services
 
 [Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
+
+---
+In de application.properties file staat een notifyNl gedeelte, deze moeten worden gevuld met information van https://admin.notifynl.nl/ vraag de developers van dit project voor deze gegevens.
+
+Plaats deze gegevens vervolgens NIET in de application.properties file maar maak een file /src/main/resources/application-dev.properties aan en zet de values hier in. Deze file staat in de gitignore.

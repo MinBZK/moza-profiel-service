@@ -5,7 +5,6 @@
     "description": "API to create and verify email or phone number verification requests",
     "version": "0.2.1"
   },
-  "servers": [{ "url": "/api" }],
   "paths": {
     "/verification-requests": {
       "get": {
