@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.dto.request.AfdelingRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,9 +21,9 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 @QuarkusTest
 public class DienstverlenerControllerTest {
 
-    @BeforeEach
+    @AfterEach
     @Transactional
-    void setup() {
+    void tearDown() {
         Contactgegeven.deleteAll();
         Afdeling.deleteAll();
         Dienstverlener.deleteAll();
