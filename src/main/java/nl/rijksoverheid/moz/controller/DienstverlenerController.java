@@ -77,10 +77,8 @@ public class DienstverlenerController {
         if (request == null) {
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
-        var afdeling = dienstverlenerService.addAfdelingToDienstverlener(dienstverlenerNaam, request);
+        dienstverlenerService.addAfdelingToDienstverlener(dienstverlenerNaam, request);
         URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerNaam));
         return Response.created(uri).build();
     }
-
-
 }

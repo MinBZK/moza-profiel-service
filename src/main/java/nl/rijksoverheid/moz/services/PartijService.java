@@ -153,7 +153,7 @@ public class PartijService {
             return false;
         }
 
-        partij.getContactgegevens().remove(contact);
+        partij.removeContactgegeven(contact);
 
         contact.delete();
         return true;
@@ -173,7 +173,7 @@ public class PartijService {
             return false;
         }
 
-        partij.getVoorkeuren().remove(voorkeur);
+        partij.removeVoorkeur(voorkeur);
 
         voorkeur.delete();
         return true;

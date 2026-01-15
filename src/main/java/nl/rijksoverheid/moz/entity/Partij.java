@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.entity;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import jakarta.persistence.*;
@@ -21,11 +22,12 @@ public class Partij extends PanacheEntity {
     private List<Voorkeur> voorkeuren = new ArrayList<>();
 
     public List<Voorkeur> getVoorkeuren() {
-        return voorkeuren;
+        return Collections.unmodifiableList(voorkeuren);
     }
 
     public void setVoorkeuren(List<Voorkeur> voorkeuren) {
-        this.voorkeuren = voorkeuren;
+        this.voorkeuren.clear();
+        this.voorkeuren.addAll(voorkeuren);
     }
 
     public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
@@ -37,8 +39,6 @@ public class Partij extends PanacheEntity {
     """, type, nummer).firstResult();
     }
 
-
-
     public void addIdentificatie(Identificatie identificatie) {
         identificaties.add(identificatie);
         identificatie.setPartij(this);
@@ -49,20 +49,29 @@ public class Partij extends PanacheEntity {
         voorkeur.setPartij(this);
     }
 
+    public void removeVoorkeur(Voorkeur voorkeur) {
+        voorkeuren.remove(voorkeur);
+    }
+
     public List<Identificatie> getIdentificaties() {
-        return identificaties;
+        return Collections.unmodifiableList(identificaties);
     }
 
     public void setIdentificaties(List<Identificatie> identificaties) {
-        this.identificaties = identificaties;
+        this.identificaties.clear();
+        this.identificaties.addAll(identificaties);
     }
 
     public List<Contactgegeven> getContactgegevens() {
-        return contactgegevens;
+        return Collections.unmodifiableList(contactgegevens);
     }
 
     public void setContactgegevens(List<Contactgegeven> contactgegevens) {
-        this.contactgegevens = contactgegevens;
+        this.contactgegevens.clear();
+        this.contactgegevens.addAll(contactgegevens);
+    }
+
+    public void removeContactgegeven(Contactgegeven contact) {
+        contactgegevens.remove(contact);
     }
 }
-
