@@ -1,0 +1,62 @@
+package nl.rijksoverheid.moz.controller;
+
+import io.quarkus.test.InjectMock;
+import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.http.ContentType;
+import jakarta.transaction.Transactional;
+import nl.rijksoverheid.moz.common.IdentificatieType;
+import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.entity.*;
+import nl.rijksoverheid.moz.services.EmailVerificatieService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import static io.restassured.RestAssured.given;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
+
+@QuarkusTest
+public class EmailVerificatieControllerTest {
+
+    @InjectMock
+    EmailVerificatieService emailVerificatieService;
+
+
+    @Test
+    void postEmailVerificatie_Success()  {
+        Mockito.doReturn(true).when(emailVerificatieService).verifieerEmail(Mockito.any());
+
+        var body = new EmailVerificatieRequest();
+        body.email = "email@email.com";
+        body.verificatieCode = "123456";
+        body.identificatieNummer = "123";
+        body.identificatieType = IdentificatieType.BSN;
+
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .body(body)
+                .post("/api/profielservice/v1/emailverificatie")
+                .then()
+                .statusCode(OK);
+    }
+
+    @Test
+    void postEmailVerificatie_BadRequest() {
+        Mockito.doReturn(false).when(emailVerificatieService).verifieerEmail(Mockito.any());
+
+        var body = new EmailVerificatieRequest();
+        body.email = "email@email.com";
+        body.verificatieCode = "123456";
+        body.identificatieNummer = "123";
+        body.identificatieType = IdentificatieType.BSN;
+
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .body(body)
+                .post("/api/profielservice/v1/emailverificatie")
+                .then()
+                .statusCode(BAD_REQUEST);
+    }
+}

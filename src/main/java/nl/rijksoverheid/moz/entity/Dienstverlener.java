@@ -3,15 +3,13 @@ package nl.rijksoverheid.moz.entity;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.validation.constraints.NotNull;
 import org.hibernate.envers.Audited;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Entity
@@ -46,10 +44,15 @@ public class Dienstverlener extends PanacheEntity {
     }
 
     public List<Afdeling> getAfdelingen() {
-        return afdelingen;
+        return Collections.unmodifiableList(afdelingen);
+    }
+
+    public void addAfdeling(Afdeling afdeling) {
+        afdelingen.add(afdeling);
     }
 
     public void setAfdelingen(List<Afdeling> afdelingen) {
-        this.afdelingen = afdelingen;
+        this.afdelingen.clear();
+        this.afdelingen.addAll(afdelingen);
     }
 }
