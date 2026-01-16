@@ -1,6 +1,7 @@
 package nl.rijksoverheid.moz.controller;
 
 import io.quarkus.narayana.jta.QuarkusTransaction;
+import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.transaction.Transactional;
@@ -11,8 +12,11 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.*;
+import nl.rijksoverheid.moz.services.EmailVerificatieService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -24,9 +28,19 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 @QuarkusTest
 public class ProfielControllerTest {
 
+    @InjectMock
+    EmailVerificatieService emailVerificatieService;
+
     @BeforeEach
     @Transactional
     void setup() {
+        // Mock the email verification service to do nothing
+        Mockito.doReturn(true).when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+    }
+
+    @AfterEach
+    @Transactional
+    void tearDown() {
         Contactgegeven.deleteAll();
         Afdeling.deleteAll();
         Identificatie.deleteAll();
