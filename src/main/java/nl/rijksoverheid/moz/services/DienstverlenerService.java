@@ -30,7 +30,7 @@ public class DienstverlenerService {
         afdeling.setBeschrijving(request.beschrijving);
         afdeling.setDienstverlener(dienstverlener);
 
-        dienstverlener.getAfdelingen().add(afdeling);
+        dienstverlener.addAfdeling(afdeling);
 
         afdeling.persist();
         dienstverlener.persist();
@@ -58,7 +58,7 @@ public class DienstverlenerService {
         Afdeling defaultAfdeling = new Afdeling();
         defaultAfdeling.setBeschrijving("Alles");
         defaultAfdeling.setDienstverlener(dienstverlener);
-        dienstverlener.getAfdelingen().add(defaultAfdeling);
+        dienstverlener.addAfdeling(defaultAfdeling);
 
         // Persist de dienstverlener (cascadet ook de aangemaakte afdeling)
         dienstverlener.persist();
