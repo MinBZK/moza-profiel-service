@@ -15,7 +15,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@Tag(name = "EmailVerificatie", description = "Endpoints voor het verifieren van emails")
+@Tag(name = "EmailVerificatie", description = "Endpoints voor het verifiëren van emails")
 public class EmailVerificatieController {
 
     @Inject
