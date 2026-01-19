@@ -1,108 +1,15 @@
-# profiel-service
+# Profiel Service
 ![Project Pre-Alpha Status](https://img.shields.io/badge/life_cycle-pre_alpha-red)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/MinBZK/moza-profiel-service/badge)](https://scorecard.dev/viewer/?uri=github.com/MinBZK/moza-profiel-service)
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+De Profiel Service stelt burgers en ondernemers in staat om op één vertrouwde plek hun contactgegevens en communicatievoorkeuren te beheren, en biedt overheidsinstanties via federatieve koppelingen veilige, actuele en herbruikbare profielinformatie voor persoonlijke en efficiënte dienstverlening.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+Documentatie over de Profiel Service is te vinden op [de documentatie website van MijnOverheidZakelijk](https://docs.mijnoverheidzakelijk.nl/workspace/documentation/Profiel%20Service).
 
-## Running the application in dev mode
+## Quarkus
+Dit project draait op Quarkus. Meer informatie hierover staat in [quarkus.md](quarkus.md)
 
-You can run your application in dev mode that enables live coding using:
-
-```shell script
-./mvnw quarkus:dev
-```
-
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
-
-## Packaging and running the application
-
-The application can be packaged using:
-
-```shell script
-./mvnw package
-```
-
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
-
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
-
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
-```
-
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Dnative
-```
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
-
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/profiel-service-1.0.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
-
-## Related Guides
-
-- REST ([guide](https://quarkus.io/guides/rest)): A Jakarta REST implementation utilizing build time processing and Vert.x. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it.
-- SmallRye OpenAPI ([guide](https://quarkus.io/guides/openapi-swaggerui)): Document your REST APIs with OpenAPI - comes with Swagger UI
-- OpenAPI Generator - REST Server Generator ([guide](https://docs.quarkiverse.io/quarkus-openapi-generator/dev/index.html)): Provides personalized code generation to get started in a Server project 
-
-## Provided Code
-
-### OpenAPI Generator Server
-
-This codestart generates a simple API with OpenAPI documentation.
-
-[Related guide section...](https://docs.quarkiverse.io/quarkus-openapi-generator/dev/server.html)
-
-## Requirements
-
-If you do not have added the `io.quarkus:quarkus-smallrye-openapi` extension in your project, add it first:
-
-### SmallRye OpenAPI:
-
-Quarkus CLI:
-
-```bash
-quarkus ext add io.quarkus:quarkus-smallrye-openapi
-```
-
-Maven:
-```bash
-./mvnw quarkus:add-extension -Dextensions="io.quarkus:quarkus-smallrye-openapi"
-```
-
-Gradle:
-
-```bash
-./gradlew addExtension --extensions="io.quarkus:quarkus-smallrye-openapi"
-```
-### REST
-
-Easily start your REST Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started-reactive#reactive-jax-rs-resources)
-
----
+## Configuratie
 In de application.properties file staat een notifyNl gedeelte, deze moeten worden gevuld met information van https://admin.notifynl.nl/ vraag de developers van dit project voor deze gegevens.
 
-Plaats deze gegevens vervolgens NIET in de application.properties file maar maak een file /src/main/resources/application-dev.properties aan en zet de values hier in. Deze file staat in de gitignore.
-
----
-In de application.properties file staat een notifyNl gedeelte, deze moeten worden gevuld met information van https://admin.notifynl.nl/ vraag de developers van dit project voor deze gegevens.
-
-Plaats deze gegevens vervolgens NIET in de application.properties file maar maak een file /src/main/resources/application-dev.properties aan en zet de values hier in. Deze file staat in de gitignore.
+Plaats deze gegevens vervolgens NIET in de `application.properties` file maar maak een file `/src/main/resources/application-dev.properties` aan en zet de values hier in. Deze file staat in de `.gitignore`.
