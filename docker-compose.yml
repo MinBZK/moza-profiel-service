@@ -15,6 +15,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+    - "8123:8123"
+    environment:
+      CLICKHOUSE_USER: "user"
+      CLICKHOUSE_PASSWORD: "password"
+      CLICKHOUSE_DB: "ldv_logging"
 volumes:
   postgres_data:
