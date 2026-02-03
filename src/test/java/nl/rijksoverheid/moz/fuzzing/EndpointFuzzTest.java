@@ -19,10 +19,16 @@ public class EndpointFuzzTest {
     public void fuzzGetPartij(FuzzedDataProvider data) {
         String identificatieType = data.pickValue(new String[]{"BSN", "KVK", "RSIN", "INVALID"});
         String identificatieNummer = data.consumeString(20);
+        String dienstverlener = data.consumeString(50);
+        String oin = data.consumeString(20);
+        String afdelingBeschrijving = data.consumeString(100);
 
         RestAssured.given()
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
+                .queryParam("dienstverlener", dienstverlener)
+                .queryParam("oin", oin)
+                .queryParam("afdelingBeschrijving", afdelingBeschrijving)
                 .when()
                 .get("/api/profielservice/v1/{identificatieType}/{identificatieNummer}")
                 .then()

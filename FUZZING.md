@@ -70,8 +70,9 @@ To satisfy the [GitHub Scorecard](https://github.com/ossf/scorecard) "Fuzzing" r
 
 1.  **ClusterFuzzLite**: We have integrated ClusterFuzzLite via GitHub Actions (see `.clusterfuzzlite/` and `.github/workflows/cflite_*.yml`).
 2.  **Continuous Testing**: 
-    -   **PR Mode**: Every pull request triggers a short fuzzing session (5 minutes) to catch regressions before they are merged.
+    -   **PR Mode**: Every pull request triggers a short fuzzing session (5 minutes) to catch regressions before they are merged. This is configured to run on all pull requests regardless of the source or target branch.
     -   **Batch Mode**: A longer daily fuzzing session (1 hour) runs on the `main` branch to discover deeper issues.
+    -   **Manual Trigger**: Fuzzing workflows can also be triggered manually via the GitHub Actions "Run workflow" button.
 3.  **Scorecard Recognition**: By having these workflows in place and running them, the OpenSSF Scorecard will recognize that the project is being actively fuzzed, which improves our security score.
 
 ### Configuration
