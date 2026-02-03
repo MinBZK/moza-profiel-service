@@ -1,0 +1,17 @@
+name: ClusterFuzzLite - Build
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions: read-all
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build Fuzzers
+        uses: google/clusterfuzzlite/actions/build_fuzzers@v1

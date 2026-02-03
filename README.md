@@ -69,6 +69,12 @@ This codestart generates a simple API with OpenAPI documentation.
 
 [Related guide section...](https://docs.quarkiverse.io/quarkus-openapi-generator/dev/server.html)
 
+## Fuzz Testing
+
+We have implemented fuzz testing to boost the security of our REST endpoints. 
+
+For detailed information on how to run and extend fuzz tests, please see [FUZZING.md](FUZZING.md).
+
 ## Requirements
 
 If you do not have added the `io.quarkus:quarkus-smallrye-openapi` extension in your project, add it first:
