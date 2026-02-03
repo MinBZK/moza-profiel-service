@@ -1,10 +1,9 @@
 #!/bin/bash -eu
 
-# Build the project
-$MVN package -DskipTests -Dquarkus.package.jar.type=uber-jar
-
 # The uber-jar will be in target/
 # We need to find the name of the jar
+# We run package early to ensure JAR_FILE can be found
+$MVN package -DskipTests -Dquarkus.package.jar.type=uber-jar
 JAR_FILE=$(ls target/profiel-service-*-runner.jar || ls target/profiel-service-*.jar | grep -v "sources" | head -n 1)
 
 # Copy the jar and all test classes to a location where we can pack them
