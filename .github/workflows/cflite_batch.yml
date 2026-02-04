@@ -1,14 +1,12 @@
-name: ClusterFuzzLite PR
+name: ClusterFuzzLite Batch
 on:
-  pull_request:
-    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *' # Daily at midnight
+  workflow_dispatch:
 permissions: read-all
 jobs:
-  PR:
+  Batch:
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -21,5 +19,5 @@ jobs:
       uses: google/clusterfuzzlite/actions/run_fuzzers@v1
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        fuzz-seconds: 300
-        mode: 'pr'
+        fuzz-seconds: 3600
+        mode: 'batch'

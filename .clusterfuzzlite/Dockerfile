@@ -1,7 +1,6 @@
-FROM gcr.io/oss-fuzz-base/base-builder-jvm:v1
+FROM gcr.io/oss-fuzz-base/base-builder:v1
+RUN apt-get update && apt-get install -y openjdk-21-jdk
 COPY . $SRC/moza-profiel-service
-WORKDIR $SRC/moza-profiel-service
-RUN echo "PWD:" && pwd && \
-    echo "FILES:" && ls -la
-
-COPY build.sh $SRC/build.sh
+WORKDIR moza-profiel-service
+RUN chmod +x mvnw
+COPY .clusterfuzzlite/build.sh $SRC/

@@ -1,14 +1,12 @@
-name: ClusterFuzzLite PR
+name: ClusterFuzzLite Cron
 on:
-  pull_request:
-    branches: [ main ]
+  schedule:
+    - cron: '0 12 * * *' # Daily at noon
+  workflow_dispatch:
 permissions: read-all
 jobs:
-  PR:
+  Cron:
     runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -21,5 +19,11 @@ jobs:
       uses: google/clusterfuzzlite/actions/run_fuzzers@v1
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        fuzz-seconds: 300
-        mode: 'pr'
+        fuzz-seconds: 600
+        mode: 'coverage'
+    - name: Run Fuzzers (Pruning)
+      uses: google/clusterfuzzlite/actions/run_fuzzers@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        fuzz-seconds: 600
+        mode: 'pruning'
