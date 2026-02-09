@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.fuzzing;
 
+import com.code_intelligence.jazzer.api.BugDetectors;
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -23,8 +24,8 @@ public class EndpointFuzzer {
     private static final String BASE = "http://localhost:8081/api/profielservice/v1";
 
     public static void fuzzerTestOneInput(FuzzedDataProvider data) {
-        int endpoint = data.consumeInt(0, 10);
-        try {
+        try (var ignored = BugDetectors.allowNetworkConnections()) {
+            int endpoint = data.consumeInt(0, 10);
             switch (endpoint) {
                 case 0 -> fuzzGetPartij(data);
                 case 1 -> fuzzAddContactgegeven(data);
