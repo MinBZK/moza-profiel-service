@@ -1,39 +1,51 @@
 #!/bin/bash -eu
 
-# Build the project
-# We use -DskipTests because we only want to compile everything, not run tests yet.
-./mvnw package -DskipTests -B
+# Build the project (compiles everything including tests, but doesn't run them)
+./mvnw package -DskipTests -Djacoco.skip=true -B
 
-# Copy dependencies to $OUT/lib
+# Copy all dependencies to $OUT/lib
 mkdir -p $OUT/lib
 ./mvnw dependency:copy-dependencies -DoutputDirectory=$OUT/lib -B
 
-# Copy the project's own jars
-cp target/*.jar $OUT/lib/
-
-# Copy classes and test-classes
+# Copy compiled application and test classes
 cp -r target/classes $OUT/classes
 cp -r target/test-classes $OUT/test-classes
 
-# Find all @FuzzTest methods in EndpointFuzzTest
-# This assumes the file structure is consistent
-METHODS=$(grep "@FuzzTest" src/test/java/nl/rijksoverheid/moz/fuzzing/EndpointFuzzTest.java -A 1 | grep "public void" | sed 's/.*void \([^( ]*\).*/\1/')
+# Copy JDK 21 runtime for the fuzzer runner container
+# (required because the project targets Java 21, but the CFL runner ships an older JDK)
+mkdir -p $OUT/jdk
+cp -r $JAVA_HOME/lib  $OUT/jdk/
+cp -r $JAVA_HOME/conf $OUT/jdk/ 2>/dev/null || true
 
-for method in $METHODS; do
-  fuzzer_name="EndpointFuzzTest_$method"
-  
-  echo "Creating wrapper for $fuzzer_name"
-  
-  # Create a wrapper script
-  # We use /out/ because that's where $OUT is mapped in the runner container
-  cat << EOF > $OUT/$fuzzer_name
+# Create a wrapper script for every standalone fuzzer
+# (classes that define the static fuzzerTestOneInput method expected by jazzer_driver)
+for fuzzer in $(grep -rl "fuzzerTestOneInput" src/test/java/ || true); do
+  class_name=$(echo "$fuzzer" | sed 's|src/test/java/||;s|\.java$||;s|/|.|g')
+  simple_name=$(basename -s .java "$fuzzer")
+
+  echo "Creating fuzzer wrapper: $simple_name -> $class_name"
+
+  # Quoted heredoc: no variable expansion; TARGET_CLASS is replaced by sed below
+  cat > "$OUT/$simple_name" << 'WRAPPER_EOF'
 #!/bin/bash
-CLASSPATH="/out/test-classes:/out/classes:/out/lib/*"
-jazzer \\
-  --cp=\$CLASSPATH \\
-  --target_class=com.code_intelligence.jazzer.junit.JazzerJUnitRunner \\
-  --target_args=nl.rijksoverheid.moz.fuzzing.EndpointFuzzTest::$method \\
-  \$@
-EOF
-  chmod +x $OUT/$fuzzer_name
+this_dir=$(dirname "$0")
+export JAVA_HOME="$this_dir/jdk"
+
+# Build classpath from compiled classes and all dependency jars
+CP="$this_dir/test-classes:$this_dir/classes"
+for jar in "$this_dir"/lib/*.jar; do
+  CP="$CP:$jar"
+done
+
+LD_LIBRARY_PATH="$this_dir/jdk/lib/server:$this_dir/jdk/lib:$this_dir" \
+"$this_dir/jazzer_driver" \
+  --agent_path="$this_dir/jazzer_agent_deploy.jar" \
+  --cp="$CP" \
+  --target_class=TARGET_CLASS_PLACEHOLDER \
+  --jvm_args="-Xmx2048m" \
+  "$@"
+WRAPPER_EOF
+
+  sed -i "s|TARGET_CLASS_PLACEHOLDER|$class_name|" "$OUT/$simple_name"
+  chmod +x "$OUT/$simple_name"
 done
