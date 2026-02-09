@@ -15,6 +15,7 @@ jobs:
       uses: google/clusterfuzzlite/actions/build_fuzzers@v1
       with:
         language: jvm
+        github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Run Fuzzers
       uses: google/clusterfuzzlite/actions/run_fuzzers@v1
       with:
