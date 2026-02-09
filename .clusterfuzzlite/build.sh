@@ -26,8 +26,10 @@ for fuzzer in $(grep -rl "fuzzerTestOneInput" src/test/java/ || true); do
   echo "Creating fuzzer wrapper: $simple_name -> $class_name"
 
   # Quoted heredoc: no variable expansion; TARGET_CLASS is replaced by sed below
+  # The LLVMFuzzerTestOneInput comment is required for CFL's fuzz target detection
   cat > "$OUT/$simple_name" << 'WRAPPER_EOF'
 #!/bin/bash
+# LLVMFuzzerTestOneInput for jvm
 this_dir=$(dirname "$0")
 export JAVA_HOME="$this_dir/jdk"
 
