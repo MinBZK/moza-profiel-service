@@ -26,4 +26,4 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         fuzz-seconds: 600
-        mode: 'pruning'
+        mode: 'prune'
