@@ -1,8 +1,7 @@
 #!/bin/bash -eu
 
-# Build the project targeting Java 17 bytecode so the CFL runner's JDK 17 can execute it.
-# The source code has no Java 21-specific features; only the pom.xml default targets 21.
-./mvnw package -DskipTests -Djacoco.skip=true -Dmaven.compiler.release=17 -B
+# Build the project (compiles everything including tests, but doesn't run them)
+./mvnw package -DskipTests -Djacoco.skip=true -B
 
 # Copy all dependencies to $OUT/lib
 mkdir -p $OUT/lib
@@ -11,6 +10,21 @@ mkdir -p $OUT/lib
 # Copy compiled application and test classes
 cp -r target/classes $OUT/classes
 cp -r target/test-classes $OUT/test-classes
+
+# Copy JDK 21 runtime to $OUT so the runner can execute Java 21 bytecode.
+# The project requires Java 21 (dependency compiled with class version 65).
+# We copy lib/ (libjvm.so + modules) and conf/ (java.security) so that
+# java.home derived from libjvm.so's location resolves correctly.
+mkdir -p $OUT/jdk
+cp -r "$JAVA_HOME/lib"  "$OUT/jdk/"
+cp -r "$JAVA_HOME/conf" "$OUT/jdk/"
+
+# Verify the critical java.security file was copied
+if [ ! -f "$OUT/jdk/conf/security/java.security" ]; then
+  echo "ERROR: java.security not found at $OUT/jdk/conf/security/java.security"
+  ls -laR "$OUT/jdk/conf/" 2>&1 || true
+  exit 1
+fi
 
 # Create a wrapper script for every standalone fuzzer
 # (classes that define the static fuzzerTestOneInput method expected by jazzer_driver)
@@ -27,13 +41,18 @@ for fuzzer in $(grep -rl "fuzzerTestOneInput" src/test/java/ || true); do
 # LLVMFuzzerTestOneInput for jvm
 this_dir=$(dirname "$0")
 
+# Point JAVA_HOME and LD_LIBRARY_PATH at the bundled JDK 21 so that
+# jazzer_driver loads *our* libjvm.so (not the runner's JDK 17).
+export JAVA_HOME="$this_dir/jdk"
+export LD_LIBRARY_PATH="$this_dir/jdk/lib/server:$this_dir/jdk/lib:${LD_LIBRARY_PATH:-}"
+
 # Build classpath from compiled classes and all dependency jars
 CP="$this_dir/test-classes:$this_dir/classes"
 for jar in "$this_dir"/lib/*.jar; do
   CP="$CP:$jar"
 done
 
-"$this_dir/jazzer_driver_with_sanitizer" \
+"$this_dir/jazzer_driver" \
   --agent_path="$this_dir/jazzer_agent_deploy.jar" \
   --cp="$CP" \
   --target_class=TARGET_CLASS_PLACEHOLDER \
