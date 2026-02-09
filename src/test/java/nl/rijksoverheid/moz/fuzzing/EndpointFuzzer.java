@@ -22,7 +22,15 @@ public class EndpointFuzzer {
     private static final HttpClient client;
     private static final String BASE = "http://localhost:8081/api/profielservice/v1";
 
+    // Keep reference to prevent GC; allows network connections for the main thread
+    // (covers both the readiness check and all fuzzerTestOneInput calls).
+    @SuppressWarnings("unused")
+    private static final AutoCloseable networkAllowed;
+
     static {
+        // Must be called before any HTTP connection to avoid Jazzer's SSRF sanitizer
+        networkAllowed = BugDetectors.allowNetworkConnections();
+
         // Configure Quarkus for fuzzing: H2 database, dummy external services
         System.setProperty("quarkus.http.port", "8081");
         System.setProperty("quarkus.log.level", "WARN");
@@ -55,8 +63,8 @@ public class EndpointFuzzer {
     }
 
     public static void fuzzerTestOneInput(FuzzedDataProvider data) {
-        try (var ignored = BugDetectors.allowNetworkConnections()) {
-            int endpoint = data.consumeInt(0, 10);
+        int endpoint = data.consumeInt(0, 10);
+        try {
             switch (endpoint) {
                 case 0 -> fuzzGetPartij(data);
                 case 1 -> fuzzAddContactgegeven(data);
