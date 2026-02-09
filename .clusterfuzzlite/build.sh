@@ -11,20 +11,11 @@ mkdir -p $OUT/lib
 cp -r target/classes $OUT/classes
 cp -r target/test-classes $OUT/test-classes
 
-# Copy JDK 21 runtime to $OUT so the runner can execute Java 21 bytecode.
-# The project requires Java 21 (dependency compiled with class version 65).
-# We copy lib/ (libjvm.so + modules) and conf/ (java.security) so that
-# java.home derived from libjvm.so's location resolves correctly.
-mkdir -p $OUT/jdk
-cp -r "$JAVA_HOME/lib"  "$OUT/jdk/"
-cp -r "$JAVA_HOME/conf" "$OUT/jdk/"
-
-# Verify the critical java.security file was copied
-if [ ! -f "$OUT/jdk/conf/security/java.security" ]; then
-  echo "ERROR: java.security not found at $OUT/jdk/conf/security/java.security"
-  ls -laR "$OUT/jdk/conf/" 2>&1 || true
-  exit 1
-fi
+# Bundle the ENTIRE JDK 21 runtime to $OUT so the runner can execute Java 21 bytecode.
+# Uses rsync -aL to dereference symlinks (critical for JDK directory structure).
+# Pattern taken from the oss-fuzz tomcat project.
+mkdir -p "$OUT/open-jdk-21"
+rsync -aL --exclude='*.zip' "$JAVA_HOME/" "$OUT/open-jdk-21/"
 
 # Create a wrapper script for every standalone fuzzer
 # (classes that define the static fuzzerTestOneInput method expected by jazzer_driver)
@@ -41,10 +32,11 @@ for fuzzer in $(grep -rl "fuzzerTestOneInput" src/test/java/ || true); do
 # LLVMFuzzerTestOneInput for jvm
 this_dir=$(dirname "$0")
 
-# Point JAVA_HOME and LD_LIBRARY_PATH at the bundled JDK 21 so that
-# jazzer_driver loads *our* libjvm.so (not the runner's JDK 17).
-export JAVA_HOME="$this_dir/jdk"
-export LD_LIBRARY_PATH="$this_dir/jdk/lib/server:$this_dir/jdk/lib:${LD_LIBRARY_PATH:-}"
+if [[ "$@" =~ (^| )-runs=[0-9]+($| ) ]]; then
+  mem_settings='-Xmx1900m:-Xss900k'
+else
+  mem_settings='-Xmx2048m:-Xss1024k'
+fi
 
 # Build classpath from compiled classes and all dependency jars
 CP="$this_dir/test-classes:$this_dir/classes"
@@ -52,11 +44,16 @@ for jar in "$this_dir"/lib/*.jar; do
   CP="$CP:$jar"
 done
 
+# Set JAVA_HOME and LD_LIBRARY_PATH inline so jazzer_driver loads
+# the bundled JDK 21 libjvm.so (not the runner's JDK 17).
+# Pattern taken from the oss-fuzz tomcat project.
+JAVA_HOME="$this_dir/open-jdk-21" \
+LD_LIBRARY_PATH="$this_dir/open-jdk-21/lib/server":"$this_dir" \
 "$this_dir/jazzer_driver" \
   --agent_path="$this_dir/jazzer_agent_deploy.jar" \
   --cp="$CP" \
   --target_class=TARGET_CLASS_PLACEHOLDER \
-  --jvm_args="-Xmx2048m" \
+  --jvm_args="$mem_settings" \
   "$@"
 WRAPPER_EOF
 
