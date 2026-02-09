@@ -1,7 +1,8 @@
 #!/bin/bash -eu
 
-# Build the project (compiles everything including tests, but doesn't run them)
-./mvnw package -DskipTests -Djacoco.skip=true -B
+# Build the project targeting Java 17 bytecode so the CFL runner's JDK 17 can execute it.
+# The source code has no Java 21-specific features; only the pom.xml default targets 21.
+./mvnw package -DskipTests -Djacoco.skip=true -Dmaven.compiler.release=17 -B
 
 # Copy all dependencies to $OUT/lib
 mkdir -p $OUT/lib
@@ -10,12 +11,6 @@ mkdir -p $OUT/lib
 # Copy compiled application and test classes
 cp -r target/classes $OUT/classes
 cp -r target/test-classes $OUT/test-classes
-
-# Copy JDK 21 runtime for the fuzzer runner container
-# (required because the project targets Java 21, but the CFL runner ships an older JDK)
-mkdir -p $OUT/jdk
-cp -r $JAVA_HOME/lib  $OUT/jdk/
-cp -r $JAVA_HOME/conf $OUT/jdk/ 2>/dev/null || true
 
 # Create a wrapper script for every standalone fuzzer
 # (classes that define the static fuzzerTestOneInput method expected by jazzer_driver)
@@ -31,7 +26,6 @@ for fuzzer in $(grep -rl "fuzzerTestOneInput" src/test/java/ || true); do
 #!/bin/bash
 # LLVMFuzzerTestOneInput for jvm
 this_dir=$(dirname "$0")
-export JAVA_HOME="$this_dir/jdk"
 
 # Build classpath from compiled classes and all dependency jars
 CP="$this_dir/test-classes:$this_dir/classes"
@@ -39,8 +33,7 @@ for jar in "$this_dir"/lib/*.jar; do
   CP="$CP:$jar"
 done
 
-LD_LIBRARY_PATH="$this_dir/jdk/lib/server:$this_dir/jdk/lib:$this_dir" \
-"$this_dir/jazzer_driver" \
+"$this_dir/jazzer_driver_with_sanitizer" \
   --agent_path="$this_dir/jazzer_agent_deploy.jar" \
   --cp="$CP" \
   --target_class=TARGET_CLASS_PLACEHOLDER \
