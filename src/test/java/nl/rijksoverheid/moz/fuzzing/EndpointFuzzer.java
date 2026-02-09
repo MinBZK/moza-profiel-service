@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.fuzzing;
 
 import com.code_intelligence.jazzer.api.BugDetectors;
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
+import io.quarkus.runtime.Quarkus;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -12,16 +13,46 @@ import java.time.Duration;
 
 /**
  * Standalone fuzz target for ClusterFuzzLite.
- * Fuzzes all REST endpoints via HTTP against a running Quarkus instance.
- * The wrapper script starts Quarkus with an in-memory H2 database before
- * launching jazzer_driver.
+ * Starts Quarkus in-process (same JVM as Jazzer) with H2 in-memory database,
+ * so Jazzer can instrument all endpoint/service/repository code for
+ * coverage-guided fuzzing of the REST API.
  */
 public class EndpointFuzzer {
 
-    private static final HttpClient client = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(5))
-        .build();
+    private static final HttpClient client;
     private static final String BASE = "http://localhost:8081/api/profielservice/v1";
+
+    static {
+        // Configure Quarkus for fuzzing: H2 database, dummy external services
+        System.setProperty("quarkus.http.port", "8081");
+        System.setProperty("quarkus.log.level", "WARN");
+        System.setProperty("quarkus.rest-client.basisprofiel-api.url", "http://localhost:9999");
+        System.setProperty("quarkus.rest-client.email-api.url", "http://localhost:9999");
+
+        // Start Quarkus on a background thread (Quarkus.run blocks)
+        Thread quarkusThread = new Thread(() -> Quarkus.run(new String[]{}));
+        quarkusThread.setDaemon(true);
+        quarkusThread.start();
+
+        // Wait for the HTTP server to accept connections
+        client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+        boolean ready = false;
+        for (int i = 0; i < 120; i++) {
+            try {
+                Thread.sleep(250);
+                client.send(
+                    HttpRequest.newBuilder().uri(URI.create("http://localhost:8081/")).GET().build(),
+                    HttpResponse.BodyHandlers.discarding());
+                ready = true;
+                break;
+            } catch (Exception e) {
+                // Not ready yet
+            }
+        }
+        if (!ready) {
+            throw new RuntimeException("Quarkus failed to start within 30 seconds");
+        }
+    }
 
     public static void fuzzerTestOneInput(FuzzedDataProvider data) {
         try (var ignored = BugDetectors.allowNetworkConnections()) {
