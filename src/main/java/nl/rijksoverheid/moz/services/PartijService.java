@@ -116,6 +116,14 @@ public class PartijService {
         contact.setWaarde(request.waarde);
         contact.setAfdeling(Afdeling.findById((request.afdelingId)));
 
+        if (request.type == ContactType.Email) {
+            //todo bepaal wat we doen als het versturen van een verificatie code mislukt
+            emailVerificatieService.requestEmailVerificationCode(request.waarde);
+        }
+
+        contact.setGeverifieerdAt(null);
+
+
         return true;
     }
 
