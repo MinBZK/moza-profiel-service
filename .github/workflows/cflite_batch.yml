@@ -1,0 +1,24 @@
+name: ClusterFuzzLite Batch
+on:
+  schedule:
+    - cron: '0 0 * * 6' # Every week on saturday at midnight
+  workflow_dispatch:
+permissions: read-all
+jobs:
+  Batch:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Build Fuzzers
+      id: build
+      uses: google/clusterfuzzlite/actions/build_fuzzers@v1
+      with:
+        language: jvm
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Run Fuzzers
+      uses: google/clusterfuzzlite/actions/run_fuzzers@v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        fuzz-seconds: 3600
+        mode: 'batch'

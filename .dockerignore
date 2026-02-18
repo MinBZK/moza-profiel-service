@@ -1,4 +1,13 @@
 *
+
+# ClusterFuzzLite Docker build (see .clusterfuzzlite/Dockerfile)
+!.clusterfuzzlite/*
+!src/**
+!pom.xml
+!mvnw
+!.mvn/**
+
+# Quarkus production Docker builds (see src/main/docker/)
 !target/*-runner
 !target/*-runner.jar
 !target/lib/*
