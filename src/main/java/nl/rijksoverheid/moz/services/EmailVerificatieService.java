@@ -92,7 +92,6 @@ public class EmailVerificatieService {
 
         try {
             VerificationRequestsPost201Response res = emailVerificatieApi.verificationRequestsPost(request);
-
             if (res != null) {
                 boolean success = res.getSuccess();
                 if (!success) {

@@ -2,6 +2,8 @@ package nl.rijksoverheid.moz.fuzzing;
 
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import com.code_intelligence.jazzer.junit.FuzzTest;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
@@ -9,6 +11,8 @@ import org.junit.jupiter.api.BeforeAll;
 
 @QuarkusTest
 public class EndpointFuzzTest {
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeAll
     public static void setup() {
@@ -45,16 +49,13 @@ public class EndpointFuzzTest {
         String type = data.consumeString(10);
         String waarde = data.consumeString(50);
 
-        String body = String.format("""
-                {
-                  "type": "%s",
-                  "waarde": "%s"
-                }
-                """, type, waarde);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("type", type);
+        body.put("waarde", waarde);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .when()
@@ -72,18 +73,15 @@ public class EndpointFuzzTest {
         String waarde = data.consumeString(50);
         long afdelingId = data.consumeLong();
 
-        String body = String.format("""
-                {
-                  "id": %d,
-                  "type": "%s",
-                  "waarde": "%s",
-                  "afdelingId": %d
-                }
-                """, id, type, waarde, afdelingId);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("id", id);
+        body.put("type", type);
+        body.put("waarde", waarde);
+        body.put("afdelingId", afdelingId);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .when()
@@ -115,16 +113,13 @@ public class EndpointFuzzTest {
         String voorkeurType = data.consumeString(10);
         String waarde = data.consumeString(50);
 
-        String body = String.format("""
-                {
-                  "voorkeurType": "%s",
-                  "waarde": "%s"
-                }
-                """, voorkeurType, waarde);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("voorkeurType", voorkeurType);
+        body.put("waarde", waarde);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .when()
@@ -141,17 +136,14 @@ public class EndpointFuzzTest {
         String voorkeurType = data.consumeString(10);
         String waarde = data.consumeString(50);
 
-        String body = String.format("""
-                {
-                  "id": %d,
-                  "voorkeurType": "%s",
-                  "waarde": "%s"
-                }
-                """, id, voorkeurType, waarde);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("id", id);
+        body.put("voorkeurType", voorkeurType);
+        body.put("waarde", waarde);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .when()
@@ -193,16 +185,13 @@ public class EndpointFuzzTest {
         String naam = data.consumeString(50);
         String oin = data.consumeString(20);
 
-        String body = String.format("""
-                {
-                  "naam": "%s",
-                  "oin": "%s"
-                }
-                """, naam, oin);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("naam", naam);
+        body.put("oin", oin);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .when()
                 .post("/api/profielservice/v1/dienstverlener/")
                 .then()
@@ -214,15 +203,12 @@ public class EndpointFuzzTest {
         String dienstverlenerNaam = data.consumeString(50);
         String beschrijving = data.consumeString(100);
 
-        String body = String.format("""
-                {
-                  "beschrijving": "%s"
-                }
-                """, beschrijving);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("beschrijving", beschrijving);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .pathParam("DienstverlenerNaam", dienstverlenerNaam)
                 .when()
                 .post("/api/profielservice/v1/dienstverlener/{DienstverlenerNaam}/afdelingen")
@@ -237,18 +223,15 @@ public class EndpointFuzzTest {
         String identificatieType = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String verificatieCode = data.consumeString(10);
 
-        String body = String.format("""
-                {
-                  "email": "%s",
-                  "identificatieNummer": "%s",
-                  "identificatieType": "%s",
-                  "verificatieCode": "%s"
-                }
-                """, email, identificatieNummer, identificatieType, verificatieCode);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("email", email);
+        body.put("identificatieNummer", identificatieNummer);
+        body.put("identificatieType", identificatieType);
+        body.put("verificatieCode", verificatieCode);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
-                .body(body)
+                .body(body.toString())
                 .when()
                 .post("/api/profielservice/v1/emailverificatie")
                 .then()
