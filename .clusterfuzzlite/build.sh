@@ -64,7 +64,7 @@ trap "kill $QUARKUS_PID 2>/dev/null || true" EXIT
 
 # Wait for Quarkus to accept connections (up to 20 seconds)
 for i in $(seq 1 80); do
-  if curl -s -o /dev/null http://localhost:8081/ 2>/dev/null; then
+  if curl -sf -o /dev/null http://localhost:8081/ 2>/dev/null; then
     break
   fi
   sleep 0.25
