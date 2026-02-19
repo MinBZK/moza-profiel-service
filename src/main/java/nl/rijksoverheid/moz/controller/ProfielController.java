@@ -74,7 +74,7 @@ public class ProfielController {
                     description = "Partij niet gevonden of is verwijderd"
             )
     })
-    @Logboek(name= "getPartij", processingActivityId = "028")
+    @Logboek(name= "getPartij", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/028")
     public Response getPartij(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -115,7 +115,7 @@ public class ProfielController {
                     description = "Contactgegeven succesvol toegevoegd"
             )
     })
-    @Logboek(name= "addContactgegeven", processingActivityId = "142")
+    @Logboek(name= "addContactgegeven", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/142")
     public Response addContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -152,7 +152,7 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
-    @Logboek(name= "updateContactgegeven", processingActivityId = "367")
+    @Logboek(name= "updateContactgegeven", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/367")
     public Response updateContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -191,7 +191,7 @@ public class ProfielController {
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
-    @Logboek(name= "deleteContactgegeven", processingActivityId = "591")
+    @Logboek(name= "deleteContactgegeven", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/591")
     public Response deleteContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -232,7 +232,7 @@ public class ProfielController {
                     description = "Voorkeur succesvol toegevoegd"
             )
     })
-    @Logboek(name= "addVoorkeur", processingActivityId = "824")
+    @Logboek(name= "addVoorkeur", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/824")
     public Response addVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -269,7 +269,7 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
-    @Logboek(name= "updateVoorkeur", processingActivityId = "256")
+    @Logboek(name= "updateVoorkeur", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/256")
     public Response updateVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
@@ -308,7 +308,7 @@ public class ProfielController {
             @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
-    @Logboek(name= "deleteVoorkeur", processingActivityId = "478")
+    @Logboek(name= "deleteVoorkeur", processingActivityId = "https://profiel.mijnoverheidzakelijk.nl/processingActivityId/478")
     public Response deleteVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
