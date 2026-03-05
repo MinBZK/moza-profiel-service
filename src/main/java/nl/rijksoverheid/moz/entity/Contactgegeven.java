@@ -34,6 +34,9 @@ public class Contactgegeven extends PanacheEntity {
     @Nullable
     private LocalDateTime geverifieerdAt;
 
+    @Nullable
+    private String verificatieReferentieId;
+
     public Partij getPartij() {
         return partij;
     }
@@ -73,5 +76,14 @@ public class Contactgegeven extends PanacheEntity {
 
     public void setGeverifieerdAt(@Nullable LocalDateTime geverifieerdAt) {
         this.geverifieerdAt = geverifieerdAt;
+    }
+
+    @Nullable
+    public String getVerificatieReferentieId() {
+        return verificatieReferentieId;
+    }
+
+    public void setVerificatieReferentieId(@Nullable String verificatieReferentieId) {
+        this.verificatieReferentieId = verificatieReferentieId;
     }
 }

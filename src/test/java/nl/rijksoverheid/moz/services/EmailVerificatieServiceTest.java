@@ -16,9 +16,8 @@ import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Voorkeur;
-import nl.rijksoverheid.moz.external.clients.email.api.DefaultApi;
-import nl.rijksoverheid.moz.external.clients.email.model.VerificationRequestsPost201Response;
-import nl.rijksoverheid.moz.external.clients.email.model.VerificationRequestsVerifyPost200Response;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -35,7 +34,7 @@ public class EmailVerificatieServiceTest {
 
     @InjectMock
     @RestClient
-    DefaultApi emailVerificatieApi;
+    VerificationControllerApi emailVerificatieApi;
 
     @AfterEach
     @Transactional
@@ -50,30 +49,19 @@ public class EmailVerificatieServiceTest {
 
     @Test
     void requestEmailVerificationCode_Success() {
-        VerificationRequestsPost201Response response = new VerificationRequestsPost201Response();
-        response.setSuccess(true);
-        Mockito.doReturn(response).when(emailVerificatieApi).verificationRequestsPost(Mockito.any());
+        String referenceId = "test-reference-id-123";
+        Mockito.doReturn(referenceId).when(emailVerificatieApi).requestPost(Mockito.any());
 
-        boolean result = service.requestEmailVerificationCode("email@email.com");
-        Assertions.assertTrue(result);
-    }
-
-    @Test
-    void requestEmailVerificationCode_UnsuccessResponse() {
-        VerificationRequestsPost201Response response = new VerificationRequestsPost201Response();
-        response.setSuccess(false);
-        Mockito.doReturn(response).when(emailVerificatieApi).verificationRequestsPost(Mockito.any());
-
-        boolean result = service.requestEmailVerificationCode("email@email.com");
-        Assertions.assertFalse(result);
+        String result = service.requestEmailVerificationCode("email@email.com");
+        Assertions.assertEquals(referenceId, result);
     }
 
     @Test
     void requestEmailVerificationCode_NullResponse() {
-        Mockito.doReturn(null).when(emailVerificatieApi).verificationRequestsPost(Mockito.any());
+        Mockito.doReturn(null).when(emailVerificatieApi).requestPost(Mockito.any());
 
-        boolean result = service.requestEmailVerificationCode("email@email.com");
-        Assertions.assertFalse(result);
+        String result = service.requestEmailVerificationCode("email@email.com");
+        Assertions.assertNull(result);
     }
 
     @Test
@@ -86,17 +74,17 @@ public class EmailVerificatieServiceTest {
         Mockito.when(mockResponse.readEntity(String.class)).thenReturn("Error message");
 
         WebApplicationException exception = new WebApplicationException(mockResponse);
-        Mockito.doThrow(exception).when(emailVerificatieApi).verificationRequestsPost(Mockito.any());
+        Mockito.doThrow(exception).when(emailVerificatieApi).requestPost(Mockito.any());
 
-        boolean result = service.requestEmailVerificationCode("email@email.com");
-        Assertions.assertFalse(result);
+        String result = service.requestEmailVerificationCode("email@email.com");
+        Assertions.assertNull(result);
     }
 
     @Test
     void requestEmailVerificationCode_Exception() {
-        Mockito.doThrow(new RuntimeException("Error message")).when(emailVerificatieApi).verificationRequestsPost(Mockito.any());
-        boolean result = service.requestEmailVerificationCode("email@email.com");
-        Assertions.assertFalse(result);
+        Mockito.doThrow(new RuntimeException("Error message")).when(emailVerificatieApi).requestPost(Mockito.any());
+        String result = service.requestEmailVerificationCode("email@email.com");
+        Assertions.assertNull(result);
     }
 
     @Test
@@ -164,13 +152,14 @@ public class EmailVerificatieServiceTest {
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("test-ref-id");
             contact.setPartij(partij);
             contact.persist();
         });
 
-        VerificationRequestsVerifyPost200Response response = new VerificationRequestsVerifyPost200Response();
-        response.setVerified(true);
-        Mockito.doReturn(response).when(emailVerificatieApi).verificationRequestsVerifyPost(Mockito.any());
+        VerificationResponse response = new VerificationResponse();
+        response.setSuccess(true);
+        Mockito.doReturn(response).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
         request.identificatieType = IdentificatieType.BSN;
@@ -181,7 +170,7 @@ public class EmailVerificatieServiceTest {
         boolean result = service.verifieerEmail(request);
         Assertions.assertTrue(result);
 
-        // Verify that the contact was marked as verified
+        // Verify that the contact was marked as verified and referenceId cleared
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Contactgegeven contact = partij.getContactgegevens().stream()
@@ -190,6 +179,7 @@ public class EmailVerificatieServiceTest {
                     .orElse(null);
             Assertions.assertNotNull(contact);
             Assertions.assertNotNull(contact.getGeverifieerdAt());
+            Assertions.assertNull(contact.getVerificatieReferentieId());
         });
     }
 
@@ -203,11 +193,12 @@ public class EmailVerificatieServiceTest {
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("test-ref-id");
             contact.setPartij(partij);
             contact.persist();
         });
 
-        Mockito.doReturn(null).when(emailVerificatieApi).verificationRequestsVerifyPost(Mockito.any());
+        Mockito.doReturn(null).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
         request.identificatieType = IdentificatieType.BSN;
@@ -220,7 +211,7 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
-    void verifieerEmail_ApiResponseVerifiedFalse() {
+    void verifieerEmail_ApiResponseSuccessFalse() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -229,13 +220,14 @@ public class EmailVerificatieServiceTest {
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("test-ref-id");
             contact.setPartij(partij);
             contact.persist();
         });
 
-        VerificationRequestsVerifyPost200Response response = new VerificationRequestsVerifyPost200Response();
-        response.setVerified(false);
-        Mockito.doReturn(response).when(emailVerificatieApi).verificationRequestsVerifyPost(Mockito.any());
+        VerificationResponse response = new VerificationResponse();
+        response.setSuccess(false);
+        Mockito.doReturn(response).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
         request.identificatieType = IdentificatieType.BSN;
@@ -257,6 +249,7 @@ public class EmailVerificatieServiceTest {
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("test-ref-id");
             contact.setPartij(partij);
             contact.persist();
         });
@@ -269,7 +262,7 @@ public class EmailVerificatieServiceTest {
         Mockito.when(mockResponse.readEntity(String.class)).thenReturn("Error message");
 
         WebApplicationException exception = new WebApplicationException(mockResponse);
-        Mockito.doThrow(exception).when(emailVerificatieApi).verificationRequestsVerifyPost(Mockito.any());
+        Mockito.doThrow(exception).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
         request.identificatieType = IdentificatieType.BSN;
@@ -291,11 +284,12 @@ public class EmailVerificatieServiceTest {
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("test-ref-id");
             contact.setPartij(partij);
             contact.persist();
         });
 
-        Mockito.doThrow(new RuntimeException("Unexpected error")).when(emailVerificatieApi).verificationRequestsVerifyPost(Mockito.any());
+        Mockito.doThrow(new RuntimeException("Unexpected error")).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
         request.identificatieType = IdentificatieType.BSN;

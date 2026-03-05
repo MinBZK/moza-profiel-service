@@ -8,10 +8,9 @@ import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.external.clients.email.api.DefaultApi;
-import nl.rijksoverheid.moz.external.clients.email.model.VerificationRequestsPost201Response;
-import nl.rijksoverheid.moz.external.clients.email.model.VerificationRequestsPostRequest;
-import nl.rijksoverheid.moz.external.clients.email.model.VerificationRequestsVerifyPostRequest;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationApplicationRequest;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationRequest;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
@@ -25,7 +24,7 @@ public class EmailVerificatieService {
 
     @Inject
     @RestClient
-    DefaultApi emailVerificatieApi;
+    VerificationControllerApi emailVerificatieApi;
 
     @ConfigProperty(name = "notifynl.emailverificatie.api-key")
     String apiKey;
@@ -55,16 +54,15 @@ public class EmailVerificatieService {
             return false;
         }
 
-        VerificationRequestsVerifyPostRequest request = new VerificationRequestsVerifyPostRequest();
-        request.setEmail(emailVerificatieRequest.email);
+        VerificationRequest request = new VerificationRequest();
+        request.setReferenceId(contact.getVerificatieReferentieId());
         request.setCode(emailVerificatieRequest.verificatieCode);
-        request.setReference(reference);
-
         try {
-            var response = emailVerificatieApi.verificationRequestsVerifyPost(request);
+            var response = emailVerificatieApi.verifyPost(request);
 
-            if (response != null && Boolean.TRUE.equals(response.getVerified())) {
+            if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
                 contact.setGeverifieerdAt(LocalDateTime.now());
+                contact.setVerificatieReferentieId(null);
                 LOG.infof("Email succesvol geverifieerd voor: %s", emailVerificatieRequest.email);
                 return true;
             }
@@ -83,30 +81,26 @@ public class EmailVerificatieService {
         }
     }
 
-    public boolean requestEmailVerificationCode(String email) {
-        VerificationRequestsPostRequest request = new VerificationRequestsPostRequest();
-        request.setEmail(email);
-        request.setApiKey(apiKey);
-        request.setTemplateId(templateId);
-        request.setReference(reference);
+    public String requestEmailVerificationCode(String email) {
+
+        VerificationApplicationRequest verificationApplicationRequest = new VerificationApplicationRequest();
+        verificationApplicationRequest.setApiKey(apiKey);
+        verificationApplicationRequest.setTemplateId(templateId);
+        verificationApplicationRequest.setEmail(email);
+
 
         try {
-            VerificationRequestsPost201Response res = emailVerificatieApi.verificationRequestsPost(request);
-            if (res != null) {
-                boolean success = res.getSuccess();
-                if (!success) {
-                    LOG.errorf("Email verificatie verzoek mislukt voor email: %s. Response success was false.", email);
-                }
-                return success;
+            String referenceId = emailVerificatieApi.requestPost(verificationApplicationRequest);
+            if (referenceId != null) {
+                return referenceId;
             }
+            LOG.errorf("Email verificatie verzoek mislukt voor email: %s. Response success was false.", email);
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
             LOG.errorf("NotifyNL API Error (%d) voor %s: %s", e.getResponse().getStatus(), email, errorBody);
-            return false;
         } catch (RuntimeException e) {
             LOG.error("Onverwachte fout tijdens aanvragen email verificatie: " + e.getMessage(), e);
-            return false;
         }
-        return false;
+        return null;
     }
 }
