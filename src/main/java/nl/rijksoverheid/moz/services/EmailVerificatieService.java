@@ -32,9 +32,6 @@ public class EmailVerificatieService {
     @ConfigProperty(name = "notifynl.emailverificatie.template-id")
     String templateId;
 
-    @ConfigProperty(name = "notifynl.emailverificatie.reference")
-    String reference;
-
     @Transactional
     public boolean verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
         Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.identificatieType, emailVerificatieRequest.identificatieNummer);
