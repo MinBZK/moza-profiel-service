@@ -73,7 +73,7 @@ public class PartijServiceTest {
             partij.persist();
         });
 
-        Mockito.doReturn(true).when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+        Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
         request.type = ContactType.Email;
@@ -87,6 +87,7 @@ public class PartijServiceTest {
             Assertions.assertNotNull(partij);
             Assertions.assertEquals(1, partij.getContactgegevens().size());
             Assertions.assertEquals("test@test.com", partij.getContactgegevens().get(0).getWaarde());
+            Assertions.assertEquals("test-ref-id", partij.getContactgegevens().get(0).getVerificatieReferentieId());
         });
     }
 
@@ -108,7 +109,7 @@ public class PartijServiceTest {
 
     @Test
     void addContactgegeven_EmailType_CallsVerificationService() {
-        Mockito.doReturn(true).when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+        Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
         request.type = ContactType.Email;
@@ -173,6 +174,8 @@ public class PartijServiceTest {
             contactId.set(contact.id);
         });
 
+        Mockito.doReturn("new-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
         request.id = contactId.get();
         request.type = ContactType.Email;
@@ -185,6 +188,7 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(contactId.get());
             Assertions.assertEquals("new@test.com", contact.getWaarde());
+            Assertions.assertEquals("new-ref-id", contact.getVerificatieReferentieId());
         });
     }
 
