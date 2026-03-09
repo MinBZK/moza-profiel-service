@@ -54,7 +54,8 @@ public class PartijService {
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
-            emailVerificatieService.requestEmailVerificationCode(request.waarde);
+            String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
+            contactgegeven.setVerificatieReferentieId(referenceId);
         }
 
         contactgegeven.setGeverifieerdAt(null);
@@ -118,7 +119,8 @@ public class PartijService {
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
-            emailVerificatieService.requestEmailVerificationCode(request.waarde);
+            String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
+            contact.setVerificatieReferentieId(referenceId);
         }
 
         contact.setGeverifieerdAt(null);
