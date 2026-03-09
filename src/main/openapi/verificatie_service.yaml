@@ -1,0 +1,93 @@
+---
+openapi: 3.1.0
+components:
+  schemas:
+    VerificationApplicationRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          pattern: \S
+        apiKey:
+          type: string
+        templateId:
+          type: string
+    VerificationFailureReason:
+      type: string
+      enum:
+        - CODE_NOT_FOUND
+        - CODE_EXPIRED
+        - CODE_ALREADY_USED
+        - INCORRECT_CODE
+      description: "Reason for verification failure. 1: Reference ID not found, 2:\
+        \ Code expired, 3: Code already used, 4: Incorrect code"
+    VerificationRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        referenceId:
+          type: string
+    VerificationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        reasonId:
+          type: integer
+          format: int32
+        reasonMessage:
+          type: string
+paths:
+  /request:
+    post:
+      summary: Create a new verification request
+      description: Creates a new verification code for the given email and sends it
+        via the messaging system.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationApplicationRequest"
+        required: true
+      responses:
+        "200":
+          description: "Verification request created, returns the reference ID"
+          content:
+            text/plain:
+              schema:
+                type: string
+                examples:
+                  - abc123def456
+        "400":
+          description: Invalid request format
+        "500":
+          description: Internal server error
+      tags:
+        - Verification Controller
+  /verify:
+    post:
+      summary: Verify a verification code
+      description: Verifies the code for a given reference ID and email.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationRequest"
+        required: true
+      responses:
+        "200":
+          description: Verification attempt completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationResponse"
+        "400":
+          description: Invalid request format
+      tags:
+        - Verification Controller
+info:
+  title: verificatieservice API
+  version: 1.0-SNAPSHOT
