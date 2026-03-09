@@ -34,8 +34,8 @@ public class ProfielControllerTest {
     @BeforeEach
     @Transactional
     void setup() {
-        // Mock the email verification service to do nothing
-        Mockito.doReturn(true).when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+        // Mock the email verification service to return a reference ID
+        Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
     }
 
     @AfterEach
