@@ -1,7 +1,7 @@
 publiccodeYmlVersion: "0.5"
 name: MOZa Profiel Service
 url: https://github.com/MinBZK/moza-profiel-service
-landingURL: https://www.mijnoverheidzakelijk.nl
+landingURL: https://mijnoverheidzakelijk.nl
 platforms:
   - web
 categories:
