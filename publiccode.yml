@@ -1,0 +1,72 @@
+publiccodeYmlVersion: "0.5"
+name: MOZa Profiel Service
+url: https://github.com/MinBZK/moza-profiel-service
+landingURL: https://mijnoverheidzakelijk.nl
+platforms:
+  - web
+categories:
+  - digital-citizenship
+organisation:
+  uri: https://www.rijksoverheid.nl/ministeries/ministerie-van-binnenlandse-zaken-en-koninkrijksrelaties
+  name: Ministerie van Binnenlandse Zaken en Koninkrijksrelaties
+fundedBy:
+  - name: Ministerie van Binnenlandse Zaken en Koninkrijksrelaties
+    uri: https://www.rijksoverheid.nl/ministeries/ministerie-van-binnenlandse-zaken-en-koninkrijksrelaties
+developmentStatus: development
+softwareType: standalone/web
+intendedAudience:
+  countries:
+    - NL
+  scope:
+    - government
+description:
+  nl:
+    localisedName: MOZa Profiel Service
+    shortDescription: >-
+      Profiel service voor MijnOverheid Zakelijk (MOZa), voor profiel
+      gegevens en voorkeuren.
+    longDescription: >
+      De MOZa Profiel Service beheert profielgegevens en voorkeuren van
+      zakelijke gebruikers binnen MijnOverheid Zakelijk. Deze service is
+      onderdeel van het MOZa-platform en biedt API's voor het opslaan en
+      ophalen van gebruikersprofielen.
+
+
+      Deze repository bevat de broncode van de profiel service. Het
+      MOZa-project bestaat uit meerdere repositories binnen de MinBZK
+      organisatie, te herkennen aan de moza- prefix of het topic
+      mijnoverheidzakelijk.
+    features:
+      - Beheer van profielgegevens voor zakelijke gebruikers
+      - Opslaan en ophalen van gebruikersvoorkeuren
+  en:
+    shortDescription: >-
+      Profile service for "MijnOverheid Zakelijk" (MOZa), for profile
+      data and preferences.
+    longDescription: >
+      The MOZa Profile Service manages profile data and preferences of
+      business users within "MijnOverheid Zakelijk". This service is part
+      of the MOZa platform and provides APIs for storing and retrieving
+      user profiles.
+
+
+      This repository contains the source code of the profile service.
+      The MOZa project consists of multiple repositories within the
+      MinBZK organisation, identifiable by the moza- prefix or the
+      mijnoverheidzakelijk topic.
+    features:
+      - Management of profile data for business users
+      - Storage and retrieval of user preferences
+legal:
+  license: EUPL-1.2
+  mainCopyrightOwner: Ministerie van Binnenlandse Zaken en Koninkrijksrelaties
+maintenance:
+  type: internal
+  contacts:
+    - name: MijnOverheid Zakelijk Team
+      email: moza@minbzk.nl
+      affiliation: Ministerie van Binnenlandse Zaken en Koninkrijksrelaties
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - nl

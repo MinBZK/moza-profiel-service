@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Vragen en discussies / Questions and discussions
+    url: https://github.com/MinBZK/MijnOverheidZakelijk/discussions
+    about: Stel hier je vraag / Ask your question here
+  - name: Contact MOZa
+    url: https://mijnoverheidzakelijk.nl/contact/
+    about: Neem rechtstreeks contact op met het MOZa-team / Contact the MOZa team directly
