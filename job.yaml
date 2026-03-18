@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: k6
-        image: loadimpact/k6:latest
+        image: harbor-gn3.cicd.s15m.nl/docker-hub-proxy/grafana/k6:latest
         command: ["k6", "run", "/scripts/example.js"]
         env:
         - name: BASE_URL
