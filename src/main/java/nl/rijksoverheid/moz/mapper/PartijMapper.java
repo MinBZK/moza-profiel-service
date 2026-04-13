@@ -45,11 +45,14 @@ public class PartijMapper {
         cr.id = cg.id;
         cr.type = cg.getType();
         cr.waarde = cg.getWaarde();
+        cr.taal = cg.getTaal();
+        cr.terAttentieVan = cg.getTerAttentieVan();
         cr.isGeverifieerd = cg.getGeverifieerdAt() != null;
 
         if (cg.getAfdeling() != null) {
             cr.afdeling = new AfdelingResponse(cg.getAfdeling());
         }
+        cr.scopePartij = toScopePartijResponse(cg.getScopePartij());
         return cr;
     }
 
@@ -58,6 +61,18 @@ public class PartijMapper {
         vr.id = voorkeur.id;
         vr.voorkeurType = voorkeur.getVoorkeurType();
         vr.waarde = voorkeur.getWaarde();
+
+        if (voorkeur.getAfdeling() != null) {
+            vr.afdeling = new AfdelingResponse(voorkeur.getAfdeling());
+        }
+        vr.scopePartij = toScopePartijResponse(voorkeur.getScopePartij());
         return vr;
+    }
+
+    private IdentificatieResponse toScopePartijResponse(Partij scopePartij) {
+        if (scopePartij == null || scopePartij.getIdentificaties().isEmpty()) {
+            return null;
+        }
+        return toIdentificatieResponse(scopePartij.getIdentificaties().getFirst());
     }
 }

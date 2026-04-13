@@ -6,6 +6,7 @@ import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
 import jakarta.persistence.*;
 import nl.rijksoverheid.moz.common.ContactType;
+import nl.rijksoverheid.moz.common.Taal;
 import org.hibernate.envers.Audited;
 
 import java.time.LocalDateTime;
@@ -24,12 +25,25 @@ public class Contactgegeven extends PanacheEntity {
     @JoinColumn(name = "afdeling_id")
     private Afdeling afdeling;
 
+    @JsonIgnore
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "scope_partij_id")
+    @Nullable
+    private Partij scopePartij;
+
     @NotNull
     @Enumerated(EnumType.STRING)
     private ContactType type;
 
     @NotNull
     private String waarde;
+
+    @Nullable
+    @Enumerated(EnumType.STRING)
+    private Taal taal;
+
+    @Nullable
+    private String terAttentieVan;
 
     @Nullable
     private LocalDateTime geverifieerdAt;
@@ -67,6 +81,33 @@ public class Contactgegeven extends PanacheEntity {
 
     public void setWaarde(String waarde) {
         this.waarde = waarde;
+    }
+
+    @Nullable
+    public Partij getScopePartij() {
+        return scopePartij;
+    }
+
+    public void setScopePartij(@Nullable Partij scopePartij) {
+        this.scopePartij = scopePartij;
+    }
+
+    @Nullable
+    public Taal getTaal() {
+        return taal;
+    }
+
+    public void setTaal(@Nullable Taal taal) {
+        this.taal = taal;
+    }
+
+    @Nullable
+    public String getTerAttentieVan() {
+        return terAttentieVan;
+    }
+
+    public void setTerAttentieVan(@Nullable String terAttentieVan) {
+        this.terAttentieVan = terAttentieVan;
     }
 
     @Nullable

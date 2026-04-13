@@ -20,7 +20,7 @@ public class Dienstverlener extends PanacheEntity {
     private String naam;
 
     @NotNull
-    private String oin; //TODO koppelen aan identificatie tabel
+    private String oin;
 
 
     @OneToMany(mappedBy = "dienstverlener", fetch = FetchType.EAGER, cascade = CascadeType.ALL)

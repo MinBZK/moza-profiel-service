@@ -51,6 +51,9 @@ public class PartijService {
         contactgegeven.setAfdeling(afdeling);
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(request.waarde);
+        contactgegeven.setTaal(request.taal);
+        contactgegeven.setTerAttentieVan(request.terAttentieVan);
+        contactgegeven.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
@@ -72,14 +75,24 @@ public class PartijService {
         // Partij ophalen of aanmaken
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
 
-        // Nieuwe Contactgegeven aanmaken
         Voorkeur voorkeur = new Voorkeur();
         voorkeur.setPartij(partij);
-
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
+
+        Afdeling afdeling = Afdeling.findById(request.afdelingId);
+        voorkeur.setAfdeling(afdeling);
+        voorkeur.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
+
         voorkeur.persist();
 
+    }
+
+    private Partij resolveScopePartij(IdentificatieType type, String nummer) {
+        if (type == null || nummer == null) {
+            return null;
+        }
+        return findOrCreatePartij(type, nummer);
     }
 
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
@@ -115,7 +128,10 @@ public class PartijService {
 
         contact.setType(request.type);
         contact.setWaarde(request.waarde);
+        contact.setTaal(request.taal);
+        contact.setTerAttentieVan(request.terAttentieVan);
         contact.setAfdeling(Afdeling.findById((request.afdelingId)));
+        contact.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
@@ -144,6 +160,8 @@ public class PartijService {
 
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
+        voorkeur.setAfdeling(Afdeling.findById(request.afdelingId));
+        voorkeur.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
 
         return true;
     }
