@@ -1,11 +1,9 @@
 package nl.rijksoverheid.moz.dto.request;
 
 import jakarta.validation.constraints.NotNull;
-import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 
 public class VoorkeurRequest {
-
 
     @NotNull
     public VoorkeurType voorkeurType;
@@ -13,10 +11,5 @@ public class VoorkeurRequest {
     @NotNull
     public String waarde;
 
-    public long afdelingId;
-
-    public IdentificatieType scopeIdentificatieType;
-
-    public String scopeIdentificatieNummer;
-
+    public ScopeRequest scope;
 }

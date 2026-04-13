@@ -42,9 +42,9 @@ public class EndpointFuzzer {
                 case 4 -> fuzzAddVoorkeur(data);
                 case 5 -> fuzzUpdateVoorkeur(data);
                 case 6 -> fuzzDeleteVoorkeur(data);
-                case 7 -> fuzzGetAfdelingenDienstverlener(data);
+                case 7 -> fuzzGetDienstenDienstverlener(data);
                 case 8 -> fuzzAddDienstverlener(data);
-                case 9 -> fuzzAddAfdelingToDienstverlener(data);
+                case 9 -> fuzzAddDienstToDienstverlener(data);
                 case 10 -> fuzzPostEmailVerificatie(data);
             }
         } catch (Exception e) {
@@ -132,7 +132,7 @@ public class EndpointFuzzer {
         delete("/voorkeur/" + enc(type) + "/" + enc(nummer) + "/" + id);
     }
 
-    private static void fuzzGetAfdelingenDienstverlener(FuzzedDataProvider data) throws Exception {
+    private static void fuzzGetDienstenDienstverlener(FuzzedDataProvider data) throws Exception {
         String naam = data.consumeString(50);
         get("/dienstverlener/" + enc(naam));
     }
@@ -142,10 +142,10 @@ public class EndpointFuzzer {
         post("/dienstverlener/", json);
     }
 
-    private static void fuzzAddAfdelingToDienstverlener(FuzzedDataProvider data) throws Exception {
+    private static void fuzzAddDienstToDienstverlener(FuzzedDataProvider data) throws Exception {
         String naam = data.consumeString(50);
         String json = data.consumeRemainingAsString();
-        post("/dienstverlener/" + enc(naam) + "/afdelingen", json);
+        post("/dienstverlener/" + enc(naam) + "/diensten", json);
     }
 
     private static void fuzzPostEmailVerificatie(FuzzedDataProvider data) throws Exception {

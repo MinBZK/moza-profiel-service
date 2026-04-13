@@ -25,14 +25,14 @@ public class EndpointFuzzTest {
         String identificatieNummer = data.consumeString(20);
         String dienstverlener = data.consumeString(50);
         String oin = data.consumeString(20);
-        String afdelingBeschrijving = data.consumeString(100);
+        String dienstBeschrijving = data.consumeString(100);
 
         RestAssured.given()
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .queryParam("dienstverlener", dienstverlener)
                 .queryParam("oin", oin)
-                .queryParam("afdelingBeschrijving", afdelingBeschrijving)
+                .queryParam("dienstBeschrijving", dienstBeschrijving)
                 .when()
                 .get("/api/profielservice/v1/{identificatieType}/{identificatieNummer}")
                 .then()
@@ -71,13 +71,11 @@ public class EndpointFuzzTest {
         long id = data.consumeLong();
         String type = data.consumeString(10);
         String waarde = data.consumeString(50);
-        long afdelingId = data.consumeLong();
 
         ObjectNode body = objectMapper.createObjectNode();
         body.put("id", id);
         body.put("type", type);
         body.put("waarde", waarde);
-        body.put("afdelingId", afdelingId);
 
         RestAssured.given()
                 .contentType(ContentType.JSON)
@@ -169,7 +167,7 @@ public class EndpointFuzzTest {
     }
 
     @FuzzTest
-    public void fuzzGetAfdelingenDienstverlener(FuzzedDataProvider data) {
+    public void fuzzGetDienstenDienstverlener(FuzzedDataProvider data) {
         String naam = data.consumeString(50);
 
         RestAssured.given()
@@ -199,7 +197,7 @@ public class EndpointFuzzTest {
     }
 
     @FuzzTest
-    public void fuzzAddAfdelingToDienstverlener(FuzzedDataProvider data) {
+    public void fuzzAddDienstToDienstverlener(FuzzedDataProvider data) {
         String dienstverlenerNaam = data.consumeString(50);
         String beschrijving = data.consumeString(100);
 
@@ -211,7 +209,7 @@ public class EndpointFuzzTest {
                 .body(body.toString())
                 .pathParam("DienstverlenerNaam", dienstverlenerNaam)
                 .when()
-                .post("/api/profielservice/v1/dienstverlener/{DienstverlenerNaam}/afdelingen")
+                .post("/api/profielservice/v1/dienstverlener/{DienstverlenerNaam}/diensten")
                 .then()
                 .extract().response();
     }

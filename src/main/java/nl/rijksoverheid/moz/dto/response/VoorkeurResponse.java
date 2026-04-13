@@ -6,6 +6,5 @@ public class VoorkeurResponse {
     public long id;
     public VoorkeurType voorkeurType;
     public String waarde;
-    public AfdelingResponse afdeling;
-    public IdentificatieResponse scopePartij;
+    public ScopeResponse scope;
 }

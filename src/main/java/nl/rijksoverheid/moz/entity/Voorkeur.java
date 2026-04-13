@@ -10,6 +10,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.VoorkeurType;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.envers.Audited;
 
 @Entity
@@ -25,20 +27,15 @@ public class Voorkeur extends PanacheEntity {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "partij_id")
-    @JsonIgnore // prevent infinite loop
+    @JsonIgnore
     private Partij partij;
 
     @JsonIgnore
     @ManyToOne(optional = true)
-    @JoinColumn(name = "afdeling_id")
+    @JoinColumn(name = "scope_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @Nullable
-    private Afdeling afdeling;
-
-    @JsonIgnore
-    @ManyToOne(optional = true)
-    @JoinColumn(name = "scope_partij_id")
-    @Nullable
-    private Partij scopePartij;
+    private Scope scope;
 
     public VoorkeurType getVoorkeurType() {
         return voorkeurType;
@@ -65,22 +62,11 @@ public class Voorkeur extends PanacheEntity {
     }
 
     @Nullable
-    public Afdeling getAfdeling() {
-        return afdeling;
+    public Scope getScope() {
+        return scope;
     }
 
-    public void setAfdeling(@Nullable Afdeling afdeling) {
-        this.afdeling = afdeling;
-    }
-
-    @Nullable
-    public Partij getScopePartij() {
-        return scopePartij;
-    }
-
-    public void setScopePartij(@Nullable Partij scopePartij) {
-        this.scopePartij = scopePartij;
+    public void setScope(@Nullable Scope scope) {
+        this.scope = scope;
     }
 }
-
-

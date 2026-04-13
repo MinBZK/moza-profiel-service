@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.persistence.*;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.Taal;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.envers.Audited;
 
 import java.time.LocalDateTime;
@@ -22,14 +24,10 @@ public class Contactgegeven extends PanacheEntity {
 
     @JsonIgnore
     @ManyToOne(optional = true)
-    @JoinColumn(name = "afdeling_id")
-    private Afdeling afdeling;
-
-    @JsonIgnore
-    @ManyToOne(optional = true)
-    @JoinColumn(name = "scope_partij_id")
+    @JoinColumn(name = "scope_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     @Nullable
-    private Partij scopePartij;
+    private Scope scope;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -59,12 +57,13 @@ public class Contactgegeven extends PanacheEntity {
         this.partij = partij;
     }
 
-    public Afdeling getAfdeling() {
-        return afdeling;
+    @Nullable
+    public Scope getScope() {
+        return scope;
     }
 
-    public void setAfdeling(Afdeling afdeling) {
-        this.afdeling = afdeling;
+    public void setScope(@Nullable Scope scope) {
+        this.scope = scope;
     }
 
     public ContactType getType() {
@@ -81,15 +80,6 @@ public class Contactgegeven extends PanacheEntity {
 
     public void setWaarde(String waarde) {
         this.waarde = waarde;
-    }
-
-    @Nullable
-    public Partij getScopePartij() {
-        return scopePartij;
-    }
-
-    public void setScopePartij(@Nullable Partij scopePartij) {
-        this.scopePartij = scopePartij;
     }
 
     @Nullable

@@ -10,6 +10,5 @@ public class ContactgegevenResponse {
     public Taal taal;
     public String terAttentieVan;
     public boolean isGeverifieerd;
-    public AfdelingResponse afdeling;
-    public IdentificatieResponse scopePartij;
+    public ScopeResponse scope;
 }

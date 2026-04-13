@@ -5,5 +5,6 @@ public enum VoorkeurType {
     MagGebeldWorden,
     WebsiteThema,
     PostcodeInUwBuurt,
-    ActueleOnderwerpVoorkeur
+    ActueleOnderwerpVoorkeur,
+    Aanhef
 }

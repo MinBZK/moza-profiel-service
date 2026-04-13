@@ -4,18 +4,22 @@ import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
+import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.entity.Afdeling;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.Scope;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 
@@ -45,15 +49,11 @@ public class PartijService {
 
         Contactgegeven contactgegeven = new Contactgegeven();
         contactgegeven.setPartij(partij);
-
-        Afdeling afdeling = Afdeling.findById(request.afdelingId);
-
-        contactgegeven.setAfdeling(afdeling);
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(request.waarde);
         contactgegeven.setTaal(request.taal);
         contactgegeven.setTerAttentieVan(request.terAttentieVan);
-        contactgegeven.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
+        contactgegeven.setScope(resolveScope(request.scope));
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
@@ -72,27 +72,48 @@ public class PartijService {
             String eigenaarNummer,
             VoorkeurRequest request) {
 
-        // Partij ophalen of aanmaken
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
 
         Voorkeur voorkeur = new Voorkeur();
         voorkeur.setPartij(partij);
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
-
-        Afdeling afdeling = Afdeling.findById(request.afdelingId);
-        voorkeur.setAfdeling(afdeling);
-        voorkeur.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
+        voorkeur.setScope(resolveScope(request.scope));
 
         voorkeur.persist();
 
     }
 
-    private Partij resolveScopePartij(IdentificatieType type, String nummer) {
-        if (type == null || nummer == null) {
+    private Scope resolveScope(ScopeRequest request) {
+        if (request == null) {
             return null;
         }
-        return findOrCreatePartij(type, nummer);
+
+        Partij scopePartij = null;
+        if (request.scopeIdentificatieType != null && request.scopeIdentificatieNummer != null) {
+            scopePartij = findOrCreatePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer);
+        }
+
+        Dienst dienst = null;
+        if (request.dienstId != null) {
+            dienst = Dienst.findById(request.dienstId);
+            if (dienst == null) {
+                throw new WebApplicationException(
+                        "Dienst met id " + request.dienstId + " bestaat niet",
+                        Response.Status.NOT_FOUND);
+            }
+        }
+
+        if (scopePartij == null && dienst == null) {
+            return null;
+        }
+
+        Scope scope = new Scope();
+        scope.setPartij(scopePartij);
+        scope.setDienst(dienst);
+        scope.persist();
+
+        return scope;
     }
 
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
@@ -130,8 +151,7 @@ public class PartijService {
         contact.setWaarde(request.waarde);
         contact.setTaal(request.taal);
         contact.setTerAttentieVan(request.terAttentieVan);
-        contact.setAfdeling(Afdeling.findById((request.afdelingId)));
-        contact.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
+        contact.setScope(resolveScope(request.scope));
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
@@ -160,8 +180,7 @@ public class PartijService {
 
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
-        voorkeur.setAfdeling(Afdeling.findById(request.afdelingId));
-        voorkeur.setScopePartij(resolveScopePartij(request.scopeIdentificatieType, request.scopeIdentificatieNummer));
+        voorkeur.setScope(resolveScope(request.scope));
 
         return true;
     }
@@ -226,27 +245,26 @@ public class PartijService {
             return null;
         }
 
-        //Left join hier zodat hij altijd de default contactgegevens pakt.
         StringBuilder query = new StringBuilder(
-                "select c from Contactgegeven c left join c.afdeling a left join a.dienstverlener d " +
+                "select c from Contactgegeven c left join c.scope s left join s.dienst d left join d.dienstverlener dv " +
                         "where c.partij.id = :partijId"
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partijId", partij.id);
 
         if (request.dienstverlener != null) {
-            query.append(" AND (a IS NULL OR d.naam = :dvNaam)");
+            query.append(" AND (s IS NULL OR dv.naam = :dvNaam)");
             params.put("dvNaam", request.dienstverlener);
         }
 
         if (request.dienstverlenerOin != null) {
-            query.append(" AND (a IS NULL OR d.oin = :oin)");
+            query.append(" AND (s IS NULL OR dv.oin = :oin)");
             params.put("oin", request.dienstverlenerOin);
         }
 
-        if (request.afdelingBeschrijving != null) {
-            query.append(" AND (a IS NULL OR a.beschrijving = :afdBeschr)");
-            params.put("afdBeschr", request.afdelingBeschrijving);
+        if (request.dienstBeschrijving != null) {
+            query.append(" AND (s IS NULL OR d.beschrijving = :dienstBeschr)");
+            params.put("dienstBeschr", request.dienstBeschrijving);
         }
 
         PanacheQuery<Contactgegeven> panacheQuery = Contactgegeven.find(query.toString(), params);
