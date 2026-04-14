@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.entity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import jakarta.persistence.*;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
@@ -12,6 +13,9 @@ import org.hibernate.envers.Audited;
 @Audited
 public class Partij extends PanacheEntity {
 
+    @Column(unique = true)
+    private UUID koppelcode;
+
     @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Identificatie> identificaties = new ArrayList<>();
 
@@ -20,6 +24,21 @@ public class Partij extends PanacheEntity {
 
     @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Voorkeur> voorkeuren = new ArrayList<>();
+
+    @PrePersist
+    public void ensureKoppelcode() {
+        if (koppelcode == null) {
+            koppelcode = UUID.randomUUID();
+        }
+    }
+
+    public UUID getKoppelcode() {
+        return koppelcode;
+    }
+
+    public static Partij findByKoppelcode(UUID koppelcode) {
+        return find("koppelcode", koppelcode).firstResult();
+    }
 
     public List<Voorkeur> getVoorkeuren() {
         return Collections.unmodifiableList(voorkeuren);

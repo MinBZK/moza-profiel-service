@@ -22,6 +22,7 @@ import nl.rijksoverheid.moz.mapper.PartijMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @ApplicationScoped
 public class PartijService {
@@ -90,6 +91,15 @@ public class PartijService {
             partij.persist();
         }
         return partij;
+    }
+
+    @Transactional
+    public UUID getOrCreateKoppelcode(IdentificatieType type, String nummer) {
+        Partij partij = findOrCreatePartij(type, nummer);
+        if (partij.getKoppelcode() == null) {
+            partij.ensureKoppelcode();
+        }
+        return partij.getKoppelcode();
     }
 
     public Partij getPartij(

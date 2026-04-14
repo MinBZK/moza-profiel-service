@@ -13,6 +13,7 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.dto.response.KoppelcodeResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.helper.HashHelper;
@@ -25,6 +26,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import java.net.URI;
+import java.util.UUID;
 
 /**
  * REST Controller voor het beheren van partijen.
@@ -92,6 +94,41 @@ public class ProfielController {
 
         logboekContext.setStatus(StatusCode.OK);
         return Response.ok(result).build();
+    }
+
+    /**
+     * Haalt de koppelcode van een partij op.
+     * <p>
+     * De koppelcode is een stabiele, niet-raadbare identifier die nevenservices
+     * kunnen gebruiken om gegevens aan een partij te koppelen zonder BSN of
+     * KVK-nummer te hoeven kennen (zie ADR 0016). Als er nog geen partij
+     * bestaat voor de opgegeven identificatie wordt deze direct aangemaakt.
+     */
+    @GET
+    @Path("/koppelcode/{identificatieType}/{identificatieNummer}")
+    @Operation(
+            summary = "Ophalen koppelcode van een partij",
+            description = "Haalt de koppelcode van een partij op en maakt de partij zo nodig aan."
+    )
+    @APIResponses({
+            @APIResponse(
+                    responseCode = "200",
+                    description = "Koppelcode succesvol opgehaald",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = KoppelcodeResponse.class))
+            )
+    })
+    @Logboek(name = "getKoppelcode", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-913")
+    public Response getKoppelcode(
+            @PathParam("identificatieType") IdentificatieType identificatieType,
+            @PathParam("identificatieNummer") String identificatieNummer) {
+
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+
+        UUID koppelcode = partijService.getOrCreateKoppelcode(identificatieType, identificatieNummer);
+
+        logboekContext.setStatus(StatusCode.OK);
+        return Response.ok(new KoppelcodeResponse(koppelcode)).build();
     }
 
     /**
