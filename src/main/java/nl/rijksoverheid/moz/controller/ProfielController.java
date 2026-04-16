@@ -115,9 +115,13 @@ public class ProfielController {
                     responseCode = "200",
                     description = "Koppelcode succesvol opgehaald",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = KoppelcodeResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "400",
+                    description = "Ongeldige identificatieType"
             )
     })
-    @Logboek(name = "getKoppelcode", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-913")
+    @Logboek(name= "getKoppelcode", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-913")
     public Response getKoppelcode(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer) {
@@ -127,8 +131,11 @@ public class ProfielController {
 
         UUID koppelcode = partijService.getOrCreateKoppelcode(identificatieType, identificatieNummer);
 
+        KoppelcodeResponse response = new KoppelcodeResponse();
+        response.koppelcode = koppelcode;
+
         logboekContext.setStatus(StatusCode.OK);
-        return Response.ok(new KoppelcodeResponse(koppelcode)).build();
+        return Response.ok(response).build();
     }
 
     /**

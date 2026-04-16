@@ -17,7 +17,6 @@ public class PartijMapper {
     public PartijResponse toResponse(Partij partij) {
         PartijResponse response = new PartijResponse();
         response.partijId = partij.id;
-        response.koppelcode = partij.getKoppelcode();
 
         response.identificaties = partij.getIdentificaties().stream()
                 .map(this::toIdentificatieResponse)

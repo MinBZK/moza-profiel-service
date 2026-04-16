@@ -87,6 +87,38 @@ public class ProfielControllerTest {
     }
 
     @Test
+    void getKoppelcode_CreatesPartijAndReturnsKoppelcode() {
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .get("/api/profielservice/v1/koppelcode/KVK/111111111")
+                .then()
+                .statusCode(OK)
+                .body("koppelcode", org.hamcrest.Matchers.notNullValue());
+    }
+
+    @Test
+    void getKoppelcode_StableForSameIdentificatie() {
+        String first = given()
+                .contentType(ContentType.JSON)
+                .when()
+                .get("/api/profielservice/v1/koppelcode/KVK/111111111")
+                .then()
+                .statusCode(OK)
+                .extract().path("koppelcode");
+
+        String second = given()
+                .contentType(ContentType.JSON)
+                .when()
+                .get("/api/profielservice/v1/koppelcode/KVK/111111111")
+                .then()
+                .statusCode(OK)
+                .extract().path("koppelcode");
+
+        org.junit.jupiter.api.Assertions.assertEquals(first, second);
+    }
+
+    @Test
     void addContactgegeven_Success() {
         var body = new ContactgegevenRequest();
         body.afdelingId = 0;

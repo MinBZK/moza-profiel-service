@@ -26,7 +26,7 @@ public class Partij extends PanacheEntity {
     private List<Voorkeur> voorkeuren = new ArrayList<>();
 
     @PrePersist
-    public void ensureKoppelcode() {
+    private void assignKoppelcode() {
         if (koppelcode == null) {
             koppelcode = UUID.randomUUID();
         }

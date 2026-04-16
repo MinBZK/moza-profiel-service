@@ -95,11 +95,7 @@ public class PartijService {
 
     @Transactional
     public UUID getOrCreateKoppelcode(IdentificatieType type, String nummer) {
-        Partij partij = findOrCreatePartij(type, nummer);
-        if (partij.getKoppelcode() == null) {
-            partij.ensureKoppelcode();
-        }
-        return partij.getKoppelcode();
+        return findOrCreatePartij(type, nummer).getKoppelcode();
     }
 
     public Partij getPartij(
