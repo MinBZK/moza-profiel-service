@@ -4,7 +4,6 @@ public enum Taal {
     Nederlands,
     Engels,
     Fries,
-    Papiaments,
-    Nedersaksisch,
-    Limburgs
+    Papiamento,
+    Papiamentu
 }
