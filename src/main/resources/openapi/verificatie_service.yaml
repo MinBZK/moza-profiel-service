@@ -60,11 +60,17 @@ paths:
               schema:
                 type: string
                 examples:
-                  - abc123def456
+                  - 00000000-0000-0000-0000-000000000000
         "400":
           description: Invalid request format
+          content:
+            application/json:
+              schema: {}
         "500":
           description: Internal server error
+          content:
+            application/json:
+              schema: {}
       tags:
         - Verification Controller
   /verify:
@@ -86,6 +92,9 @@ paths:
                 $ref: "#/components/schemas/VerificationResponse"
         "400":
           description: Invalid request format
+          content:
+            application/json:
+              schema: {}
       tags:
         - Verification Controller
 info:
