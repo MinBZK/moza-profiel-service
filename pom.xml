@@ -157,7 +157,11 @@
             <artifactId>logboekdataverwerking-wrapper</artifactId>
             <version>1.2.1-SNAPSHOT</version>
         </dependency>
-
+        <dependency>
+            <groupId>io.quarkiverse.wiremock</groupId>
+            <artifactId>quarkus-wiremock</artifactId>
+            <version>1.6.1</version>
+        </dependency>
     </dependencies>
 
     <build>

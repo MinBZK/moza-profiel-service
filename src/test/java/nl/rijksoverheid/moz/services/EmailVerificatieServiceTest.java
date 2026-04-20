@@ -299,9 +299,7 @@ public class EmailVerificatieServiceTest {
         request.email = "test@test.com";
         request.verificatieCode = "123456";
 
-        WebApplicationException exception = Assertions.assertThrows(WebApplicationException.class, () -> {
-            service.verifieerEmail(request);
-        });
+        WebApplicationException exception = Assertions.assertThrows(WebApplicationException.class, () -> service.verifieerEmail(request));
         Assertions.assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), exception.getResponse().getStatus());
     }
 
