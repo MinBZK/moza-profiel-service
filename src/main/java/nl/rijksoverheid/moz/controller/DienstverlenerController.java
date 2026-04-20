@@ -11,7 +11,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import nl.rijksoverheid.moz.dto.request.AfdelingRequest;
+import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -27,7 +27,7 @@ import java.net.URI;
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-@Tag(name = "Dienstverlener", description = "Endpoints voor het beheren van dienstverleners en afdelingen")
+@Tag(name = "Dienstverlener", description = "Endpoints voor het beheren van dienstverleners en diensten")
 public class DienstverlenerController {
 
     @Inject
@@ -35,9 +35,9 @@ public class DienstverlenerController {
 
     @GET
     @Path("/dienstverlener/{naam}")
-    public Response getAfdelingenDienstverlener(@PathParam("naam") String naam) {
+    public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
 
-        Dienstverlener dv = dienstverlenerService.getAfdelingenVoorDienstverlener(naam);
+        Dienstverlener dv = dienstverlenerService.getDienstenVoorDienstverlener(naam);
 
         if (dv == null)
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -61,23 +61,23 @@ public class DienstverlenerController {
     }
 
     @POST
-    @Path("/dienstverlener/{DienstverlenerNaam}/afdelingen")
+    @Path("/dienstverlener/{DienstverlenerNaam}/diensten")
     @Operation(
-            summary = "Voegt een afdeling toe aan een dienstverlener",
-            description = "Voegt een nieuwe afdeling toe met beschrijving"
+            summary = "Voegt een dienst toe aan een dienstverlener",
+            description = "Voegt een nieuwe dienst toe met beschrijving"
     )
     @APIResponses({
-            @APIResponse(responseCode = "201", description = "Afdeling succesvol toegevoegd"),
+            @APIResponse(responseCode = "201", description = "Dienst succesvol toegevoegd"),
             @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden")
     })
-    public Response addAfdelingToDienstverlener(
+    public Response addDienstToDienstverlener(
             @PathParam("DienstverlenerNaam") String dienstverlenerNaam,
-            AfdelingRequest request
+            DienstRequest request
     ) {
         if (request == null) {
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
-        dienstverlenerService.addAfdelingToDienstverlener(dienstverlenerNaam, request);
+        dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerNaam));
         return Response.created(uri).build();
     }
