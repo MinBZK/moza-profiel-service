@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/verify"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "success": true,
+      "reasonId": 0,
+      "reasonMessage": "OK"
+    }
+  }
+}

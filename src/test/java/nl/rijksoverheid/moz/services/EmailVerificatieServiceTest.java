@@ -10,11 +10,12 @@ import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.entity.Afdeling;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.Scope;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
@@ -40,9 +41,10 @@ public class EmailVerificatieServiceTest {
     @Transactional
     void tearDown() {
         Contactgegeven.deleteAll();
-        Afdeling.deleteAll();
-        Identificatie.deleteAll();
         Voorkeur.deleteAll();
+        Scope.deleteAll();
+        Dienst.deleteAll();
+        Identificatie.deleteAll();
         Partij.deleteAll();
         Dienstverlener.deleteAll();
     }
@@ -297,9 +299,7 @@ public class EmailVerificatieServiceTest {
         request.email = "test@test.com";
         request.verificatieCode = "123456";
 
-        WebApplicationException exception = Assertions.assertThrows(WebApplicationException.class, () -> {
-            service.verifieerEmail(request);
-        });
+        WebApplicationException exception = Assertions.assertThrows(WebApplicationException.class, () -> service.verifieerEmail(request));
         Assertions.assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), exception.getResponse().getStatus());
     }
 

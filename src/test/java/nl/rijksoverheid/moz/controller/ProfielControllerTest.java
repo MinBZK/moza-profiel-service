@@ -42,9 +42,10 @@ public class ProfielControllerTest {
     @Transactional
     void tearDown() {
         Contactgegeven.deleteAll();
-        Afdeling.deleteAll();
-        Identificatie.deleteAll();
         Voorkeur.deleteAll();
+        Scope.deleteAll();
+        Dienst.deleteAll();
+        Identificatie.deleteAll();
         Partij.deleteAll();
         Dienstverlener.deleteAll();
     }
@@ -121,7 +122,6 @@ public class ProfielControllerTest {
     @Test
     void addContactgegeven_Success() {
         var body = new ContactgegevenRequest();
-        body.afdelingId = 0;
         body.type = ContactType.Email;
         body.waarde = "test@example.com";
 
@@ -163,7 +163,6 @@ public class ProfielControllerTest {
 
         var body = new ContactgegevenUpdateRequest();
         body.id = id.get();
-        body.afdelingId = 0;
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
 
@@ -201,7 +200,6 @@ public class ProfielControllerTest {
 
         var body = new ContactgegevenUpdateRequest();
         body.id = 1;
-        body.afdelingId = 0;
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
 

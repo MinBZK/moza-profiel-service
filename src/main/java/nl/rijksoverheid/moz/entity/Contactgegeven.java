@@ -6,6 +6,9 @@ import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
 import jakarta.persistence.*;
 import nl.rijksoverheid.moz.common.ContactType;
+import nl.rijksoverheid.moz.common.Taal;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.envers.Audited;
 
 import java.time.LocalDateTime;
@@ -21,8 +24,10 @@ public class Contactgegeven extends PanacheEntity {
 
     @JsonIgnore
     @ManyToOne(optional = true)
-    @JoinColumn(name = "afdeling_id")
-    private Afdeling afdeling;
+    @JoinColumn(name = "scope_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @Nullable
+    private Scope scope;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -30,6 +35,13 @@ public class Contactgegeven extends PanacheEntity {
 
     @NotNull
     private String waarde;
+
+    @Nullable
+    @Enumerated(EnumType.STRING)
+    private Taal taal;
+
+    @Nullable
+    private String terAttentieVan;
 
     @Nullable
     private LocalDateTime geverifieerdAt;
@@ -45,12 +57,13 @@ public class Contactgegeven extends PanacheEntity {
         this.partij = partij;
     }
 
-    public Afdeling getAfdeling() {
-        return afdeling;
+    @Nullable
+    public Scope getScope() {
+        return scope;
     }
 
-    public void setAfdeling(Afdeling afdeling) {
-        this.afdeling = afdeling;
+    public void setScope(@Nullable Scope scope) {
+        this.scope = scope;
     }
 
     public ContactType getType() {
@@ -67,6 +80,24 @@ public class Contactgegeven extends PanacheEntity {
 
     public void setWaarde(String waarde) {
         this.waarde = waarde;
+    }
+
+    @Nullable
+    public Taal getTaal() {
+        return taal;
+    }
+
+    public void setTaal(@Nullable Taal taal) {
+        this.taal = taal;
+    }
+
+    @Nullable
+    public String getTerAttentieVan() {
+        return terAttentieVan;
+    }
+
+    public void setTerAttentieVan(@Nullable String terAttentieVan) {
+        this.terAttentieVan = terAttentieVan;
     }
 
     @Nullable

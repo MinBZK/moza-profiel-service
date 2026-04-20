@@ -5,11 +5,11 @@ import nl.rijksoverheid.moz.common.VoorkeurType;
 
 public class VoorkeurRequest {
 
-
     @NotNull
     public VoorkeurType voorkeurType;
 
     @NotNull
     public String waarde;
 
+    public ScopeRequest scope;
 }

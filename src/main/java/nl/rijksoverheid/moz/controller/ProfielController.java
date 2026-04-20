@@ -183,14 +183,14 @@ public class ProfielController {
     /**
      * Update een bestaand contactgegeven van een partij.
      * IdentificatieType en Nummer kunnen niet gewijzigd worden.
-     * Alleen type, waarde en afdeling kunnen worden geüpdatet.
+     * Alleen type, waarde en scope kunnen worden geüpdatet.
      */
     @PUT
     @Path("/contactgegeven/{identificatieType}/{identificatieNummer}/")
     @Transactional
     @Operation(
             summary = "Update contactgegeven van een partij",
-            description = "Werk type, waarde en afdeling van een contactgegeven bij. Identificatie kan niet aangepast worden."
+            description = "Werk type, waarde en scope van een contactgegeven bij. Identificatie kan niet aangepast worden."
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
@@ -307,7 +307,7 @@ public class ProfielController {
     @Transactional
     @Operation(
             summary = "Update voorkeur van een partij",
-            description = "Werk type, waarde en afdeling van een voorkeur bij. Identificatie kan niet aangepast worden."
+            description = "Werk type, waarde en scope van een voorkeur bij. Identificatie kan niet aangepast worden."
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),

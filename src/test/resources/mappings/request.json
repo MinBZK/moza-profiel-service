@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/request"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "text/plain"
+    },
+    "body": "00000000-0000-0000-0000-000000000000"
+  }
+}

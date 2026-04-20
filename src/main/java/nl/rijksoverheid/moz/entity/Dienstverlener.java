@@ -20,12 +20,10 @@ public class Dienstverlener extends PanacheEntity {
     private String naam;
 
     @NotNull
-    private String oin; //TODO koppelen aan identificatie tabel
-
+    private String oin;
 
     @OneToMany(mappedBy = "dienstverlener", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    private List<Afdeling> afdelingen = new ArrayList<>();
-
+    private List<Dienst> diensten = new ArrayList<>();
 
     public String getNaam() {
         return naam;
@@ -43,16 +41,16 @@ public class Dienstverlener extends PanacheEntity {
         this.oin = oin;
     }
 
-    public List<Afdeling> getAfdelingen() {
-        return Collections.unmodifiableList(afdelingen);
+    public List<Dienst> getDiensten() {
+        return Collections.unmodifiableList(diensten);
     }
 
-    public void addAfdeling(Afdeling afdeling) {
-        afdelingen.add(afdeling);
+    public void addDienst(Dienst dienst) {
+        diensten.add(dienst);
     }
 
-    public void setAfdelingen(List<Afdeling> afdelingen) {
-        this.afdelingen.clear();
-        this.afdelingen.addAll(afdelingen);
+    public void setDiensten(List<Dienst> diensten) {
+        this.diensten.clear();
+        this.diensten.addAll(diensten);
     }
 }

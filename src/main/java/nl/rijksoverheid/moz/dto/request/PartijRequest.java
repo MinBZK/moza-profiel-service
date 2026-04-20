@@ -13,15 +13,14 @@ public class PartijRequest {
     @QueryParam("oin")
     public String dienstverlenerOin;
 
-    @QueryParam("afdelingBeschrijving")
-    public String afdelingBeschrijving;
+    @QueryParam("dienstBeschrijving")
+    public String dienstBeschrijving;
 
     @JsonIgnore
     public boolean isEmpty() {
         return dienstverlener == null &&
                 dienstverlenerOin == null &&
-                afdelingBeschrijving == null;
+                dienstBeschrijving == null;
     }
 
 }
-
