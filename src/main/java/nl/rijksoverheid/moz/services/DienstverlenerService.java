@@ -2,9 +2,9 @@ package nl.rijksoverheid.moz.services;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.dto.request.AfdelingRequest;
+import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
-import nl.rijksoverheid.moz.entity.Afdeling;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 
 @ApplicationScoped
@@ -12,35 +12,32 @@ public class DienstverlenerService {
 
     @Transactional
     public void addDienstverlener(DienstverlenerRequest dienstverlenerRequest) {
-
         findOrCreateDienstverlener(dienstverlenerRequest.naam, dienstverlenerRequest.oin);
     }
 
     @Transactional
-    public Dienstverlener getAfdelingenVoorDienstverlener(String naam) {
+    public Dienstverlener getDienstenVoorDienstverlener(String naam) {
         return Dienstverlener.find("naam = ?1", naam).firstResult();
     }
 
     @Transactional
-    public Afdeling addAfdelingToDienstverlener(String naam, AfdelingRequest request) {
-
+    public Dienst addDienstToDienstverlener(String naam, DienstRequest request) {
         var dienstverlener = findOrCreateDienstverlener(naam, null);
 
-        Afdeling afdeling = new Afdeling();
-        afdeling.setBeschrijving(request.beschrijving);
-        afdeling.setDienstverlener(dienstverlener);
+        Dienst dienst = new Dienst();
+        dienst.setBeschrijving(request.beschrijving);
+        dienst.setDienstverlener(dienstverlener);
 
-        dienstverlener.addAfdeling(afdeling);
+        dienstverlener.addDienst(dienst);
 
-        afdeling.persist();
+        dienst.persist();
         dienstverlener.persist();
 
-        return afdeling;
+        return dienst;
     }
 
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String oin) {
-
         Dienstverlener dienstverlener = Dienstverlener.find(
                 "lower(naam) = lower(?1)",
                 naam
@@ -54,17 +51,14 @@ public class DienstverlenerService {
         dienstverlener.setNaam(naam);
         dienstverlener.setOin(oin);
 
-        // Voeg standaard afdeling 'Alles' toe bij het aanmaken van een nieuwe dienstverlener
-        Afdeling defaultAfdeling = new Afdeling();
-        defaultAfdeling.setBeschrijving("Alles");
-        defaultAfdeling.setDienstverlener(dienstverlener);
-        dienstverlener.addAfdeling(defaultAfdeling);
+        Dienst defaultDienst = new Dienst();
+        defaultDienst.setBeschrijving("Alles");
+        defaultDienst.setDienstverlener(dienstverlener);
+        dienstverlener.addDienst(defaultDienst);
 
-        // Persist de dienstverlener (cascadet ook de aangemaakte afdeling)
         dienstverlener.persist();
 
         return dienstverlener;
     }
 
 }
-

@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -9,6 +10,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.VoorkeurType;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.envers.Audited;
 
 @Entity
@@ -24,8 +27,15 @@ public class Voorkeur extends PanacheEntity {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "partij_id")
-    @JsonIgnore // prevent infinite loop
+    @JsonIgnore
     private Partij partij;
+
+    @JsonIgnore
+    @ManyToOne(optional = true)
+    @JoinColumn(name = "scope_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
+    @Nullable
+    private Scope scope;
 
     public VoorkeurType getVoorkeurType() {
         return voorkeurType;
@@ -50,6 +60,13 @@ public class Voorkeur extends PanacheEntity {
     public void setPartij(Partij partij) {
         this.partij = partij;
     }
+
+    @Nullable
+    public Scope getScope() {
+        return scope;
+    }
+
+    public void setScope(@Nullable Scope scope) {
+        this.scope = scope;
+    }
 }
-
-

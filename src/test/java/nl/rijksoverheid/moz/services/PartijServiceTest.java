@@ -14,11 +14,12 @@ import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.entity.Afdeling;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.Scope;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -40,9 +41,10 @@ public class PartijServiceTest {
     @Transactional
     void tearDown() {
         Contactgegeven.deleteAll();
-        Afdeling.deleteAll();
-        Identificatie.deleteAll();
         Voorkeur.deleteAll();
+        Scope.deleteAll();
+        Dienst.deleteAll();
+        Identificatie.deleteAll();
         Partij.deleteAll();
         Dienstverlener.deleteAll();
     }
@@ -78,7 +80,6 @@ public class PartijServiceTest {
         ContactgegevenRequest request = new ContactgegevenRequest();
         request.type = ContactType.Email;
         request.waarde = "test@test.com";
-        request.afdelingId = 0L;
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -96,7 +97,6 @@ public class PartijServiceTest {
         ContactgegevenRequest request = new ContactgegevenRequest();
         request.type = ContactType.Telefoonnummer;
         request.waarde = "0612345678";
-        request.afdelingId = 0L;
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -114,7 +114,6 @@ public class PartijServiceTest {
         ContactgegevenRequest request = new ContactgegevenRequest();
         request.type = ContactType.Email;
         request.waarde = "test@test.com";
-        request.afdelingId = 0L;
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -180,7 +179,6 @@ public class PartijServiceTest {
         request.id = contactId.get();
         request.type = ContactType.Email;
         request.waarde = "new@test.com";
-        request.afdelingId = 0L;
 
         boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -198,7 +196,6 @@ public class PartijServiceTest {
         request.id = 1L;
         request.type = ContactType.Email;
         request.waarde = "test@test.com";
-        request.afdelingId = 0L;
 
         boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "999999999", request);
 
@@ -217,7 +214,6 @@ public class PartijServiceTest {
         request.id = 999L;
         request.type = ContactType.Email;
         request.waarde = "test@test.com";
-        request.afdelingId = 0L;
 
         boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -400,10 +396,10 @@ public class PartijServiceTest {
             dienstverlener.setOin("12345");
             dienstverlener.persist();
 
-            Afdeling afdeling = new Afdeling();
-            afdeling.setBeschrijving("TestAfdeling");
-            afdeling.setDienstverlener(dienstverlener);
-            afdeling.persist();
+            Dienst dienst = new Dienst();
+            dienst.setBeschrijving("TestDienst");
+            dienst.setDienstverlener(dienstverlener);
+            dienst.persist();
 
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -413,7 +409,10 @@ public class PartijServiceTest {
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
             contact.setPartij(partij);
-            contact.setAfdeling(afdeling);
+            Scope scope = new Scope();
+            scope.setDienst(dienst);
+            scope.persist();
+            contact.setScope(scope);
             contact.persist();
         });
 
@@ -462,10 +461,10 @@ public class PartijServiceTest {
             dienstverlener.setOin("12345");
             dienstverlener.persist();
 
-            Afdeling afdeling = new Afdeling();
-            afdeling.setBeschrijving("TestAfdeling");
-            afdeling.setDienstverlener(dienstverlener);
-            afdeling.persist();
+            Dienst dienst = new Dienst();
+            dienst.setBeschrijving("TestDienst");
+            dienst.setDienstverlener(dienstverlener);
+            dienst.persist();
 
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -475,7 +474,10 @@ public class PartijServiceTest {
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
             contact.setPartij(partij);
-            contact.setAfdeling(afdeling);
+            Scope scope = new Scope();
+            scope.setDienst(dienst);
+            scope.persist();
+            contact.setScope(scope);
             contact.persist();
         });
 
@@ -495,10 +497,10 @@ public class PartijServiceTest {
             dienstverlener.setOin("12345");
             dienstverlener.persist();
 
-            Afdeling afdeling = new Afdeling();
-            afdeling.setBeschrijving("TestAfdeling");
-            afdeling.setDienstverlener(dienstverlener);
-            afdeling.persist();
+            Dienst dienst = new Dienst();
+            dienst.setBeschrijving("TestDienst");
+            dienst.setDienstverlener(dienstverlener);
+            dienst.persist();
 
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -508,7 +510,10 @@ public class PartijServiceTest {
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
             contact.setPartij(partij);
-            contact.setAfdeling(afdeling);
+            Scope scope = new Scope();
+            scope.setDienst(dienst);
+            scope.persist();
+            contact.setScope(scope);
             contact.persist();
         });
 
@@ -521,17 +526,17 @@ public class PartijServiceTest {
     }
 
     @Test
-    void getPartijFiltered_WithAfdelingBeschrijvingFilter() {
+    void getPartijFiltered_WithDienstBeschrijvingFilter() {
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dienstverlener = new Dienstverlener();
             dienstverlener.setNaam("TestDV");
             dienstverlener.setOin("12345");
             dienstverlener.persist();
 
-            Afdeling afdeling = new Afdeling();
-            afdeling.setBeschrijving("TestAfdeling");
-            afdeling.setDienstverlener(dienstverlener);
-            afdeling.persist();
+            Dienst dienst = new Dienst();
+            dienst.setBeschrijving("TestDienst");
+            dienst.setDienstverlener(dienstverlener);
+            dienst.persist();
 
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -541,12 +546,15 @@ public class PartijServiceTest {
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
             contact.setPartij(partij);
-            contact.setAfdeling(afdeling);
+            Scope scope = new Scope();
+            scope.setDienst(dienst);
+            scope.persist();
+            contact.setScope(scope);
             contact.persist();
         });
 
         PartijRequest request = new PartijRequest();
-        request.afdelingBeschrijving = "TestAfdeling";
+        request.dienstBeschrijving = "TestDienst";
         Partij result = partijService.getPartijFiltered(IdentificatieType.BSN, "123456789", request);
 
         Assertions.assertNotNull(result);
