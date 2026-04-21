@@ -59,6 +59,7 @@ public class EmailVerificatieService {
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
                 contact.setGeverifieerdAt(LocalDateTime.now());
+                contact.setNogSteedsValide(true);
                 contact.setVerificatieReferentieId(null);
                 LOG.infof("Email succesvol geverifieerd voor: %s", emailVerificatieRequest.email);
                 return true;

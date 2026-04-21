@@ -26,9 +26,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 @QuarkusTest
 public class PartijServiceTest {
@@ -366,65 +364,6 @@ public class PartijServiceTest {
 
         boolean result = partijService.deleteVoorkeur(IdentificatieType.BSN, "123456789", 999L);
         Assertions.assertFalse(result);
-    }
-
-    @Test
-    void getOrCreateKoppelcode_ExistingPartij() {
-        AtomicReference<UUID> existing = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-            existing.set(partij.getKoppelcode());
-        });
-
-        Assertions.assertNotNull(existing.get());
-
-        UUID result = partijService.getOrCreateKoppelcode(IdentificatieType.BSN, "123456789");
-
-        Assertions.assertEquals(existing.get(), result);
-    }
-
-    @Test
-    void getOrCreateKoppelcode_NewPartij() {
-        UUID result = partijService.getOrCreateKoppelcode(IdentificatieType.BSN, "123456789");
-
-        Assertions.assertNotNull(result);
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertNotNull(partij);
-            Assertions.assertEquals(result, partij.getKoppelcode());
-        });
-    }
-
-    @Test
-    void newPartij_GetsKoppelcodeOnPersist() {
-        AtomicReference<UUID> koppelcode = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-            koppelcode.set(partij.getKoppelcode());
-        });
-
-        Assertions.assertNotNull(koppelcode.get());
-    }
-
-    @Test
-    void findByKoppelcode_Found() {
-        AtomicReference<UUID> koppelcode = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-            koppelcode.set(partij.getKoppelcode());
-        });
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij found = Partij.findByKoppelcode(koppelcode.get());
-            Assertions.assertNotNull(found);
-            Assertions.assertEquals("123456789", found.getIdentificaties().get(0).getIdentificatieNummer());
-        });
     }
 
     @Test

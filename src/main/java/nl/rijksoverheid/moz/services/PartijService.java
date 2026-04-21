@@ -26,7 +26,6 @@ import nl.rijksoverheid.moz.mapper.PartijMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @ApplicationScoped
 public class PartijService {
@@ -52,8 +51,6 @@ public class PartijService {
         contactgegeven.setPartij(partij);
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(request.waarde);
-        contactgegeven.setTaal(request.taal);
-        contactgegeven.setTerAttentieVan(request.terAttentieVan);
         contactgegeven.setScope(resolveScope(request.scope));
 
         if (request.type == ContactType.Email) {
@@ -127,11 +124,6 @@ public class PartijService {
         return partij;
     }
 
-    @Transactional
-    public UUID getOrCreateKoppelcode(IdentificatieType type, String nummer) {
-        return findOrCreatePartij(type, nummer).getKoppelcode();
-    }
-
     public Partij getPartij(
             IdentificatieType identificatieType,
             String identificatieNummer
@@ -155,8 +147,6 @@ public class PartijService {
 
         contact.setType(request.type);
         contact.setWaarde(request.waarde);
-        contact.setTaal(request.taal);
-        contact.setTerAttentieVan(request.terAttentieVan);
         contact.setScope(resolveScope(request.scope));
 
         if (request.type == ContactType.Email) {
@@ -231,6 +221,7 @@ public class PartijService {
         return true;
     }
 
+    @Transactional
     public PartijResponse getPartijResponse(IdentificatieType identificatieType, String identificatieNummer, PartijRequest partijRequest) {
         Partij partij;
         if (partijRequest.isEmpty()) {

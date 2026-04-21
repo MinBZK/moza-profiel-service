@@ -13,8 +13,13 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Scope;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 @ApplicationScoped
 public class PartijMapper {
+
+    private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
     public PartijResponse toResponse(Partij partij) {
         PartijResponse response = new PartijResponse();
@@ -43,24 +48,38 @@ public class PartijMapper {
     }
 
     private ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
+        if (isStale(cg.getLastUsedAt())) {
+            Contactgegeven.update("lastUsedAt = ?1 where id = ?2", LocalDateTime.now(), cg.id);
+        }
         ContactgegevenResponse cr = new ContactgegevenResponse();
         cr.id = cg.id;
         cr.type = cg.getType();
         cr.waarde = cg.getWaarde();
-        cr.taal = cg.getTaal();
-        cr.terAttentieVan = cg.getTerAttentieVan();
         cr.isGeverifieerd = cg.getGeverifieerdAt() != null;
+        cr.nogSteedsValide = cg.isNogSteedsValide();
+        cr.createdAt = cg.getCreatedAt();
+        cr.lastUpdated = cg.getLastUpdated();
         cr.scope = toScopeResponse(cg.getScope());
         return cr;
     }
 
     private VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
+        if (isStale(voorkeur.getLastUsedAt())) {
+            Voorkeur.update("lastUsedAt = ?1 where id = ?2", LocalDateTime.now(), voorkeur.id);
+        }
         VoorkeurResponse vr = new VoorkeurResponse();
         vr.id = voorkeur.id;
         vr.voorkeurType = voorkeur.getVoorkeurType();
         vr.waarde = voorkeur.getWaarde();
+        vr.createdAt = voorkeur.getCreatedAt();
+        vr.lastUpdated = voorkeur.getLastUpdated();
         vr.scope = toScopeResponse(voorkeur.getScope());
         return vr;
+    }
+
+    private static boolean isStale(LocalDateTime lastUsedAt) {
+        return lastUsedAt == null
+                || lastUsedAt.plus(LAST_USED_TOUCH_THRESHOLD).isBefore(LocalDateTime.now());
     }
 
     private ScopeResponse toScopeResponse(Scope scope) {
