@@ -41,7 +41,7 @@ public class Contactgegeven extends PanacheEntity {
     @Nullable
     private String verificatieReferentieId;
 
-    private boolean nogSteedsValide = false;
+    private boolean isValid = false;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -114,12 +114,12 @@ public class Contactgegeven extends PanacheEntity {
         this.verificatieReferentieId = verificatieReferentieId;
     }
 
-    public boolean isNogSteedsValide() {
-        return nogSteedsValide;
+    public boolean isIsValid() {
+        return isValid;
     }
 
-    public void setNogSteedsValide(boolean nogSteedsValide) {
-        this.nogSteedsValide = nogSteedsValide;
+    public void setIsValid(boolean isValid) {
+        this.isValid = isValid;
     }
 
     public LocalDateTime getCreatedAt() {

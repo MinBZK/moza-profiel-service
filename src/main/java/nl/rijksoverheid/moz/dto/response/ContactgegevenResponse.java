@@ -9,7 +9,7 @@ public class ContactgegevenResponse {
     public ContactType type;
     public String waarde;
     public boolean isGeverifieerd;
-    public boolean nogSteedsValide;
+    public boolean isValid;
     public LocalDateTime createdAt;
     public LocalDateTime lastUpdated;
     public ScopeResponse scope;

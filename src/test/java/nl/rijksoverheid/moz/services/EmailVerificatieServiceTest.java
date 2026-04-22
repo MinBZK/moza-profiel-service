@@ -181,7 +181,7 @@ public class EmailVerificatieServiceTest {
                     .orElse(null);
             Assertions.assertNotNull(contact);
             Assertions.assertNotNull(contact.getGeverifieerdAt());
-            Assertions.assertTrue(contact.isNogSteedsValide());
+            Assertions.assertTrue(contact.isIsValid());
             Assertions.assertNull(contact.getVerificatieReferentieId());
         });
     }

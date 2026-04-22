@@ -56,7 +56,7 @@ public class PartijMapper {
         cr.type = cg.getType();
         cr.waarde = cg.getWaarde();
         cr.isGeverifieerd = cg.getGeverifieerdAt() != null;
-        cr.nogSteedsValide = cg.isNogSteedsValide();
+        cr.isValid = cg.isIsValid();
         cr.createdAt = cg.getCreatedAt();
         cr.lastUpdated = cg.getLastUpdated();
         cr.scope = toScopeResponse(cg.getScope());
