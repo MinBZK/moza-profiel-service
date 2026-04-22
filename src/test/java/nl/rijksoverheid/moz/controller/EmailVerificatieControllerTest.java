@@ -29,7 +29,7 @@ public class EmailVerificatieControllerTest {
         var body = new EmailVerificatieRequest();
         body.email = "email@email.com";
         body.verificatieCode = "123456";
-        body.identificatieNummer = "123";
+        body.identificatieNummer = "123456782";
         body.identificatieType = IdentificatieType.BSN;
 
         given()
@@ -48,7 +48,7 @@ public class EmailVerificatieControllerTest {
         var body = new EmailVerificatieRequest();
         body.email = "email@email.com";
         body.verificatieCode = "123456";
-        body.identificatieNummer = "123";
+        body.identificatieNummer = "123456782";
         body.identificatieType = IdentificatieType.BSN;
 
         given()
