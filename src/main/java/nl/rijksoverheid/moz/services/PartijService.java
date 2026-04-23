@@ -51,8 +51,6 @@ public class PartijService {
         contactgegeven.setPartij(partij);
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(request.waarde);
-        contactgegeven.setTaal(request.taal);
-        contactgegeven.setTerAttentieVan(request.terAttentieVan);
         contactgegeven.setScope(resolveScope(request.scope));
 
         if (request.type == ContactType.Email) {
@@ -149,8 +147,6 @@ public class PartijService {
 
         contact.setType(request.type);
         contact.setWaarde(request.waarde);
-        contact.setTaal(request.taal);
-        contact.setTerAttentieVan(request.terAttentieVan);
         contact.setScope(resolveScope(request.scope));
 
         if (request.type == ContactType.Email) {
@@ -225,6 +221,7 @@ public class PartijService {
         return true;
     }
 
+    @Transactional
     public PartijResponse getPartijResponse(IdentificatieType identificatieType, String identificatieNummer, PartijRequest partijRequest) {
         Partij partij;
         if (partijRequest.isEmpty()) {

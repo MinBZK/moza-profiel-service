@@ -14,11 +14,14 @@ import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.*;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
@@ -75,6 +78,90 @@ public class ProfielControllerTest {
                 .body("contactgegevens[0].type", org.hamcrest.Matchers.equalTo("Email"))
                 .body("contactgegevens[0].waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
 
+    }
+
+    @Test
+    void getPartij_TouchesLastUsedAtOnFirstReadButNotWithinThreshold() {
+        AtomicLong contactId = new AtomicLong();
+        AtomicLong voorkeurId = new AtomicLong();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(KVK, "222222222"));
+            p.persist();
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Email);
+            c.setWaarde("touch@example.com");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+            voorkeurId.set(v.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertNull(Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt());
+            Assertions.assertNull(Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt());
+        });
+
+        given().contentType(ContentType.JSON)
+                .when().get("/api/profielservice/v1/KVK/222222222")
+                .then().statusCode(OK);
+
+        AtomicReference<LocalDateTime> contactFirstTouch = new AtomicReference<>();
+        AtomicReference<LocalDateTime> voorkeurFirstTouch = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            LocalDateTime cTs = Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt();
+            LocalDateTime vTs = Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt();
+            Assertions.assertNotNull(cTs);
+            Assertions.assertNotNull(vTs);
+            contactFirstTouch.set(cTs);
+            voorkeurFirstTouch.set(vTs);
+        });
+
+        given().contentType(ContentType.JSON)
+                .when().get("/api/profielservice/v1/KVK/222222222")
+                .then().statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(contactFirstTouch.get(),
+                    Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt());
+            Assertions.assertEquals(voorkeurFirstTouch.get(),
+                    Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt());
+        });
+    }
+
+    @Test
+    void getPartij_ReadDoesNotBumpLastUpdated() {
+        AtomicLong contactId = new AtomicLong();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(KVK, "333333333"));
+            p.persist();
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Email);
+            c.setWaarde("stable@example.com");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+        });
+
+        AtomicReference<LocalDateTime> before = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            before.set(Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUpdated());
+        });
+
+        given().contentType(ContentType.JSON)
+                .when().get("/api/profielservice/v1/KVK/333333333")
+                .then().statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(before.get(),
+                    Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUpdated());
+        });
     }
 
     @Test

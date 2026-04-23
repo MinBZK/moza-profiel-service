@@ -6,7 +6,6 @@ import jakarta.annotation.Nullable;
 import jakarta.validation.constraints.NotNull;
 import jakarta.persistence.*;
 import nl.rijksoverheid.moz.common.ContactType;
-import nl.rijksoverheid.moz.common.Taal;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 import org.hibernate.envers.Audited;
@@ -37,17 +36,32 @@ public class Contactgegeven extends PanacheEntity {
     private String waarde;
 
     @Nullable
-    @Enumerated(EnumType.STRING)
-    private Taal taal;
-
-    @Nullable
-    private String terAttentieVan;
-
-    @Nullable
     private LocalDateTime geverifieerdAt;
 
     @Nullable
     private String verificatieReferentieId;
+
+    private boolean isValid = false;
+
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    private LocalDateTime lastUpdated;
+
+    @Nullable
+    private LocalDateTime lastUsedAt;
+
+    @PrePersist
+    private void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        lastUpdated = now;
+    }
+
+    @PreUpdate
+    private void onUpdate() {
+        lastUpdated = LocalDateTime.now();
+    }
 
     public Partij getPartij() {
         return partij;
@@ -83,24 +97,6 @@ public class Contactgegeven extends PanacheEntity {
     }
 
     @Nullable
-    public Taal getTaal() {
-        return taal;
-    }
-
-    public void setTaal(@Nullable Taal taal) {
-        this.taal = taal;
-    }
-
-    @Nullable
-    public String getTerAttentieVan() {
-        return terAttentieVan;
-    }
-
-    public void setTerAttentieVan(@Nullable String terAttentieVan) {
-        this.terAttentieVan = terAttentieVan;
-    }
-
-    @Nullable
     public LocalDateTime getGeverifieerdAt() {
         return geverifieerdAt;
     }
@@ -116,5 +112,30 @@ public class Contactgegeven extends PanacheEntity {
 
     public void setVerificatieReferentieId(@Nullable String verificatieReferentieId) {
         this.verificatieReferentieId = verificatieReferentieId;
+    }
+
+    public boolean isIsValid() {
+        return isValid;
+    }
+
+    public void setIsValid(boolean isValid) {
+        this.isValid = isValid;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getLastUpdated() {
+        return lastUpdated;
+    }
+
+    @Nullable
+    public LocalDateTime getLastUsedAt() {
+        return lastUsedAt;
+    }
+
+    public void setLastUsedAt(@Nullable LocalDateTime lastUsedAt) {
+        this.lastUsedAt = lastUsedAt;
     }
 }

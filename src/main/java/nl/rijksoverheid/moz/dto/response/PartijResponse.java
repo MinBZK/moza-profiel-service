@@ -8,5 +8,3 @@ public class PartijResponse {
     public List<VoorkeurResponse> voorkeuren;
     public List<ContactgegevenResponse> contactgegevens;
 }
-
-

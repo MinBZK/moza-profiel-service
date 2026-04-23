@@ -59,6 +59,7 @@ public class ProfielController {
      */
     @GET
     @Path("/{identificatieType}/{identificatieNummer}")
+    @Transactional
     @Operation(
             summary = "Ophalen profiel van een partij",
             description = "Haalt het profiel op van een partij"

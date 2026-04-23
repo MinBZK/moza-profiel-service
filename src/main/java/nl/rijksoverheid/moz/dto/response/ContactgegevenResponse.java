@@ -1,14 +1,16 @@
 package nl.rijksoverheid.moz.dto.response;
 
 import nl.rijksoverheid.moz.common.ContactType;
-import nl.rijksoverheid.moz.common.Taal;
+
+import java.time.LocalDateTime;
 
 public class ContactgegevenResponse {
     public Long id;
     public ContactType type;
     public String waarde;
-    public Taal taal;
-    public String terAttentieVan;
     public boolean isGeverifieerd;
+    public boolean isValid;
+    public LocalDateTime createdAt;
+    public LocalDateTime lastUpdated;
     public ScopeResponse scope;
 }
