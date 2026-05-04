@@ -20,6 +20,7 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.logging.Logger;
 
 import java.net.URI;
 
@@ -30,6 +31,8 @@ import java.net.URI;
 @Tag(name = "Dienstverlener", description = "Endpoints voor het beheren van dienstverleners en diensten")
 public class DienstverlenerController {
 
+    private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
+
     @Inject
     DienstverlenerService dienstverlenerService;
 
@@ -39,10 +42,13 @@ public class DienstverlenerController {
 
         Dienstverlener dv = dienstverlenerService.getDienstenVoorDienstverlener(naam);
 
-        if (dv == null)
+        if (dv == null) {
+            LOG.warn("Dienstverlener niet gevonden");
             return Response.status(Response.Status.NOT_FOUND).build();
+        }
 
         DienstverlenerResponse response = new DienstverlenerResponse(dv);
+        LOG.info("Dienstverlener opgehaald");
         return Response.ok(response).build();
     }
 
@@ -52,10 +58,12 @@ public class DienstverlenerController {
     public Response addDienstverlener(
             DienstverlenerRequest dienstverlenerRequest) {
         if (dienstverlenerRequest == null) {
+            LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
         dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
+        LOG.info("Dienstverlener toegevoegd");
         URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerRequest.naam));
         return Response.created(uri).build();
     }
@@ -75,9 +83,11 @@ public class DienstverlenerController {
             DienstRequest request
     ) {
         if (request == null) {
+            LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
         dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
+        LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = URI.create(String.format("/dienstverlener/%s", dienstverlenerNaam));
         return Response.created(uri).build();
     }
