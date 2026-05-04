@@ -4,5 +4,6 @@ public enum VoorkeurType {
     WebsiteTaal,
     MagGebeldWorden,
     WebsiteThema,
-    Aanhef
+    Aanhef,
+    OntvangViaBerichtenbox
 }
