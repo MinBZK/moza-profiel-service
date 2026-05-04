@@ -6,9 +6,12 @@ import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import org.jboss.logging.Logger;
 
 @ApplicationScoped
 public class DienstverlenerService {
+
+    private static final Logger LOG = Logger.getLogger(DienstverlenerService.class);
 
     @Transactional
     public void addDienstverlener(DienstverlenerRequest dienstverlenerRequest) {
@@ -47,6 +50,7 @@ public class DienstverlenerService {
             return dienstverlener;
         }
 
+        LOG.info("Nieuwe dienstverlener aanmaken");
         dienstverlener = new Dienstverlener();
         dienstverlener.setNaam(naam);
         dienstverlener.setOin(oin);

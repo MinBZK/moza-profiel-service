@@ -22,6 +22,7 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Scope;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
+import org.jboss.logging.Logger;
 
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.Map;
 @ApplicationScoped
 public class PartijService {
 
+    private static final Logger LOG = Logger.getLogger(PartijService.class);
 
     @Inject
     PartijMapper partijMapper;
@@ -117,6 +119,7 @@ public class PartijService {
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
         if (partij == null) {
+            LOG.info("Nieuwe partij aanmaken");
             partij = new Partij();
             partij.addIdentificatie(new Identificatie(type, nummer));
             partij.persist();
