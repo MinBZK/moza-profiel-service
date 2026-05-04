@@ -11,12 +11,15 @@ import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.logging.Logger;
 
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "EmailVerificatie", description = "Endpoints voor het verifiëren van emails")
 public class EmailVerificatieController {
+
+    private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
 
     @Inject
     EmailVerificatieService emailVerificatieService;
@@ -27,8 +30,10 @@ public class EmailVerificatieController {
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
 
         if (succes) {
+            LOG.info("Email verificatie succesvol");
             return Response.ok().build();
         } else {
+            LOG.warn("Email verificatie mislukt");
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
     }

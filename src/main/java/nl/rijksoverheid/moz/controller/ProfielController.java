@@ -23,6 +23,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
+import org.jboss.logging.Logger;
 
 import java.net.URI;
 
@@ -40,6 +41,8 @@ import java.net.URI;
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Profiel", description = "Endpoints voor het beheren van partijen")
 public class ProfielController {
+
+    private static final Logger LOG = Logger.getLogger(ProfielController.class);
 
     @Inject
     PartijService partijService;
@@ -88,10 +91,12 @@ public class ProfielController {
 
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Partij niet gevonden");
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Partij opgehaald");
         return Response.ok(result).build();
     }
 
@@ -127,6 +132,7 @@ public class ProfielController {
 
         if (request == null) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Request body mag niet leeg zijn bij addContactgegeven");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
 
@@ -134,6 +140,7 @@ public class ProfielController {
 
         URI uri = URI.create(String.format("/contactgegeven/%s/%s", identificatieType, identificatieNummer));
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Contactgegeven toegevoegd");
         return Response.created(uri).build();
     }
 
@@ -164,6 +171,7 @@ public class ProfielController {
 
         if (request == null) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Request body mag niet leeg zijn bij updateContactgegeven");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
 
@@ -171,10 +179,12 @@ public class ProfielController {
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Contactgegeven niet gevonden voor update");
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Contactgegeven bijgewerkt");
         return Response.ok().build();
     }
 
@@ -205,10 +215,12 @@ public class ProfielController {
 
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Contactgegeven niet gevonden voor verwijdering");
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Contactgegeven verwijderd");
         return Response.noContent().build();
     }
 
@@ -244,12 +256,14 @@ public class ProfielController {
 
         if (request == null) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Request body mag niet leeg zijn bij addVoorkeur");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
 
         partijService.addVoorkeur(identificatieType, identificatieNummer, request);
 
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Voorkeur toegevoegd");
         URI uri = URI.create(String.format("/%s/%s", identificatieType, identificatieNummer));
         return Response.created(uri).build();
     }
@@ -281,6 +295,7 @@ public class ProfielController {
 
         if (request == null) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Request body mag niet leeg zijn bij updateVoorkeur");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
 
@@ -288,10 +303,12 @@ public class ProfielController {
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Voorkeur niet gevonden voor update");
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Voorkeur bijgewerkt");
         return Response.ok().build();
     }
 
@@ -322,10 +339,12 @@ public class ProfielController {
 
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Voorkeur niet gevonden voor verwijdering");
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Voorkeur verwijderd");
         return Response.noContent().build();
     }
 }

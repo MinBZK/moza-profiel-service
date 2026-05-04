@@ -37,7 +37,7 @@ public class EmailVerificatieService {
         Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.identificatieType, emailVerificatieRequest.identificatieNummer);
 
         if (partij == null) {
-            LOG.warnf("Verificatie mislukt: Partij niet gevonden voor %s", emailVerificatieRequest.identificatieNummer);
+            LOG.warn("Verificatie mislukt: Partij niet gevonden");
             return false;
         }
 
@@ -47,7 +47,7 @@ public class EmailVerificatieService {
                 .orElse(null);
 
         if (contact == null || contact.getGeverifieerdAt() != null) {
-            LOG.warnf("Verificatie mislukt: Contact niet gevonden of al geverifieerd voor %s", emailVerificatieRequest.email);
+            LOG.warn("Verificatie mislukt: Contact niet gevonden of al geverifieerd");
             return false;
         }
 
@@ -61,17 +61,17 @@ public class EmailVerificatieService {
                 contact.setGeverifieerdAt(LocalDateTime.now());
                 contact.setIsValid(true);
                 contact.setVerificatieReferentieId(null);
-                LOG.infof("Email succesvol geverifieerd voor: %s", emailVerificatieRequest.email);
+                LOG.info("Email succesvol geverifieerd");
                 return true;
             }
 
-            LOG.warnf("NotifyNL gaf geen succes-bevestiging voor %s", emailVerificatieRequest.email);
+            LOG.warn("NotifyNL gaf geen succes-bevestiging");
             return false;
 
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
-            LOG.errorf("NotifyNL Verificatie API Error (%d) voor %s: %s",
-                    e.getResponse().getStatus(), emailVerificatieRequest.email, errorBody);
+            LOG.errorf("NotifyNL Verificatie API Error (%d): %s",
+                    e.getResponse().getStatus(), errorBody);
             return false;
         } catch (Exception e) {
             LOG.error("Onverwachte fout tijdens verifiëren van email code: " + e.getMessage(), e);
@@ -92,10 +92,10 @@ public class EmailVerificatieService {
             if (referenceId != null) {
                 return referenceId;
             }
-            LOG.errorf("Email verificatie verzoek mislukt voor email: %s. Response success was false.", email);
+            LOG.error("Email verificatie verzoek mislukt. Response success was false.");
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
-            LOG.errorf("NotifyNL API Error (%d) voor %s: %s", e.getResponse().getStatus(), email, errorBody);
+            LOG.errorf("NotifyNL API Error (%d): %s", e.getResponse().getStatus(), errorBody);
         } catch (RuntimeException e) {
             LOG.error("Onverwachte fout tijdens aanvragen email verificatie: " + e.getMessage(), e);
         }
