@@ -3,6 +3,7 @@ package nl.rijksoverheid.moz.dto.response;
 import nl.rijksoverheid.moz.common.ContactType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class ContactgegevenResponse {
     public Long id;
@@ -12,5 +13,5 @@ public class ContactgegevenResponse {
     public boolean isValid;
     public LocalDateTime createdAt;
     public LocalDateTime lastUpdated;
-    public ScopeResponse scope;
+    public List<ScopeResponse> scopes;
 }
