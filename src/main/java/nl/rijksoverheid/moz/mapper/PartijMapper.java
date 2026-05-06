@@ -47,7 +47,7 @@ public class PartijMapper {
         return ir;
     }
 
-    private ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
+    public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
         if (isStale(cg.getLastUsedAt())) {
             Contactgegeven.update("lastUsedAt = ?1 where id = ?2", LocalDateTime.now(), cg.id);
         }
@@ -59,11 +59,11 @@ public class PartijMapper {
         cr.isValid = cg.isIsValid();
         cr.createdAt = cg.getCreatedAt();
         cr.lastUpdated = cg.getLastUpdated();
-        cr.scope = toScopeResponse(cg.getScope());
+        cr.scopes = cg.getScopes().stream().map(this::toScopeResponse).toList();
         return cr;
     }
 
-    private VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
+    public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
         if (isStale(voorkeur.getLastUsedAt())) {
             Voorkeur.update("lastUsedAt = ?1 where id = ?2", LocalDateTime.now(), voorkeur.id);
         }
@@ -73,7 +73,7 @@ public class PartijMapper {
         vr.waarde = voorkeur.getWaarde();
         vr.createdAt = voorkeur.getCreatedAt();
         vr.lastUpdated = voorkeur.getLastUpdated();
-        vr.scope = toScopeResponse(voorkeur.getScope());
+        vr.scopes = voorkeur.getScopes().stream().map(this::toScopeResponse).toList();
         return vr;
     }
 
