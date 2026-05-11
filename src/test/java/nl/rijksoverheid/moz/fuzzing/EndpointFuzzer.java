@@ -87,69 +87,71 @@ public class EndpointFuzzer {
     private static void fuzzGetPartij(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN", "INVALID"});
         String nummer = data.consumeString(20);
-        get("/" + enc(type) + "/" + enc(nummer));
+        get("/identificaties/" + enc(type) + "/" + enc(nummer));
     }
 
     private static void fuzzAddContactgegeven(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String nummer = data.consumeString(20);
         String json = data.consumeRemainingAsString();
-        post("/contactgegeven/" + enc(type) + "/" + enc(nummer), json);
+        post("/contactgegevens/" + enc(type) + "/" + enc(nummer), json);
     }
 
     private static void fuzzUpdateContactgegeven(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String nummer = data.consumeString(20);
+        long id = data.consumeLong();
         String json = data.consumeRemainingAsString();
-        put("/contactgegeven/" + enc(type) + "/" + enc(nummer) + "/", json);
+        put("/contactgegevens/" + enc(type) + "/" + enc(nummer) + "/" + id, json);
     }
 
     private static void fuzzDeleteContactgegeven(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String nummer = data.consumeString(20);
         long id = data.consumeLong();
-        delete("/contactgegeven/" + enc(type) + "/" + enc(nummer) + "/" + id);
+        delete("/contactgegevens/" + enc(type) + "/" + enc(nummer) + "/" + id);
     }
 
     private static void fuzzAddVoorkeur(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String nummer = data.consumeString(20);
         String json = data.consumeRemainingAsString();
-        post("/voorkeur/" + enc(type) + "/" + enc(nummer), json);
+        post("/voorkeuren/" + enc(type) + "/" + enc(nummer), json);
     }
 
     private static void fuzzUpdateVoorkeur(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String nummer = data.consumeString(20);
+        long id = data.consumeLong();
         String json = data.consumeRemainingAsString();
-        put("/voorkeur/" + enc(type) + "/" + enc(nummer) + "/", json);
+        put("/voorkeuren/" + enc(type) + "/" + enc(nummer) + "/" + id, json);
     }
 
     private static void fuzzDeleteVoorkeur(FuzzedDataProvider data) throws Exception {
         String type = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String nummer = data.consumeString(20);
         long id = data.consumeLong();
-        delete("/voorkeur/" + enc(type) + "/" + enc(nummer) + "/" + id);
+        delete("/voorkeuren/" + enc(type) + "/" + enc(nummer) + "/" + id);
     }
 
     private static void fuzzGetDienstenDienstverlener(FuzzedDataProvider data) throws Exception {
         String naam = data.consumeString(50);
-        get("/dienstverlener/" + enc(naam));
+        get("/dienstverleners/" + enc(naam));
     }
 
     private static void fuzzAddDienstverlener(FuzzedDataProvider data) throws Exception {
         String json = data.consumeRemainingAsString();
-        post("/dienstverlener/", json);
+        post("/dienstverleners", json);
     }
 
     private static void fuzzAddDienstToDienstverlener(FuzzedDataProvider data) throws Exception {
         String naam = data.consumeString(50);
         String json = data.consumeRemainingAsString();
-        post("/dienstverlener/" + enc(naam) + "/diensten", json);
+        post("/dienstverleners/" + enc(naam) + "/diensten", json);
     }
 
     private static void fuzzPostEmailVerificatie(FuzzedDataProvider data) throws Exception {
         String json = data.consumeRemainingAsString();
-        post("/emailverificatie", json);
+        post("/email-verificaties", json);
     }
 }

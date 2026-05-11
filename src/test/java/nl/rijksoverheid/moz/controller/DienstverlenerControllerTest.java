@@ -48,7 +48,7 @@ public class DienstverlenerControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .get("/api/profielservice/v1/dienstverlener/Test")
+                .get("/api/profielservice/v1/dienstverleners/Test")
                 .then()
                 .statusCode(OK)
                 .body("naam", org.hamcrest.Matchers.equalTo("Test"))
@@ -62,7 +62,7 @@ public class DienstverlenerControllerTest {
     void getDienstenDienstverlener_NotFound() {
         given()
                 .contentType(ContentType.JSON)
-                .get("/api/profielservice/v1/dienstverlener/Test")
+                .get("/api/profielservice/v1/dienstverleners/Test")
                 .then()
                 .statusCode(NOT_FOUND);
 
@@ -77,10 +77,10 @@ public class DienstverlenerControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(request)
-                .post("/api/profielservice/v1/dienstverlener")
+                .post("/api/profielservice/v1/dienstverleners")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverleners/Test"));
 
     }
 
@@ -88,7 +88,7 @@ public class DienstverlenerControllerTest {
     void addDienstverlener_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .post("/api/profielservice/v1/dienstverlener")
+                .post("/api/profielservice/v1/dienstverleners")
                 .then()
                 .statusCode(BAD_REQUEST);
 
@@ -109,10 +109,10 @@ public class DienstverlenerControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(request)
-                .post("/api/profielservice/v1/dienstverlener/Test/diensten")
+                .post("/api/profielservice/v1/dienstverleners/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverleners/Test"));
 
     }
 
@@ -120,7 +120,7 @@ public class DienstverlenerControllerTest {
     void addDienstToDienstverlener_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .post("/api/profielservice/v1/dienstverlener/Test/diensten")
+                .post("/api/profielservice/v1/dienstverleners/Test/diensten")
                 .then()
                 .statusCode(BAD_REQUEST);
 
