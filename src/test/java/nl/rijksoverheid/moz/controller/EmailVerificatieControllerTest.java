@@ -36,7 +36,7 @@ public class EmailVerificatieControllerTest {
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
-                .post("/api/profielservice/v1/email-verificaties")
+                .post("/api/profielservice/v1/emailverificatie")
                 .then()
                 .statusCode(OK);
     }
@@ -55,7 +55,7 @@ public class EmailVerificatieControllerTest {
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
-                .post("/api/profielservice/v1/email-verificaties")
+                .post("/api/profielservice/v1/emailverificatie")
                 .then()
                 .statusCode(BAD_REQUEST);
     }

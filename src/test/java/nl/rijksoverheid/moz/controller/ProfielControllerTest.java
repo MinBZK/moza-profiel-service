@@ -77,7 +77,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .when()
-                .get("/api/profielservice/v1/identificaties/KVK/111111111")
+                .get("/api/profielservice/v1/KVK/111111111")
                 .then()
                 .statusCode(OK)
                 .body("identificaties[0].identificatieType", org.hamcrest.Matchers.equalTo("KVK"))
@@ -115,7 +115,7 @@ public class ProfielControllerTest {
         });
 
         given().contentType(ContentType.JSON)
-                .when().get("/api/profielservice/v1/identificaties/KVK/222222222")
+                .when().get("/api/profielservice/v1/KVK/222222222")
                 .then().statusCode(OK);
 
         AtomicReference<LocalDateTime> contactFirstTouch = new AtomicReference<>();
@@ -130,7 +130,7 @@ public class ProfielControllerTest {
         });
 
         given().contentType(ContentType.JSON)
-                .when().get("/api/profielservice/v1/identificaties/KVK/222222222")
+                .when().get("/api/profielservice/v1/KVK/222222222")
                 .then().statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -162,7 +162,7 @@ public class ProfielControllerTest {
         });
 
         given().contentType(ContentType.JSON)
-                .when().get("/api/profielservice/v1/identificaties/KVK/333333333")
+                .when().get("/api/profielservice/v1/KVK/333333333")
                 .then().statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -176,7 +176,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .when()
-                .get("/api/profielservice/v1/identificaties/BSN/999999999")
+                .get("/api/profielservice/v1/BSN/999999999")
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -190,10 +190,10 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .post("/api/profielservice/v1/contactgegevens/BSN/123456789")
+                .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.containsString("/contactgegevens/BSN/123456789/"))
+                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven/BSN/123456789"))
                 .body("waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
 
     }
@@ -204,14 +204,14 @@ public class ProfielControllerTest {
         body.type = ContactType.Email;
         body.waarde = "dup@example.com";
 
-        assertSecondPostReturns200("/api/profielservice/v1/contactgegevens/BSN/123456789", body, "dup@example.com");
+        assertSecondPostReturns200("/api/profielservice/v1/contactgegeven/BSN/123456789", body, "dup@example.com");
     }
 
     @Test
     void addContactgegeven_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .post("/api/profielservice/v1/contactgegevens/BSN/123456789")
+                .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
                 .then()
                 .statusCode(BAD_REQUEST);
 
@@ -241,7 +241,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegevens/BSN/111111111/" + id.get())
+                .put("/api/profielservice/v1/contactgegeven/BSN/111111111")
                 .then()
                 .statusCode(OK);
     }
@@ -262,7 +262,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .put("/api/profielservice/v1/contactgegevens/BSN/111111113/1")
+                .put("/api/profielservice/v1/contactgegeven/BSN/111111113")
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -278,7 +278,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegevens/BSN/123456789/1")
+                .put("/api/profielservice/v1/contactgegeven/BSN/123456789")
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -301,7 +301,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/contactgegevens/BSN/111111114/" + contactGegevenId.get())
+                .delete("/api/profielservice/v1/contactgegeven/BSN/111111114/" + contactGegevenId.get())
                 .then()
                 .statusCode(NO_CONTENT);
     }
@@ -310,7 +310,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/contactgegevens/BSN/111111114/" + 1)
+                .delete("/api/profielservice/v1/contactgegeven/BSN/111111114/" + 1)
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -324,10 +324,10 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .post("/api/profielservice/v1/voorkeuren/BSN/123456789")
+                .post("/api/profielservice/v1/voorkeur/BSN/123456789")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.containsString("/voorkeuren/BSN/123456789/"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/BSN/123456789"));
     }
 
     @Test
@@ -336,14 +336,14 @@ public class ProfielControllerTest {
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "nl";
 
-        assertSecondPostReturns200("/api/profielservice/v1/voorkeuren/BSN/123456789", body, "nl");
+        assertSecondPostReturns200("/api/profielservice/v1/voorkeur/BSN/123456789", body, "nl");
     }
 
     @Test
     void addVoorkeur_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .post("/api/profielservice/v1/voorkeuren/BSN/123456789")
+                .post("/api/profielservice/v1/voorkeur/BSN/123456789")
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -371,7 +371,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/voorkeuren/BSN/111111115/" + id.get())
+                .put("/api/profielservice/v1/voorkeur/BSN/111111115")
                 .then()
                 .statusCode(OK);
     }
@@ -391,7 +391,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .put("/api/profielservice/v1/voorkeuren/BSN/111111116/1")
+                .put("/api/profielservice/v1/voorkeur/BSN/111111116")
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -406,7 +406,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/voorkeuren/BSN/123456789/1")
+                .put("/api/profielservice/v1/voorkeur/BSN/123456789")
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -428,7 +428,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/voorkeuren/BSN/111111118/" + voorkeurId.get())
+                .delete("/api/profielservice/v1/voorkeur/BSN/111111118/" + voorkeurId.get())
                 .then()
                 .statusCode(NO_CONTENT);
     }
@@ -437,7 +437,7 @@ public class ProfielControllerTest {
     void deleteVoorkeur_NotFound() {
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/voorkeuren/BSN/111111119/" + 1)
+                .delete("/api/profielservice/v1/voorkeur/BSN/111111119/" + 1)
                 .then()
                 .statusCode(NOT_FOUND);
     }

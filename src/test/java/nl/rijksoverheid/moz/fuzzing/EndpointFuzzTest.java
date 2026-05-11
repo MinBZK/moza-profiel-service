@@ -34,7 +34,7 @@ public class EndpointFuzzTest {
                 .queryParam("oin", oin)
                 .queryParam("dienstBeschrijving", dienstBeschrijving)
                 .when()
-                .get("/api/profielservice/v1/identificaties/{identificatieType}/{identificatieNummer}")
+                .get("/api/profielservice/v1/{identificatieType}/{identificatieNummer}")
                 .then()
                 .extract().response();
         
@@ -59,7 +59,7 @@ public class EndpointFuzzTest {
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .when()
-                .post("/api/profielservice/v1/contactgegevens/{identificatieType}/{identificatieNummer}")
+                .post("/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}")
                 .then()
                 .extract().response();
     }
@@ -82,9 +82,8 @@ public class EndpointFuzzTest {
                 .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
-                .pathParam("contactgegevenId", id)
                 .when()
-                .put("/api/profielservice/v1/contactgegevens/{identificatieType}/{identificatieNummer}/{contactgegevenId}")
+                .put("/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}/")
                 .then()
                 .extract().response();
     }
@@ -100,7 +99,7 @@ public class EndpointFuzzTest {
                 .pathParam("identificatieNummer", identificatieNummer)
                 .pathParam("contactgegevenId", contactgegevenId)
                 .when()
-                .delete("/api/profielservice/v1/contactgegevens/{identificatieType}/{identificatieNummer}/{contactgegevenId}")
+                .delete("/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}/{contactgegevenId}")
                 .then()
                 .extract().response();
     }
@@ -122,7 +121,7 @@ public class EndpointFuzzTest {
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .when()
-                .post("/api/profielservice/v1/voorkeuren/{identificatieType}/{identificatieNummer}")
+                .post("/api/profielservice/v1/voorkeur/{identificatieType}/{identificatieNummer}")
                 .then()
                 .extract().response();
     }
@@ -145,9 +144,8 @@ public class EndpointFuzzTest {
                 .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
-                .pathParam("voorkeurId", id)
                 .when()
-                .put("/api/profielservice/v1/voorkeuren/{identificatieType}/{identificatieNummer}/{voorkeurId}")
+                .put("/api/profielservice/v1/voorkeur/{identificatieType}/{identificatieNummer}/")
                 .then()
                 .extract().response();
     }
@@ -163,7 +161,7 @@ public class EndpointFuzzTest {
                 .pathParam("identificatieNummer", identificatieNummer)
                 .pathParam("voorkeurId", voorkeurId)
                 .when()
-                .delete("/api/profielservice/v1/voorkeuren/{identificatieType}/{identificatieNummer}/{voorkeurId}")
+                .delete("/api/profielservice/v1/voorkeur/{identificatieType}/{identificatieNummer}/{voorkeurId}")
                 .then()
                 .extract().response();
     }
@@ -175,7 +173,7 @@ public class EndpointFuzzTest {
         RestAssured.given()
                 .pathParam("naam", naam)
                 .when()
-                .get("/api/profielservice/v1/dienstverleners/{naam}")
+                .get("/api/profielservice/v1/dienstverlener/{naam}")
                 .then()
                 .extract().response();
     }
@@ -193,7 +191,7 @@ public class EndpointFuzzTest {
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .when()
-                .post("/api/profielservice/v1/dienstverleners")
+                .post("/api/profielservice/v1/dienstverlener/")
                 .then()
                 .extract().response();
     }
@@ -211,7 +209,7 @@ public class EndpointFuzzTest {
                 .body(body.toString())
                 .pathParam("DienstverlenerNaam", dienstverlenerNaam)
                 .when()
-                .post("/api/profielservice/v1/dienstverleners/{DienstverlenerNaam}/diensten")
+                .post("/api/profielservice/v1/dienstverlener/{DienstverlenerNaam}/diensten")
                 .then()
                 .extract().response();
     }
@@ -233,7 +231,7 @@ public class EndpointFuzzTest {
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .when()
-                .post("/api/profielservice/v1/email-verificaties")
+                .post("/api/profielservice/v1/emailverificatie")
                 .then()
                 .extract().response();
     }
