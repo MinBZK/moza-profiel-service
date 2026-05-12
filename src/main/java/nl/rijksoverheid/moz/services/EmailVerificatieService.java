@@ -5,6 +5,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -79,13 +80,42 @@ public class EmailVerificatieService {
         }
     }
 
+    @Transactional
+    public boolean vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest aanvraag) {
+        Partij partij = Partij.findByIdentificatie(aanvraag.identificatieType, aanvraag.identificatieNummer);
+
+        if (partij == null) {
+            LOG.warn("Verificatie code aanvraag mislukt: Partij niet gevonden");
+            return false;
+        }
+
+        Contactgegeven contact = partij.getContactgegevens().stream()
+                .filter(c -> c.getWaarde().equals(aanvraag.email))
+                .findFirst()
+                .orElse(null);
+
+        if (contact == null) {
+            LOG.warn("Verificatie code aanvraag mislukt: Contact niet gevonden");
+            return false;
+        }
+
+        String referenceId = requestEmailVerificationCode(aanvraag.email);
+        if (referenceId == null) {
+            return false;
+        }
+
+        contact.setVerificatieReferentieId(referenceId);
+        contact.setGeverifieerdAt(null);
+        contact.setIsValid(false);
+        return true;
+    }
+
     public String requestEmailVerificationCode(String email) {
 
         VerificationApplicationRequest verificationApplicationRequest = new VerificationApplicationRequest();
         verificationApplicationRequest.setApiKey(apiKey);
         verificationApplicationRequest.setTemplateId(templateId);
         verificationApplicationRequest.setEmail(email);
-
 
         try {
             String referenceId = emailVerificatieApi.requestPost(verificationApplicationRequest);
