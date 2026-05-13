@@ -161,7 +161,11 @@ public class ProfielController {
             return Response.created(uri).entity(body).build();
         }
 
-        LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
+        if (result.verificatieCodeOpnieuwVerzonden()) {
+            LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
+        } else {
+            LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
+        }
         return Response.ok(body).location(uri).build();
     }
 

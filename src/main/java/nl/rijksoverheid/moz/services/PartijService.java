@@ -42,7 +42,7 @@ public class PartijService {
     @Inject
     EmailVerificatieService emailVerificatieService;
 
-    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated) {}
+    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean verificatieCodeOpnieuwVerzonden) {}
 
     public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated) {}
 
@@ -60,13 +60,20 @@ public class PartijService {
                 "partij.id = ?1 AND type = ?2 AND waarde = ?3",
                 partij.id, request.type, request.waarde
         ).firstResult();
-
+        
         if (existing != null) {
+            boolean codeOpnieuwVerzonden = false;
+
+            if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
+                requestAndApplyVerificatieCode(existing);
+                codeOpnieuwVerzonden = true;
+            }
+
             if (candidateScope == null || hasMatchingScope(existing.getScopes(), candidateScope)) {
-                return new AddContactgegevenResult(existing, false);
+                return new AddContactgegevenResult(existing, false, codeOpnieuwVerzonden);
             }
             existing.addScope(candidateScope);
-            return new AddContactgegevenResult(existing, true);
+            return new AddContactgegevenResult(existing, true, codeOpnieuwVerzonden);
         }
 
         Contactgegeven contactgegeven = new Contactgegeven();
@@ -77,8 +84,7 @@ public class PartijService {
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
-            String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
-            contactgegeven.setVerificatieReferentieId(referenceId);
+            requestAndApplyVerificatieCode(contactgegeven);
         }
 
         if (candidateScope != null) {
@@ -87,7 +93,7 @@ public class PartijService {
 
         contactgegeven.persist();
 
-        return new AddContactgegevenResult(contactgegeven, true);
+        return new AddContactgegevenResult(contactgegeven, true, false);
     }
 
     @Transactional
@@ -124,6 +130,12 @@ public class PartijService {
         voorkeur.persist();
 
         return new AddVoorkeurResult(voorkeur, true);
+    }
+
+    private void requestAndApplyVerificatieCode(Contactgegeven contact) {
+        String referenceId = emailVerificatieService.requestEmailVerificationCode(contact.getWaarde());
+        contact.setVerificatieReferentieId(referenceId);
+        contact.setIsValid(false);
     }
 
     private boolean hasMatchingScope(List<Scope> existing, Scope candidate) {
@@ -205,8 +217,7 @@ public class PartijService {
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
-            String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
-            contact.setVerificatieReferentieId(referenceId);
+            requestAndApplyVerificatieCode(contact);
         }
 
         contact.setGeverifieerdAt(null);
