@@ -367,7 +367,7 @@ public class EmailVerificatieServiceTest {
                     .orElseThrow();
             Assertions.assertEquals("new-reference-id", contact.getVerificatieReferentieId());
             Assertions.assertNull(contact.getGeverifieerdAt());
-            Assertions.assertFalse(contact.isIsValid());
+            Assertions.assertFalse(contact.isIsGeverifieerd());
         });
     }
 
@@ -382,7 +382,7 @@ public class EmailVerificatieServiceTest {
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
             contact.setGeverifieerdAt(LocalDateTime.now());
-            contact.setIsValid(true);
+            contact.setIsGeverifieerd(true);
             contact.setPartij(partij);
             contact.persist();
         });
@@ -405,7 +405,7 @@ public class EmailVerificatieServiceTest {
                     .orElseThrow();
             Assertions.assertEquals("new-reference-id", contact.getVerificatieReferentieId());
             Assertions.assertNull(contact.getGeverifieerdAt());
-            Assertions.assertFalse(contact.isIsValid());
+            Assertions.assertFalse(contact.isIsGeverifieerd());
         });
     }
 

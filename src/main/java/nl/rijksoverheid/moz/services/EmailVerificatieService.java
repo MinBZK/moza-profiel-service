@@ -107,7 +107,7 @@ public class EmailVerificatieService {
 
         contact.setVerificatieReferentieId(referenceId);
         contact.setGeverifieerdAt(null);
-        contact.setIsValid(false);
+        contact.setIsGeverifieerd(false);
         return Response.Status.OK.getStatusCode();
     }
 
