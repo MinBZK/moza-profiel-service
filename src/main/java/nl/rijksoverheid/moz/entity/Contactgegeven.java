@@ -41,7 +41,7 @@ public class Contactgegeven extends PanacheEntity implements Scoped {
     @Nullable
     private String verificatieReferentieId;
 
-    private boolean isValid = false;
+    private boolean isGeverifieerd = false;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -118,12 +118,12 @@ public class Contactgegeven extends PanacheEntity implements Scoped {
         this.verificatieReferentieId = verificatieReferentieId;
     }
 
-    public boolean isIsValid() {
-        return isValid;
+    public boolean isIsGeverifieerd() {
+        return isGeverifieerd;
     }
 
-    public void setIsValid(boolean isValid) {
-        this.isValid = isValid;
+    public void setIsGeverifieerd(boolean isGeverifieerd) {
+        this.isGeverifieerd = isGeverifieerd;
     }
 
     public LocalDateTime getCreatedAt() {

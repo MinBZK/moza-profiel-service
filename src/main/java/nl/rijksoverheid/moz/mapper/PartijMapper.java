@@ -55,8 +55,7 @@ public class PartijMapper {
         cr.id = cg.id;
         cr.type = cg.getType();
         cr.waarde = cg.getWaarde();
-        cr.isGeverifieerd = cg.getGeverifieerdAt() != null;
-        cr.isValid = cg.isIsValid();
+        cr.isGeverifieerd = cg.isIsGeverifieerd();
         cr.createdAt = cg.getCreatedAt();
         cr.lastUpdated = cg.getLastUpdated();
         cr.scopes = cg.getScopes().stream().map(this::toScopeResponse).toList();

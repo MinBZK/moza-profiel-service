@@ -59,7 +59,7 @@ public class EmailVerificatieService {
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
                 contact.setGeverifieerdAt(LocalDateTime.now());
-                contact.setIsValid(true);
+                contact.setIsGeverifieerd(true);
                 contact.setVerificatieReferentieId(null);
                 LOG.info("Email succesvol geverifieerd");
                 return true;
@@ -80,12 +80,10 @@ public class EmailVerificatieService {
     }
 
     public String requestEmailVerificationCode(String email) {
-
         VerificationApplicationRequest verificationApplicationRequest = new VerificationApplicationRequest();
         verificationApplicationRequest.setApiKey(apiKey);
         verificationApplicationRequest.setTemplateId(templateId);
         verificationApplicationRequest.setEmail(email);
-
 
         try {
             String referenceId = emailVerificatieApi.requestPost(verificationApplicationRequest);
