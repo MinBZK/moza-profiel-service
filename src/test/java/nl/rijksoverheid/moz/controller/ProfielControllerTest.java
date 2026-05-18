@@ -53,6 +53,13 @@ public class ProfielControllerTest {
         Dienstverlener.deleteAll();
     }
 
+    private void assertSecondPostReturns200(String path, Object body, String expectedWaarde) {
+        given().contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
+        given().contentType(ContentType.JSON).body(body).post(path).then()
+                .statusCode(OK)
+                .body("waarde", org.hamcrest.Matchers.equalTo(expectedWaarde));
+    }
+
     @Test
     void getPartij_Success()  {
 
@@ -186,8 +193,18 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven/BSN/123456789"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven/BSN/123456789"))
+                .body("waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
 
+    }
+
+    @Test
+    void addContactgegeven_Duplicate_Returns200() {
+        var body = new ContactgegevenRequest();
+        body.type = ContactType.Email;
+        body.waarde = "dup@example.com";
+
+        assertSecondPostReturns200("/api/profielservice/v1/contactgegeven/BSN/123456789", body, "dup@example.com");
     }
 
     @Test
@@ -309,7 +326,17 @@ public class ProfielControllerTest {
                 .body(body)
                 .post("/api/profielservice/v1/voorkeur/BSN/123456789")
                 .then()
+                .statusCode(CREATED)
                 .header("Location", org.hamcrest.Matchers.endsWith("/BSN/123456789"));
+    }
+
+    @Test
+    void addVoorkeur_Duplicate_Returns200() {
+        var body = new VoorkeurRequest();
+        body.voorkeurType = VoorkeurType.WebsiteTaal;
+        body.waarde = "nl";
+
+        assertSecondPostReturns200("/api/profielservice/v1/voorkeur/BSN/123456789", body, "nl");
     }
 
     @Test

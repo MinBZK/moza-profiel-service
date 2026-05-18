@@ -5,6 +5,8 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.common.ContactType;
+import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -47,7 +49,7 @@ public class EmailVerificatieService {
         }
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getWaarde().equals(emailVerificatieRequest.email))
+                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
                 .findFirst()
                 .orElse(null);
 
@@ -88,6 +90,36 @@ public class EmailVerificatieService {
         }
     }
 
+    @Transactional
+    public int vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest aanvraag) {
+        Partij partij = Partij.findByIdentificatie(aanvraag.identificatieType, aanvraag.identificatieNummer);
+
+        if (partij == null) {
+            LOG.warn("Verificatie code aanvraag mislukt: Partij niet gevonden");
+            return Response.Status.NOT_FOUND.getStatusCode();
+        }
+
+        Contactgegeven contact = partij.getContactgegevens().stream()
+                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(aanvraag.email))
+                .findFirst()
+                .orElse(null);
+
+        if (contact == null) {
+            LOG.warn("Verificatie code aanvraag mislukt: Contact niet gevonden");
+            return Response.Status.NOT_FOUND.getStatusCode();
+        }
+
+        String referenceId = requestEmailVerificationCode(aanvraag.email);
+        if (referenceId == null) {
+            return Response.Status.SERVICE_UNAVAILABLE.getStatusCode();
+        }
+
+        contact.setVerificatieReferentieId(referenceId);
+        contact.setGeverifieerdAt(null);
+        contact.setIsValid(false);
+        return Response.Status.OK.getStatusCode();
+    }
+
     public String requestEmailVerificationCode(String email) {
         VerificationApplicationRequest verificationApplicationRequest = new VerificationApplicationRequest();
         verificationApplicationRequest.setApiKey(apiKey);
@@ -99,7 +131,7 @@ public class EmailVerificatieService {
             if (referenceId != null) {
                 return referenceId;
             }
-            LOG.error("Email verificatie verzoek mislukt. Response success was false.");
+            LOG.error("Email verificatie verzoek mislukt");
             return null;
         } catch (CircuitBreakerOpenException e) {
             LOG.error("Verificatie-service circuit breaker open, verificatie code aanvraag overgeslagen");

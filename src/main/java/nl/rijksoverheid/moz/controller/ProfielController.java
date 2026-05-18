@@ -13,10 +13,15 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
+import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.helper.HashHelper;
+import nl.rijksoverheid.moz.mapper.PartijMapper;
 import nl.rijksoverheid.moz.services.PartijService;
+import nl.rijksoverheid.moz.services.PartijService.AddContactgegevenResult;
+import nl.rijksoverheid.moz.services.PartijService.AddVoorkeurResult;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -46,6 +51,9 @@ public class ProfielController {
 
     @Inject
     PartijService partijService;
+
+    @Inject
+    PartijMapper partijMapper;
 
     @Inject
     LogboekContext logboekContext;
@@ -118,7 +126,17 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(
                     responseCode = "201",
-                    description = "Contactgegeven succesvol toegevoegd"
+                    description = "Contactgegeven succesvol toegevoegd",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ContactgegevenResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "200",
+                    description = "Contactgegeven was al geregistreerd voor deze partij en scope",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ContactgegevenResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "400",
+                    description = "Request body mag niet leeg zijn"
             )
     })
     @Logboek(name= "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
@@ -136,12 +154,19 @@ public class ProfielController {
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
 
-        partijService.addContactgegeven(identificatieType, identificatieNummer, request);
+        AddContactgegevenResult result = partijService.addContactgegeven(identificatieType, identificatieNummer, request);
+        ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
 
         URI uri = URI.create(String.format("/contactgegeven/%s/%s", identificatieType, identificatieNummer));
         logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Contactgegeven toegevoegd");
-        return Response.created(uri).build();
+
+        if (result.wasCreated()) {
+            LOG.info("Contactgegeven toegevoegd");
+            return Response.created(uri).entity(body).build();
+        }
+
+        LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
+        return Response.ok(body).location(uri).build();
     }
 
     /**
@@ -158,6 +183,7 @@ public class ProfielController {
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
     @Logboek(name= "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
@@ -242,7 +268,17 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(
                     responseCode = "201",
-                    description = "Voorkeur succesvol toegevoegd"
+                    description = "Voorkeur succesvol toegevoegd",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = VoorkeurResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "200",
+                    description = "Voorkeur was al geregistreerd voor deze partij en scope",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = VoorkeurResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "400",
+                    description = "Request body mag niet leeg zijn"
             )
     })
     @Logboek(name= "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
@@ -260,12 +296,19 @@ public class ProfielController {
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
         }
 
-        partijService.addVoorkeur(identificatieType, identificatieNummer, request);
+        AddVoorkeurResult result = partijService.addVoorkeur(identificatieType, identificatieNummer, request);
+        VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Voorkeur toegevoegd");
         URI uri = URI.create(String.format("/%s/%s", identificatieType, identificatieNummer));
-        return Response.created(uri).build();
+
+        if (result.wasCreated()) {
+            LOG.info("Voorkeur toegevoegd");
+            return Response.created(uri).entity(body).build();
+        }
+
+        LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
+        return Response.ok(body).location(uri).build();
     }
 
     /**
@@ -282,6 +325,7 @@ public class ProfielController {
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
     @Logboek(name= "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")

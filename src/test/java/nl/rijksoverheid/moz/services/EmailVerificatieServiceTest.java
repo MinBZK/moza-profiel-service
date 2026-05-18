@@ -9,6 +9,7 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
+import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -298,6 +299,145 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
+    void vraagEmailVerificatieCodeAan_PartijNotFound() {
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.email = "test@test.com";
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
+        Mockito.verify(emailVerificatieApi, Mockito.never()).requestPost(Mockito.any());
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_ContactNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+        });
+
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.email = "test@test.com";
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
+        Mockito.verify(emailVerificatieApi, Mockito.never()).requestPost(Mockito.any());
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_Success() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Mockito.doReturn("new-reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
+
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.email = "test@test.com";
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.OK.getStatusCode(), result);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Contactgegeven contact = partij.getContactgegevens().stream()
+                    .filter(c -> c.getWaarde().equals("test@test.com"))
+                    .findFirst()
+                    .orElseThrow();
+            Assertions.assertEquals("new-reference-id", contact.getVerificatieReferentieId());
+            Assertions.assertNull(contact.getGeverifieerdAt());
+            Assertions.assertFalse(contact.isIsValid());
+        });
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_AlreadyVerifiedResetsState() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.setGeverifieerdAt(LocalDateTime.now());
+            contact.setIsValid(true);
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Mockito.doReturn("new-reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
+
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.email = "test@test.com";
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.OK.getStatusCode(), result);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Contactgegeven contact = partij.getContactgegevens().stream()
+                    .filter(c -> c.getWaarde().equals("test@test.com"))
+                    .findFirst()
+                    .orElseThrow();
+            Assertions.assertEquals("new-reference-id", contact.getVerificatieReferentieId());
+            Assertions.assertNull(contact.getGeverifieerdAt());
+            Assertions.assertFalse(contact.isIsValid());
+        });
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_ExternalServiceFails() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("old-reference-id");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Mockito.doReturn(null).when(emailVerificatieApi).requestPost(Mockito.any());
+
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.email = "test@test.com";
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.SERVICE_UNAVAILABLE.getStatusCode(), result);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Contactgegeven contact = partij.getContactgegevens().stream()
+                    .filter(c -> c.getWaarde().equals("test@test.com"))
+                    .findFirst()
+                    .orElseThrow();
+            Assertions.assertEquals("old-reference-id", contact.getVerificatieReferentieId());
+        });
+    }
+
+    @Test
     void circuitBreaker_OpensAfterThresholdExceeded() {
         Mockito.doThrow(createWebApplicationException(500)).when(emailVerificatieApi).requestPost(Mockito.any());
 
@@ -305,7 +445,7 @@ public class EmailVerificatieServiceTest {
             service.requestEmailVerificationCode("email@email.com");
         }
 
-        // Reset mock to success — if the circuit is open the API should not be called
+        // Reset mock to success � if the circuit is open the API should not be called
         Mockito.doReturn("reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
 
         String result = service.requestEmailVerificationCode("email@email.com");
@@ -355,16 +495,16 @@ public class EmailVerificatieServiceTest {
     void circuitBreaker_StaysClosedWithInsufficientFailures() {
         Mockito.doThrow(createWebApplicationException(500)).when(emailVerificatieApi).requestPost(Mockito.any());
 
-        // 4 failures — below requestVolumeThreshold of 5, circuit not yet evaluated
+        // 4 failures below requestVolumeThreshold of 5, circuit not yet evaluated
         for (int i = 0; i < 4; i++) {
             service.requestEmailVerificationCode("email@email.com");
         }
 
-        // 5th call succeeds — window now has 5 calls (80% failure ratio, below 100% threshold), circuit stays closed
+        // 5th call succeeds, window now has 5 calls (80% failure ratio, below 100% threshold), circuit stays closed
         Mockito.doReturn("reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
         service.requestEmailVerificationCode("email@email.com");
 
-        // 6th call still reaches the API — confirms circuit is closed even after window evaluation
+        // 6th call still reaches the API, confirms circuit is closed even after window evaluation
         String result = service.requestEmailVerificationCode("email@email.com");
 
         Assertions.assertEquals("reference-id", result);
@@ -378,5 +518,4 @@ public class EmailVerificatieServiceTest {
         Mockito.when(mockResponse.readEntity(String.class)).thenReturn("Error message");
         return new WebApplicationException(mockResponse);
     }
-
 }
