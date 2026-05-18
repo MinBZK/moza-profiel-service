@@ -1,0 +1,18 @@
+{
+  "priority": 2,
+  "request": {
+    "method": "POST",
+    "url": "/verify"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "success": false,
+      "reasonId": 4,
+      "reasonMessage": "Incorrect code"
+    }
+  }
+}
