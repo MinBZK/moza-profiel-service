@@ -3,13 +3,10 @@ package nl.rijksoverheid.moz.controller;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
-import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.entity.*;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -22,9 +19,8 @@ public class EmailVerificatieControllerTest {
     @InjectMock
     EmailVerificatieService emailVerificatieService;
 
-
     @Test
-    void postEmailVerificatie_Success()  {
+    void postEmailVerificatie_Success() {
         Mockito.doReturn(true).when(emailVerificatieService).verifieerEmail(Mockito.any());
 
         var body = new EmailVerificatieRequest();
@@ -40,42 +36,6 @@ public class EmailVerificatieControllerTest {
                 .post("/api/profielservice/v1/emailverificatie")
                 .then()
                 .statusCode(OK);
-    }
-
-    @Test
-    void postEmailVerificatieCodeAanvraag_Success() {
-        Mockito.doReturn(true).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
-
-        var body = new EmailVerificatieCodeAanvraagRequest();
-        body.email = "email@email.com";
-        body.identificatieNummer = "123";
-        body.identificatieType = IdentificatieType.BSN;
-
-        given()
-                .contentType(ContentType.JSON)
-                .when()
-                .body(body)
-                .post("/api/profielservice/v1/emailverificatie/code")
-                .then()
-                .statusCode(OK);
-    }
-
-    @Test
-    void postEmailVerificatieCodeAanvraag_BadRequest() {
-        Mockito.doReturn(false).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
-
-        var body = new EmailVerificatieCodeAanvraagRequest();
-        body.email = "email@email.com";
-        body.identificatieNummer = "123";
-        body.identificatieType = IdentificatieType.BSN;
-
-        given()
-                .contentType(ContentType.JSON)
-                .when()
-                .body(body)
-                .post("/api/profielservice/v1/emailverificatie/code")
-                .then()
-                .statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -95,5 +55,59 @@ public class EmailVerificatieControllerTest {
                 .post("/api/profielservice/v1/emailverificatie")
                 .then()
                 .statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void postEmailVerificatieCodeAanvraag_Success() {
+        Mockito.doReturn(OK).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
+
+        var body = new EmailVerificatieCodeAanvraagRequest();
+        body.email = "email@email.com";
+        body.identificatieNummer = "123";
+        body.identificatieType = IdentificatieType.BSN;
+
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .body(body)
+                .post("/api/profielservice/v1/emailverificatie/code")
+                .then()
+                .statusCode(OK);
+    }
+
+    @Test
+    void postEmailVerificatieCodeAanvraag_NotFound() {
+        Mockito.doReturn(NOT_FOUND).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
+
+        var body = new EmailVerificatieCodeAanvraagRequest();
+        body.email = "email@email.com";
+        body.identificatieNummer = "123";
+        body.identificatieType = IdentificatieType.BSN;
+
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .body(body)
+                .post("/api/profielservice/v1/emailverificatie/code")
+                .then()
+                .statusCode(NOT_FOUND);
+    }
+
+    @Test
+    void postEmailVerificatieCodeAanvraag_ServiceUnavailable() {
+        Mockito.doReturn(SERVICE_UNAVAILABLE).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
+
+        var body = new EmailVerificatieCodeAanvraagRequest();
+        body.email = "email@email.com";
+        body.identificatieNummer = "123";
+        body.identificatieType = IdentificatieType.BSN;
+
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .body(body)
+                .post("/api/profielservice/v1/emailverificatie/code")
+                .then()
+                .statusCode(SERVICE_UNAVAILABLE);
     }
 }

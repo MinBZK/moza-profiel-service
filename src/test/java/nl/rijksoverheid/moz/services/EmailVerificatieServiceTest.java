@@ -312,8 +312,8 @@ public class EmailVerificatieServiceTest {
         request.identificatieNummer = "123456789";
         request.email = "test@test.com";
 
-        boolean result = service.vraagEmailVerificatieCodeAan(request);
-        Assertions.assertFalse(result);
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
         Mockito.verify(emailVerificatieApi, Mockito.never()).requestPost(Mockito.any());
     }
 
@@ -330,8 +330,8 @@ public class EmailVerificatieServiceTest {
         request.identificatieNummer = "123456789";
         request.email = "test@test.com";
 
-        boolean result = service.vraagEmailVerificatieCodeAan(request);
-        Assertions.assertFalse(result);
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
         Mockito.verify(emailVerificatieApi, Mockito.never()).requestPost(Mockito.any());
     }
 
@@ -356,8 +356,8 @@ public class EmailVerificatieServiceTest {
         request.identificatieNummer = "123456789";
         request.email = "test@test.com";
 
-        boolean result = service.vraagEmailVerificatieCodeAan(request);
-        Assertions.assertTrue(result);
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.OK.getStatusCode(), result);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
@@ -394,8 +394,8 @@ public class EmailVerificatieServiceTest {
         request.identificatieNummer = "123456789";
         request.email = "test@test.com";
 
-        boolean result = service.vraagEmailVerificatieCodeAan(request);
-        Assertions.assertTrue(result);
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.OK.getStatusCode(), result);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
@@ -431,8 +431,8 @@ public class EmailVerificatieServiceTest {
         request.identificatieNummer = "123456789";
         request.email = "test@test.com";
 
-        boolean result = service.vraagEmailVerificatieCodeAan(request);
-        Assertions.assertFalse(result);
+        int result = service.vraagEmailVerificatieCodeAan(request);
+        Assertions.assertEquals(Response.Status.SERVICE_UNAVAILABLE.getStatusCode(), result);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");

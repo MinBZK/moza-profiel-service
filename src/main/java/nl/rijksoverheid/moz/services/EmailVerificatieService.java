@@ -5,6 +5,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -43,7 +44,7 @@ public class EmailVerificatieService {
         }
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getWaarde().equals(emailVerificatieRequest.email))
+                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
                 .findFirst()
                 .orElse(null);
 
@@ -81,33 +82,33 @@ public class EmailVerificatieService {
     }
 
     @Transactional
-    public boolean vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest aanvraag) {
+    public int vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest aanvraag) {
         Partij partij = Partij.findByIdentificatie(aanvraag.identificatieType, aanvraag.identificatieNummer);
 
         if (partij == null) {
             LOG.warn("Verificatie code aanvraag mislukt: Partij niet gevonden");
-            return false;
+            return Response.Status.NOT_FOUND.getStatusCode();
         }
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getWaarde().equals(aanvraag.email))
+                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(aanvraag.email))
                 .findFirst()
                 .orElse(null);
 
         if (contact == null) {
             LOG.warn("Verificatie code aanvraag mislukt: Contact niet gevonden");
-            return false;
+            return Response.Status.NOT_FOUND.getStatusCode();
         }
 
         String referenceId = requestEmailVerificationCode(aanvraag.email);
         if (referenceId == null) {
-            return false;
+            return Response.Status.SERVICE_UNAVAILABLE.getStatusCode();
         }
 
         contact.setVerificatieReferentieId(referenceId);
         contact.setGeverifieerdAt(null);
         contact.setIsValid(false);
-        return true;
+        return Response.Status.OK.getStatusCode();
     }
 
     public String requestEmailVerificationCode(String email) {
@@ -122,7 +123,7 @@ public class EmailVerificatieService {
             if (referenceId != null) {
                 return referenceId;
             }
-            LOG.error("Email verificatie verzoek mislukt. Response success was false.");
+            LOG.error("Email verificatie verzoek mislukt");
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
             LOG.errorf("NotifyNL API Error (%d): %s", e.getResponse().getStatus(), errorBody);
