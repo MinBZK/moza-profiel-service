@@ -38,6 +38,14 @@ public class DienstverlenerController {
 
     @GET
     @Path("/dienstverlener/{naam}")
+    @Operation(
+            summary = "Vraagt gegevens van dienstverlener",
+            description = "Geeft gegevens van gevraagde Dienstverlener terug"
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "201", description = "Dienstverlener succesvol opgehaald"),
+            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden")
+    })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
 
         Dienstverlener dv = dienstverlenerService.getDienstenVoorDienstverlener(naam);
@@ -55,6 +63,14 @@ public class DienstverlenerController {
     @POST
     @Path("/dienstverlener/")
     @Transactional
+    @Operation(
+            summary = "Voegt een dienstverlener toe",
+            description = "Voegt een nieuwe dienstverlener toe met oin"
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "201", description = "Dienstverlener succesvol toegevoegd"),
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
+    })
     public Response addDienstverlener(
             DienstverlenerRequest dienstverlenerRequest) {
         if (dienstverlenerRequest == null) {
@@ -76,7 +92,7 @@ public class DienstverlenerController {
     )
     @APIResponses({
             @APIResponse(responseCode = "201", description = "Dienst succesvol toegevoegd"),
-            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden")
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
     })
     public Response addDienstToDienstverlener(
             @PathParam("DienstverlenerNaam") String dienstverlenerNaam,
