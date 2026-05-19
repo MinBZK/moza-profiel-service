@@ -9,6 +9,8 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
+import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.*;
@@ -37,7 +39,6 @@ public class ProfielControllerTest {
     @BeforeEach
     @Transactional
     void setup() {
-        // Mock the email verification service to return a reference ID
         Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
     }
 
@@ -61,7 +62,7 @@ public class ProfielControllerTest {
     }
 
     @Test
-    void getPartij_Success()  {
+    void getPartij_Success() {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -74,17 +75,21 @@ public class ProfielControllerTest {
             c.persist();
         });
 
+        var request = new PartijRequest();
+        request.identificatieType = KVK;
+        request.identificatieNummer = "111111111";
+
         given()
                 .contentType(ContentType.JSON)
+                .body(request)
                 .when()
-                .get("/api/profielservice/v1/KVK/111111111")
+                .post("/api/profielservice/v1/partij")
                 .then()
                 .statusCode(OK)
                 .body("identificaties[0].identificatieType", org.hamcrest.Matchers.equalTo("KVK"))
                 .body("identificaties[0].identificatieNummer", org.hamcrest.Matchers.equalTo("111111111"))
                 .body("contactgegevens[0].type", org.hamcrest.Matchers.equalTo("Email"))
                 .body("contactgegevens[0].waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
-
     }
 
     @Test
@@ -114,8 +119,13 @@ public class ProfielControllerTest {
             Assertions.assertNull(Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt());
         });
 
+        var request = new PartijRequest();
+        request.identificatieType = KVK;
+        request.identificatieNummer = "222222222";
+
         given().contentType(ContentType.JSON)
-                .when().get("/api/profielservice/v1/KVK/222222222")
+                .body(request)
+                .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
 
         AtomicReference<LocalDateTime> contactFirstTouch = new AtomicReference<>();
@@ -130,7 +140,8 @@ public class ProfielControllerTest {
         });
 
         given().contentType(ContentType.JSON)
-                .when().get("/api/profielservice/v1/KVK/222222222")
+                .body(request)
+                .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -161,8 +172,13 @@ public class ProfielControllerTest {
             before.set(Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUpdated());
         });
 
+        var request = new PartijRequest();
+        request.identificatieType = KVK;
+        request.identificatieNummer = "333333333";
+
         given().contentType(ContentType.JSON)
-                .when().get("/api/profielservice/v1/KVK/333333333")
+                .body(request)
+                .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -173,10 +189,15 @@ public class ProfielControllerTest {
 
     @Test
     void getPartij_NotFound() {
+        var request = new PartijRequest();
+        request.identificatieType = BSN;
+        request.identificatieNummer = "999999999";
+
         given()
                 .contentType(ContentType.JSON)
+                .body(request)
                 .when()
-                .get("/api/profielservice/v1/BSN/999999999")
+                .post("/api/profielservice/v1/partij")
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -184,42 +205,43 @@ public class ProfielControllerTest {
     @Test
     void addContactgegeven_Success() {
         var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
         body.type = ContactType.Email;
         body.waarde = "test@example.com";
 
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
+                .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven/BSN/123456789"))
+                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven"))
                 .body("waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
-
     }
 
     @Test
     void addContactgegeven_Duplicate_Returns200() {
         var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
         body.type = ContactType.Email;
         body.waarde = "dup@example.com";
 
-        assertSecondPostReturns200("/api/profielservice/v1/contactgegeven/BSN/123456789", body, "dup@example.com");
+        assertSecondPostReturns200("/api/profielservice/v1/contactgegeven", body, "dup@example.com");
     }
 
     @Test
     void addContactgegeven_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .post("/api/profielservice/v1/contactgegeven/BSN/123456789")
+                .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(BAD_REQUEST);
-
     }
 
     @Test
     void updateContactgegeven_Success() {
-
         AtomicLong id = new AtomicLong();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -234,6 +256,8 @@ public class ProfielControllerTest {
         });
 
         var body = new ContactgegevenUpdateRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "111111111";
         body.id = id.get();
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
@@ -241,14 +265,13 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegeven/BSN/111111111")
+                .put("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(OK);
     }
 
     @Test
     void updateContactgegeven_BadRequest() {
-
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(BSN, "111111113"));
@@ -262,15 +285,16 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .put("/api/profielservice/v1/contactgegeven/BSN/111111113")
+                .put("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(BAD_REQUEST);
     }
 
     @Test
     void updateContactgegeven_NotFound() {
-
         var body = new ContactgegevenUpdateRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
         body.id = 1;
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
@@ -278,11 +302,10 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegeven/BSN/123456789")
+                .put("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(NOT_FOUND);
     }
-
 
     @Test
     void deleteContactgegeven_Success() {
@@ -299,18 +322,28 @@ public class ProfielControllerTest {
             contactGegevenId.set(c.id);
         });
 
-        given()
-                .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/contactgegeven/BSN/111111114/" + contactGegevenId.get())
-                .then()
-                .statusCode(NO_CONTENT);
-    }
-    @Test
-    void deleteContactgegeven_NotFound() {
+        var body = new PartijIdentificatieRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "111111114";
 
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/contactgegeven/BSN/111111114/" + 1)
+                .body(body)
+                .delete("/api/profielservice/v1/contactgegeven/" + contactGegevenId.get())
+                .then()
+                .statusCode(NO_CONTENT);
+    }
+
+    @Test
+    void deleteContactgegeven_NotFound() {
+        var body = new PartijIdentificatieRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "111111114";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .delete("/api/profielservice/v1/contactgegeven/" + 1)
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -318,32 +351,36 @@ public class ProfielControllerTest {
     @Test
     void addVoorkeur_Success() {
         var body = new VoorkeurRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "nl";
 
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .post("/api/profielservice/v1/voorkeur/BSN/123456789")
+                .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/BSN/123456789"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/voorkeur"));
     }
 
     @Test
     void addVoorkeur_Duplicate_Returns200() {
         var body = new VoorkeurRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "nl";
 
-        assertSecondPostReturns200("/api/profielservice/v1/voorkeur/BSN/123456789", body, "nl");
+        assertSecondPostReturns200("/api/profielservice/v1/voorkeur", body, "nl");
     }
 
     @Test
     void addVoorkeur_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
-                .post("/api/profielservice/v1/voorkeur/BSN/123456789")
+                .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -364,6 +401,8 @@ public class ProfielControllerTest {
         });
 
         var body = new VoorkeurUpdateRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "111111115";
         body.id = id.get();
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "en";
@@ -371,7 +410,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/voorkeur/BSN/111111115")
+                .put("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(OK);
     }
@@ -391,7 +430,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .put("/api/profielservice/v1/voorkeur/BSN/111111116")
+                .put("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -399,6 +438,8 @@ public class ProfielControllerTest {
     @Test
     void updateVoorkeur_NotFound() {
         var body = new VoorkeurUpdateRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
         body.id = 1;
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "en";
@@ -406,7 +447,7 @@ public class ProfielControllerTest {
         given()
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/voorkeur/BSN/123456789")
+                .put("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -426,18 +467,28 @@ public class ProfielControllerTest {
             voorkeurId.set(v.id);
         });
 
+        var body = new PartijIdentificatieRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "111111118";
+
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/voorkeur/BSN/111111118/" + voorkeurId.get())
+                .body(body)
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
                 .then()
                 .statusCode(NO_CONTENT);
     }
 
     @Test
     void deleteVoorkeur_NotFound() {
+        var body = new PartijIdentificatieRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "111111119";
+
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/voorkeur/BSN/111111119/" + 1)
+                .body(body)
+                .delete("/api/profielservice/v1/voorkeur/" + 1)
                 .then()
                 .statusCode(NOT_FOUND);
     }

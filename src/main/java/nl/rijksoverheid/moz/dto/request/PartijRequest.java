@@ -1,19 +1,24 @@
 package nl.rijksoverheid.moz.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.ws.rs.QueryParam;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-@Schema(description = "Request object voor extra informatie meesturen bij van een Partij")
+@Schema(description = "Request object voor het ophalen van een Partij")
 public class PartijRequest {
 
-    @QueryParam("dienstverlener")
+    @NotNull
+    public IdentificatieType identificatieType;
+
+    @NotBlank
+    public String identificatieNummer;
+
     public String dienstverlener;
 
-    @QueryParam("oin")
     public String dienstverlenerOin;
 
-    @QueryParam("dienstBeschrijving")
     public String dienstBeschrijving;
 
     @JsonIgnore
