@@ -167,11 +167,8 @@ public class ProfielController {
             return Response.created(uri).entity(body).build();
         }
 
-        if (result.scopeAdded()) {
-            LOG.info("Scope toegevoegd aan bestaand contactgegeven");
-        } else {
-            LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
-        }
+        LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
+
         return Response.ok(body).location(uri).build();
     }
 
