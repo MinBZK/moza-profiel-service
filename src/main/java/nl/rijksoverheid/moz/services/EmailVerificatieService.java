@@ -13,7 +13,9 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationApplicationRequest;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationRequest;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
@@ -27,6 +29,9 @@ public class EmailVerificatieService {
     @Inject
     @RestClient
     VerificationControllerApi emailVerificatieApi;
+
+    @Inject
+    VerificatieServiceGuard verificatieServiceGuard;
 
     @ConfigProperty(name = "notifynl.emailverificatie.api-key")
     String apiKey;
@@ -56,8 +61,9 @@ public class EmailVerificatieService {
         VerificationRequest request = new VerificationRequest();
         request.setReferenceId(contact.getVerificatieReferentieId());
         request.setCode(emailVerificatieRequest.verificatieCode);
+
         try {
-            var response = emailVerificatieApi.verifyPost(request);
+            var response = verificatieServiceGuard.get().call(() -> emailVerificatieApi.verifyPost(request), VerificationResponse.class);
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
                 contact.setGeverifieerdAt(Instant.now());
@@ -70,6 +76,9 @@ public class EmailVerificatieService {
             LOG.warn("NotifyNL gaf geen succes-bevestiging");
             return false;
 
+        } catch (CircuitBreakerOpenException e) {
+            LOG.error("Verificatie-service circuit breaker open, verificatie overgeslagen");
+            return false;
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
             LOG.errorf("NotifyNL Verificatie API Error (%d): %s",
@@ -118,17 +127,22 @@ public class EmailVerificatieService {
         verificationApplicationRequest.setEmail(email);
 
         try {
-            String referenceId = emailVerificatieApi.requestPost(verificationApplicationRequest);
+            String referenceId = verificatieServiceGuard.get().call(() -> emailVerificatieApi.requestPost(verificationApplicationRequest), String.class);
             if (referenceId != null) {
                 return referenceId;
             }
             LOG.error("Email verificatie verzoek mislukt");
+            return null;
+        } catch (CircuitBreakerOpenException e) {
+            LOG.error("Verificatie-service circuit breaker open, verificatie code aanvraag overgeslagen");
+            return null;
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
             LOG.errorf("NotifyNL API Error (%d): %s", e.getResponse().getStatus(), errorBody);
-        } catch (RuntimeException e) {
+            return null;
+        } catch (Exception e) {
             LOG.error("Onverwachte fout tijdens aanvragen email verificatie: " + e.getMessage(), e);
+            return null;
         }
-        return null;
     }
 }
