@@ -597,13 +597,11 @@ public class PartijServiceTest {
 
         PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
         Assertions.assertTrue(first.wasCreated());
-        Assertions.assertFalse(first.verificatieCodeOpnieuwVerzonden());
 
         Mockito.doReturn("second-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
         Assertions.assertFalse(second.wasCreated());
-        Assertions.assertTrue(second.verificatieCodeOpnieuwVerzonden());
         Mockito.verify(emailVerificatieService, Mockito.times(2)).requestEmailVerificationCode("unverified@test.com");
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -634,7 +632,6 @@ public class PartijServiceTest {
 
         PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
         Assertions.assertFalse(second.wasCreated());
-        Assertions.assertFalse(second.verificatieCodeOpnieuwVerzonden());
         Mockito.verify(emailVerificatieService, Mockito.times(1)).requestEmailVerificationCode(Mockito.anyString());
     }
 

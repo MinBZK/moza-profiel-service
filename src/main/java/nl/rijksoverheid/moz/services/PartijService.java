@@ -42,7 +42,7 @@ public class PartijService {
     @Inject
     EmailVerificatieService emailVerificatieService;
 
-    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean verificatieCodeOpnieuwVerzonden) {}
+    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated) {}
 
     public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated) {}
 
@@ -62,18 +62,18 @@ public class PartijService {
         ).firstResult();
         
         if (existing != null) {
-            boolean codeOpnieuwVerzonden = false;
+            LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
 
             if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
                 requestAndApplyVerificatieCode(existing);
-                codeOpnieuwVerzonden = true;
+                LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
             }
 
             if (candidateScope == null || hasMatchingScope(existing.getScopes(), candidateScope)) {
-                return new AddContactgegevenResult(existing, false, codeOpnieuwVerzonden);
+                return new AddContactgegevenResult(existing, false);
             }
             existing.addScope(candidateScope);
-            return new AddContactgegevenResult(existing, true, codeOpnieuwVerzonden);
+            return new AddContactgegevenResult(existing, true);
         }
 
         Contactgegeven contactgegeven = new Contactgegeven();
@@ -93,7 +93,7 @@ public class PartijService {
 
         contactgegeven.persist();
 
-        return new AddContactgegevenResult(contactgegeven, true, false);
+        return new AddContactgegevenResult(contactgegeven, true);
     }
 
     @Transactional
