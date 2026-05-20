@@ -9,6 +9,7 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -200,6 +202,101 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/partij")
                 .then()
                 .statusCode(NOT_FOUND);
+    }
+
+    @Test
+    void getPartijBulk_Success() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p1 = new Partij();
+            p1.addIdentificatie(new Identificatie(BSN, "111111120"));
+            p1.persist();
+            Partij p2 = new Partij();
+            p2.addIdentificatie(new Identificatie(KVK, "111111121"));
+            p2.persist();
+        });
+
+        var id1 = new PartijIdentificatieRequest();
+        id1.identificatieType = BSN;
+        id1.identificatieNummer = "111111120";
+        var id2 = new PartijIdentificatieRequest();
+        id2.identificatieType = KVK;
+        id2.identificatieNummer = "111111121";
+
+        var request = new PartijBulkRequest();
+        request.identificaties = List.of(id1, id2);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(OK)
+                .body("size()", org.hamcrest.Matchers.equalTo(2));
+    }
+
+    @Test
+    void getPartijBulk_PartialFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111122"));
+            p.persist();
+        });
+
+        var id1 = new PartijIdentificatieRequest();
+        id1.identificatieType = BSN;
+        id1.identificatieNummer = "111111122";
+        var id2 = new PartijIdentificatieRequest();
+        id2.identificatieType = BSN;
+        id2.identificatieNummer = "999999999";
+
+        var request = new PartijBulkRequest();
+        request.identificaties = List.of(id1, id2);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(OK)
+                .body("size()", org.hamcrest.Matchers.equalTo(1));
+    }
+
+    @Test
+    void getPartijBulk_NoneFound() {
+        var id = new PartijIdentificatieRequest();
+        id.identificatieType = BSN;
+        id.identificatieNummer = "000000000";
+
+        var request = new PartijBulkRequest();
+        request.identificaties = List.of(id);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(OK)
+                .body("size()", org.hamcrest.Matchers.equalTo(0));
+    }
+
+    @Test
+    void getPartij_BadRequest() {
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void getPartijBulk_BadRequest() {
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -450,6 +547,24 @@ public class ProfielControllerTest {
                 .put("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(NOT_FOUND);
+    }
+
+    @Test
+    void deleteContactgegeven_BadRequest() {
+        given()
+                .contentType(ContentType.JSON)
+                .delete("/api/profielservice/v1/contactgegeven/" + 1)
+                .then()
+                .statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void deleteVoorkeur_BadRequest() {
+        given()
+                .contentType(ContentType.JSON)
+                .delete("/api/profielservice/v1/voorkeur/" + 1)
+                .then()
+                .statusCode(BAD_REQUEST);
     }
 
     @Test

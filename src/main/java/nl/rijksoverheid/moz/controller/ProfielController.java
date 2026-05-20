@@ -9,6 +9,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
+import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
@@ -32,6 +33,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
+import java.util.List;
 
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
@@ -52,6 +54,14 @@ public class ProfielController {
 
     @Inject
     HashHelper hashHelper;
+
+    private Response missingBody(String methode) {
+        logboekContext.setDataSubjectId("ONBEKEND");
+        logboekContext.setDataSubjectType("ONBEKEND");
+        logboekContext.setStatus(StatusCode.ERROR);
+        LOG.warn("Request body mag niet leeg zijn bij " + methode);
+        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+    }
 
     @POST
     @Path("/partij")
@@ -74,10 +84,7 @@ public class ProfielController {
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartij(PartijRequest request) {
 
-        if (request == null) {
-            LOG.warn("Request body mag niet leeg zijn bij getPartij");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("getPartij");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -93,6 +100,36 @@ public class ProfielController {
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Partij opgehaald");
         return Response.ok(result).build();
+    }
+
+    @POST
+    @Path("/partijen/bulk")
+    @Transactional
+    @Operation(
+            summary = "Ophalen profielen van meerdere partijen",
+            description = "Haalt profielen op van meerdere partijen. Niet-gevonden partijen worden stilzwijgend weggelaten."
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Profielen succesvol opgehaald"),
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
+    })
+    @Logboek(name = "getPartijBulk", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
+    public Response getPartijBulk(PartijBulkRequest request) {
+
+        if (request == null) return missingBody("getPartijBulk");
+
+        logboekContext.setDataSubjectId(String.join(",", request.identificaties.stream()
+                .map(id -> hashHelper.hashIdentifier(id.identificatieNummer))
+                .toList()));
+        logboekContext.setDataSubjectType(String.join(",", request.identificaties.stream()
+                .map(id -> String.valueOf(id.identificatieType))
+                .distinct()
+                .toList()));
+
+        List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
+        logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Bulk partijen opgehaald");
+        return Response.ok(results).build();
     }
 
     @POST
@@ -121,11 +158,7 @@ public class ProfielController {
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
     public Response addContactgegeven(ContactgegevenRequest request) {
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij addContactgegeven");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("addContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -160,11 +193,7 @@ public class ProfielController {
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
     public Response updateContactgegeven(ContactgegevenUpdateRequest request) {
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij updateContactgegeven");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("updateContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -198,10 +227,7 @@ public class ProfielController {
             @PathParam("contactgegevenId") Long contactgegevenId,
             PartijIdentificatieRequest request) {
 
-        if (request == null) {
-            LOG.warn("Request body mag niet leeg zijn bij deleteContactgegeven");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("deleteContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -245,11 +271,7 @@ public class ProfielController {
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
     public Response addVoorkeur(VoorkeurRequest request) {
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij addVoorkeur");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("addVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -284,11 +306,7 @@ public class ProfielController {
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
     public Response updateVoorkeur(VoorkeurUpdateRequest request) {
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij updateVoorkeur");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("updateVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -322,10 +340,7 @@ public class ProfielController {
             @PathParam("voorkeurId") Long voorkeurId,
             PartijIdentificatieRequest request) {
 
-        if (request == null) {
-            LOG.warn("Request body mag niet leeg zijn bij deleteVoorkeur");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        if (request == null) return missingBody("deleteVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
