@@ -9,7 +9,5 @@ public class DienstverlenerRequest {
     @NotNull
     public String naam;
 
-    @NotNull
-    public String oin;
+    public String beschrijving;
 }
-

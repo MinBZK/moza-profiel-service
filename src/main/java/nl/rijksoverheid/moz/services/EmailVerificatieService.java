@@ -17,12 +17,12 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @ApplicationScoped
 public class EmailVerificatieService {
 
-    private static final org.jboss.logging.Logger LOG = Logger.getLogger(EmailVerificatieService.class);
+    private static final Logger LOG = Logger.getLogger(EmailVerificatieService.class);
 
     @Inject
     @RestClient
@@ -60,8 +60,8 @@ public class EmailVerificatieService {
             var response = emailVerificatieApi.verifyPost(request);
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
-                contact.setGeverifieerdAt(LocalDateTime.now());
-                contact.setIsValid(true);
+                contact.setGeverifieerdAt(Instant.now());
+                contact.setIsGeverifieerd(true);
                 contact.setVerificatieReferentieId(null);
                 LOG.info("Email succesvol geverifieerd");
                 return true;
@@ -107,12 +107,11 @@ public class EmailVerificatieService {
 
         contact.setVerificatieReferentieId(referenceId);
         contact.setGeverifieerdAt(null);
-        contact.setIsValid(false);
+        contact.setIsGeverifieerd(false);
         return Response.Status.OK.getStatusCode();
     }
 
     public String requestEmailVerificationCode(String email) {
-
         VerificationApplicationRequest verificationApplicationRequest = new VerificationApplicationRequest();
         verificationApplicationRequest.setApiKey(apiKey);
         verificationApplicationRequest.setTemplateId(templateId);

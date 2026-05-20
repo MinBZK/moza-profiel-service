@@ -1,10 +1,12 @@
 package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -13,17 +15,21 @@ import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
-import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_identificatie",
-                columnNames = {"identificatieType", "identificatieNummer"}
+                columnNames = {"identificatie_type", "identificatie_nummer"}
         )
 )
 @Audited
-public class Identificatie extends PanacheEntity {
+public class Identificatie extends PanacheEntityBase {
+
+    @Id
+    @GeneratedValue
+    public UUID id;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -43,7 +49,6 @@ public class Identificatie extends PanacheEntity {
     }
 
     public Identificatie() {
-
     }
 
     public IdentificatieType getIdentificatieType() {
@@ -70,4 +75,3 @@ public class Identificatie extends PanacheEntity {
         this.partij = partij;
     }
 }
-

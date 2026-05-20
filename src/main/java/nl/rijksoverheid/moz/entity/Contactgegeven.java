@@ -1,32 +1,56 @@
 package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.annotation.Nullable;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
-import jakarta.persistence.*;
 import nl.rijksoverheid.moz.common.ContactType;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.envers.Audited;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Audited
-@Table(indexes = @Index(name = "idx_contactgegeven_dedup", columnList = "partij_id, type, waarde"))
-public class Contactgegeven extends PanacheEntity implements Scoped {
+@Table(
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_contactgegeven_dedup",
+                columnNames = {"partij_id", "type", "waarde"}
+        )
+)
+public class Contactgegeven extends PanacheEntityBase {
+
+    @Id
+    @GeneratedValue
+    public UUID id;
 
     @JsonIgnore
-    @ManyToOne
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "partij_id")
     @NotNull
     private Partij partij;
 
     @OneToMany(mappedBy = "contactgegeven", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 32)
-    private List<Scope> scopes = new ArrayList<>();
+    private List<ScopeContactgegeven> scopes = new ArrayList<>();
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -35,33 +59,36 @@ public class Contactgegeven extends PanacheEntity implements Scoped {
     @NotNull
     private String waarde;
 
+    private boolean isGeverifieerd = false;
+
     @Nullable
-    private LocalDateTime geverifieerdAt;
+    private Instant geverifieerdAt;
 
     @Nullable
     private String verificatieReferentieId;
 
-    private boolean isValid = false;
+    private boolean isDefault = false;
 
     @Column(updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
-    private LocalDateTime lastUpdated;
+    private Instant lastUpdated;
 
     @Nullable
-    private LocalDateTime lastUsedAt;
+    private Instant lastUsedAt;
 
     @PrePersist
     private void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         createdAt = now;
         lastUpdated = now;
     }
 
     @PreUpdate
     private void onUpdate() {
-        lastUpdated = LocalDateTime.now();
+        lastUpdated = Instant.now();
     }
+
 
     public Partij getPartij() {
         return partij;
@@ -71,11 +98,11 @@ public class Contactgegeven extends PanacheEntity implements Scoped {
         this.partij = partij;
     }
 
-    public List<Scope> getScopes() {
+    public List<ScopeContactgegeven> getScopes() {
         return Collections.unmodifiableList(scopes);
     }
 
-    public void addScope(Scope scope) {
+    public void addScope(ScopeContactgegeven scope) {
         scopes.add(scope);
         scope.setContactgegeven(this);
     }
@@ -100,12 +127,20 @@ public class Contactgegeven extends PanacheEntity implements Scoped {
         this.waarde = waarde;
     }
 
+    public boolean isIsGeverifieerd() {
+        return isGeverifieerd;
+    }
+
+    public void setIsGeverifieerd(boolean isGeverifieerd) {
+        this.isGeverifieerd = isGeverifieerd;
+    }
+
     @Nullable
-    public LocalDateTime getGeverifieerdAt() {
+    public Instant getGeverifieerdAt() {
         return geverifieerdAt;
     }
 
-    public void setGeverifieerdAt(@Nullable LocalDateTime geverifieerdAt) {
+    public void setGeverifieerdAt(@Nullable Instant geverifieerdAt) {
         this.geverifieerdAt = geverifieerdAt;
     }
 
@@ -118,28 +153,28 @@ public class Contactgegeven extends PanacheEntity implements Scoped {
         this.verificatieReferentieId = verificatieReferentieId;
     }
 
-    public boolean isIsValid() {
-        return isValid;
+    public boolean isIsDefault() {
+        return isDefault;
     }
 
-    public void setIsValid(boolean isValid) {
-        this.isValid = isValid;
+    public void setIsDefault(boolean isDefault) {
+        this.isDefault = isDefault;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public LocalDateTime getLastUpdated() {
+    public Instant getLastUpdated() {
         return lastUpdated;
     }
 
     @Nullable
-    public LocalDateTime getLastUsedAt() {
+    public Instant getLastUsedAt() {
         return lastUsedAt;
     }
 
-    public void setLastUsedAt(@Nullable LocalDateTime lastUsedAt) {
+    public void setLastUsedAt(@Nullable Instant lastUsedAt) {
         this.lastUsedAt = lastUsedAt;
     }
 }
