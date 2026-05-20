@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -420,7 +421,7 @@ public class PartijServiceTest {
             Contactgegeven contact = partij.getContactgegevens().get(0);
             Assertions.assertEquals("second-ref", contact.getVerificatieReferentieId());
             Assertions.assertNull(contact.getGeverifieerdAt());
-            Assertions.assertFalse(contact.isIsValid());
+            Assertions.assertFalse(contact.isIsGeverifieerd());
         });
     }
 
@@ -437,8 +438,8 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Contactgegeven contact = partij.getContactgegevens().get(0);
-            contact.setGeverifieerdAt(java.time.LocalDateTime.now());
-            contact.setIsValid(true);
+            contact.setGeverifieerdAt(java.time.Instant.now());
+            contact.setIsGeverifieerd(true);
         });
 
         PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);

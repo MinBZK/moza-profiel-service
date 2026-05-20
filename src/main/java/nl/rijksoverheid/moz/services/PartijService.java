@@ -159,7 +159,7 @@ public class PartijService {
     private void requestAndApplyVerificatieCode(Contactgegeven contact) {
         String referenceId = emailVerificatieService.requestEmailVerificationCode(contact.getWaarde());
         contact.setVerificatieReferentieId(referenceId);
-        contact.setIsValid(false);
+        contact.setIsGeverifieerd(false);
     }
 
 private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
