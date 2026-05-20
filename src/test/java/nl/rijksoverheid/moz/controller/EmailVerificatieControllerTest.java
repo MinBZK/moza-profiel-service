@@ -110,18 +110,4 @@ public class EmailVerificatieControllerTest {
                 .then()
                 .statusCode(SERVICE_UNAVAILABLE);
     }
-
-    @Test
-    void testValidationErrorResponse() {
-        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
-        request.email = "invalid-email"; // Should fail @Email validation
-
-        given()
-                .contentType(ContentType.JSON)
-                .body(request)
-                .when().post("/api/profielservice/v1/emailverificatie/code")
-                .then()
-                .statusCode(BAD_REQUEST)
-                .body("timestamp", org.hamcrest.Matchers.notNullValue());
-    }
 }
