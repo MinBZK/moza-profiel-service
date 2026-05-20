@@ -12,7 +12,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.32.1</quarkus.platform.version>
+        <quarkus.platform.version>3.35.1</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
     </properties>
@@ -41,7 +41,7 @@
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator</artifactId>
-            <version>2.14.0-lts</version>
+            <version>2.16.0-lts</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
@@ -161,6 +161,11 @@
             <groupId>io.quarkiverse.wiremock</groupId>
             <artifactId>quarkus-wiremock</artifactId>
             <version>1.6.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-logging-json</artifactId>
         </dependency>
     </dependencies>
 

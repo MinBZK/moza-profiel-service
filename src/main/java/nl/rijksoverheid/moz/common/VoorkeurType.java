@@ -4,7 +4,6 @@ public enum VoorkeurType {
     WebsiteTaal,
     MagGebeldWorden,
     WebsiteThema,
-    PostcodeInUwBuurt,
-    ActueleOnderwerpVoorkeur,
-    Aanhef
+    Aanhef,
+    OntvangViaBerichtenbox
 }

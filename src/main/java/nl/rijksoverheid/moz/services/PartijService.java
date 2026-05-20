@@ -20,16 +20,20 @@ import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Scope;
+import nl.rijksoverheid.moz.entity.Scoped;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
+import org.jboss.logging.Logger;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @ApplicationScoped
 public class PartijService {
 
+    private static final Logger LOG = Logger.getLogger(PartijService.class);
 
     @Inject
     PartijMapper partijMapper;
@@ -38,22 +42,38 @@ public class PartijService {
     @Inject
     EmailVerificatieService emailVerificatieService;
 
+    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated) {}
+
+    public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated) {}
+
 
     @Transactional
-    public void addContactgegeven(
+    public AddContactgegevenResult addContactgegeven(
             IdentificatieType eigenaarType,
             String eigenaarNummer,
             ContactgegevenRequest request) {
 
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
+        Scope candidateScope = buildScope(request.scope);
+
+        Contactgegeven existing = Contactgegeven.find(
+                "partij.id = ?1 AND type = ?2 AND waarde = ?3",
+                partij.id, request.type, request.waarde
+        ).firstResult();
+
+        if (existing != null) {
+            if (candidateScope == null || hasMatchingScope(existing.getScopes(), candidateScope)) {
+                return new AddContactgegevenResult(existing, false);
+            }
+            existing.addScope(candidateScope);
+            return new AddContactgegevenResult(existing, true);
+        }
 
         Contactgegeven contactgegeven = new Contactgegeven();
         contactgegeven.setPartij(partij);
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(request.waarde);
-        contactgegeven.setTaal(request.taal);
-        contactgegeven.setTerAttentieVan(request.terAttentieVan);
-        contactgegeven.setScope(resolveScope(request.scope));
+        contactgegeven.setGeverifieerdAt(null);
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
@@ -61,30 +81,63 @@ public class PartijService {
             contactgegeven.setVerificatieReferentieId(referenceId);
         }
 
-        contactgegeven.setGeverifieerdAt(null);
+        if (candidateScope != null) {
+            contactgegeven.addScope(candidateScope);
+        }
+
         contactgegeven.persist();
 
+        return new AddContactgegevenResult(contactgegeven, true);
     }
 
     @Transactional
-    public void addVoorkeur(
+    public AddVoorkeurResult addVoorkeur(
             IdentificatieType eigenaarType,
             String eigenaarNummer,
             VoorkeurRequest request) {
 
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
+        Scope candidateScope = buildScope(request.scope);
+
+        Voorkeur existing = Voorkeur.find(
+                "partij.id = ?1 AND voorkeurType = ?2 AND waarde = ?3",
+                partij.id, request.voorkeurType, request.waarde
+        ).firstResult();
+
+        if (existing != null) {
+            if (candidateScope == null || hasMatchingScope(existing.getScopes(), candidateScope)) {
+                return new AddVoorkeurResult(existing, false);
+            }
+            existing.addScope(candidateScope);
+            return new AddVoorkeurResult(existing, true);
+        }
 
         Voorkeur voorkeur = new Voorkeur();
         voorkeur.setPartij(partij);
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
-        voorkeur.setScope(resolveScope(request.scope));
+
+        if (candidateScope != null) {
+            voorkeur.addScope(candidateScope);
+        }
 
         voorkeur.persist();
 
+        return new AddVoorkeurResult(voorkeur, true);
     }
 
-    private Scope resolveScope(ScopeRequest request) {
+    private boolean hasMatchingScope(List<Scope> existing, Scope candidate) {
+        Long candidateDienstId = candidate.getDienst() != null ? candidate.getDienst().id : null;
+        Long candidatePartijId = candidate.getPartij() != null ? candidate.getPartij().id : null;
+        return existing.stream().anyMatch(s -> {
+            Long sDienstId = s.getDienst() != null ? s.getDienst().id : null;
+            Long sPartijId = s.getPartij() != null ? s.getPartij().id : null;
+            return Objects.equals(sDienstId, candidateDienstId)
+                    && Objects.equals(sPartijId, candidatePartijId);
+        });
+    }
+
+    private Scope buildScope(ScopeRequest request) {
         if (request == null) {
             return null;
         }
@@ -111,14 +164,13 @@ public class PartijService {
         Scope scope = new Scope();
         scope.setPartij(scopePartij);
         scope.setDienst(dienst);
-        scope.persist();
-
         return scope;
     }
 
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
         if (partij == null) {
+            LOG.info("Nieuwe partij aanmaken");
             partij = new Partij();
             partij.addIdentificatie(new Identificatie(type, nummer));
             partij.persist();
@@ -149,9 +201,7 @@ public class PartijService {
 
         contact.setType(request.type);
         contact.setWaarde(request.waarde);
-        contact.setTaal(request.taal);
-        contact.setTerAttentieVan(request.terAttentieVan);
-        contact.setScope(resolveScope(request.scope));
+        replaceScopes(contact, buildScope(request.scope));
 
         if (request.type == ContactType.Email) {
             //todo bepaal wat we doen als het versturen van een verificatie code mislukt
@@ -180,9 +230,16 @@ public class PartijService {
 
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
-        voorkeur.setScope(resolveScope(request.scope));
+        replaceScopes(voorkeur, buildScope(request.scope));
 
         return true;
+    }
+
+    private void replaceScopes(Scoped owner, Scope newScope) {
+        owner.clearScopes();
+        if (newScope != null) {
+            owner.addScope(newScope);
+        }
     }
 
     @Transactional
@@ -225,6 +282,7 @@ public class PartijService {
         return true;
     }
 
+    @Transactional
     public PartijResponse getPartijResponse(IdentificatieType identificatieType, String identificatieNummer, PartijRequest partijRequest) {
         Partij partij;
         if (partijRequest.isEmpty()) {
@@ -246,7 +304,7 @@ public class PartijService {
         }
 
         StringBuilder query = new StringBuilder(
-                "select c from Contactgegeven c left join c.scope s left join s.dienst d left join d.dienstverlener dv " +
+                "select distinct c from Contactgegeven c left join c.scopes s left join s.dienst d left join d.dienstverlener dv " +
                         "where c.partij.id = :partijId"
         );
         Map<String, Object> params = new HashMap<>();
