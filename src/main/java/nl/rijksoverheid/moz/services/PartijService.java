@@ -76,7 +76,7 @@ public class PartijService {
         contactgegeven.setGeverifieerdAt(null);
 
         if (request.type == ContactType.Email) {
-            //todo bepaal wat we doen als het versturen van een verificatie code mislukt
+            //TODO: bepaal wat we doen als het versturen van een verificatie code mislukt. Nu storen we een null in de VerificatieReferentieId als het mislukt (omdat de VerificatieService er uit ligt o.i.d.), maar de gebruiker krijgt een OK status code.
             String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
             contactgegeven.setVerificatieReferentieId(referenceId);
         }
@@ -204,7 +204,7 @@ public class PartijService {
         replaceScopes(contact, buildScope(request.scope));
 
         if (request.type == ContactType.Email) {
-            //todo bepaal wat we doen als het versturen van een verificatie code mislukt
+            //TODO: bepaal wat we doen als het versturen van een verificatie code mislukt. Nu storen we een null in de VerificatieReferentieId als het mislukt (omdat de VerificatieService er uit ligt o.i.d.), maar de gebruiker krijgt een OK status code.
             String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
             contact.setVerificatieReferentieId(referenceId);
         }
