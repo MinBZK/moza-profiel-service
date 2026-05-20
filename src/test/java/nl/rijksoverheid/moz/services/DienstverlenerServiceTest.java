@@ -4,14 +4,17 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.WebApplicationException;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
-import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.Scope;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -26,9 +29,11 @@ public class DienstverlenerServiceTest {
     @AfterEach
     @Transactional
     void tearDown() {
+        ScopeContactgegeven.deleteAll();
+        ScopeVoorkeur.deleteAll();
         Contactgegeven.deleteAll();
         Voorkeur.deleteAll();
-        Scope.deleteAll();
+        DienstverlenerDienst.deleteAll();
         Dienst.deleteAll();
         Identificatie.deleteAll();
         Partij.deleteAll();
@@ -39,31 +44,27 @@ public class DienstverlenerServiceTest {
     void addDienstverlener_NewDienstverlener() {
         DienstverlenerRequest request = new DienstverlenerRequest();
         request.naam = "TestDienstverlener";
-        request.oin = "12345";
+        request.beschrijving = "Een test dienstverlener";
 
         dienstverlenerService.addDienstverlener(request);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dienstverlener = Dienstverlener.find("naam", "TestDienstverlener").firstResult();
             Assertions.assertNotNull(dienstverlener);
-            Assertions.assertEquals("12345", dienstverlener.getOin());
-            Assertions.assertEquals(1, dienstverlener.getDiensten().size());
-            Assertions.assertEquals("Alles", dienstverlener.getDiensten().get(0).getBeschrijving());
+            Assertions.assertEquals("Een test dienstverlener", dienstverlener.getBeschrijving());
         });
     }
 
     @Test
-    void addDienstverlener_ExistingDienstverlener() {
+    void addDienstverlener_ExistingDienstverlener_NoDuplicate() {
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dienstverlener = new Dienstverlener();
             dienstverlener.setNaam("ExistingDV");
-            dienstverlener.setOin("99999");
             dienstverlener.persist();
         });
 
         DienstverlenerRequest request = new DienstverlenerRequest();
         request.naam = "ExistingDV";
-        request.oin = "12345";
 
         dienstverlenerService.addDienstverlener(request);
 
@@ -74,28 +75,22 @@ public class DienstverlenerServiceTest {
     }
 
     @Test
-    void getDienstenVoorDienstverlener_Found() {
+    void getDienstverlener_Found() {
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dienstverlener = new Dienstverlener();
             dienstverlener.setNaam("TestDV");
-            dienstverlener.setOin("12345");
             dienstverlener.persist();
-
-            Dienst dienst = new Dienst();
-            dienst.setBeschrijving("TestDienst");
-            dienst.setDienstverlener(dienstverlener);
-            dienst.persist();
         });
 
-        Dienstverlener result = dienstverlenerService.getDienstenVoorDienstverlener("TestDV");
+        Dienstverlener result = dienstverlenerService.getDienstverlener("TestDV");
 
         Assertions.assertNotNull(result);
         Assertions.assertEquals("TestDV", result.getNaam());
     }
 
     @Test
-    void getDienstenVoorDienstverlener_NotFound() {
-        Dienstverlener result = dienstverlenerService.getDienstenVoorDienstverlener("NonExistent");
+    void getDienstverlener_NotFound() {
+        Dienstverlener result = dienstverlenerService.getDienstverlener("NonExistent");
         Assertions.assertNull(result);
     }
 
@@ -104,71 +99,80 @@ public class DienstverlenerServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dienstverlener = new Dienstverlener();
             dienstverlener.setNaam("TestDV");
-            dienstverlener.setOin("12345");
             dienstverlener.persist();
         });
 
         DienstRequest request = new DienstRequest();
-        request.beschrijving = "NewDienst";
+        request.naam = "NieuweDienst";
+        request.beschrijving = "Optionele toelichting";
 
         Dienst result = dienstverlenerService.addDienstToDienstverlener("TestDV", request);
 
         Assertions.assertNotNull(result);
-        Assertions.assertEquals("NewDienst", result.getBeschrijving());
+        Assertions.assertEquals("NieuweDienst", result.getNaam());
 
         QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dienstverlener = Dienstverlener.find("naam", "TestDV").firstResult();
-            Assertions.assertNotNull(dienstverlener);
-            Assertions.assertTrue(dienstverlener.getDiensten().size() >= 1);
+            long links = DienstverlenerDienst.count();
+            Assertions.assertEquals(1, links);
         });
     }
 
     @Test
-    void addDienstToDienstverlener_NewDienstverlener() {
+    void addDienstToDienstverlener_ExistingDienstWithDifferentBeschrijving_Throws409() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dvA = new Dienstverlener();
+            dvA.setNaam("DV-A");
+            dvA.persist();
+            Dienst shared = new Dienst();
+            shared.setNaam("Vergunning");
+            shared.setBeschrijving("originele beschrijving");
+            shared.persist();
+            new DienstverlenerDienst(dvA, shared).persist();
+
+            Dienstverlener dvB = new Dienstverlener();
+            dvB.setNaam("DV-B");
+            dvB.persist();
+        });
+
         DienstRequest request = new DienstRequest();
-        request.beschrijving = "NewDienst";
+        request.naam = "Vergunning";
+        request.beschrijving = "andere beschrijving";
 
-        Dienst result = dienstverlenerService.addDienstToDienstverlener("NewDV", request);
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals("NewDienst", result.getBeschrijving());
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dienstverlener = Dienstverlener.find("naam", "NewDV").firstResult();
-            Assertions.assertNotNull(dienstverlener);
-            Assertions.assertEquals(2, dienstverlener.getDiensten().size()); // "Alles" + "NewDienst"
-        });
+        WebApplicationException ex = Assertions.assertThrows(
+                WebApplicationException.class,
+                () -> dienstverlenerService.addDienstToDienstverlener("DV-B", request));
+        Assertions.assertEquals(409, ex.getResponse().getStatus());
     }
 
     @Test
-    void findOrCreateDienstverlener_CreateNew() {
-        Dienstverlener result = dienstverlenerService.findOrCreateDienstverlener("NewDV", "12345");
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals("NewDV", result.getNaam());
-        Assertions.assertEquals("12345", result.getOin());
-        Assertions.assertEquals(1, result.getDiensten().size());
-        Assertions.assertEquals("Alles", result.getDiensten().get(0).getBeschrijving());
-    }
-
-    @Test
-    void findOrCreateDienstverlener_FindExisting() {
+    void addDienstToDienstverlener_ExistingDienstReusedWhenBeschrijvingOmitted() {
         QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dienstverlener = new Dienstverlener();
-            dienstverlener.setNaam("ExistingDV");
-            dienstverlener.setOin("99999");
-            dienstverlener.persist();
+            Dienstverlener dvA = new Dienstverlener();
+            dvA.setNaam("DV-A");
+            dvA.persist();
+            Dienst shared = new Dienst();
+            shared.setNaam("Vergunning");
+            shared.setBeschrijving("originele beschrijving");
+            shared.persist();
+            new DienstverlenerDienst(dvA, shared).persist();
+
+            Dienstverlener dvB = new Dienstverlener();
+            dvB.setNaam("DV-B");
+            dvB.persist();
         });
 
-        Dienstverlener result = dienstverlenerService.findOrCreateDienstverlener("ExistingDV", "12345");
+        DienstRequest request = new DienstRequest();
+        request.naam = "Vergunning";
+
+        Dienst result = dienstverlenerService.addDienstToDienstverlener("DV-B", request);
 
         Assertions.assertNotNull(result);
-        Assertions.assertEquals("ExistingDV", result.getNaam());
-        Assertions.assertEquals("99999", result.getOin());
+        Assertions.assertEquals("Vergunning", result.getNaam());
+        Assertions.assertEquals("originele beschrijving", result.getBeschrijving());
 
         QuarkusTransaction.requiringNew().run(() -> {
-            long count = Dienstverlener.count("lower(naam) = lower(?1)", "ExistingDV");
-            Assertions.assertEquals(1, count);
+            Assertions.assertEquals(1, Dienst.count("naam", "Vergunning"));
+            Assertions.assertEquals(2, DienstverlenerDienst.count());
         });
     }
 
@@ -177,7 +181,6 @@ public class DienstverlenerServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dienstverlener = new Dienstverlener();
             dienstverlener.setNaam("TestDV");
-            dienstverlener.setOin("12345");
             dienstverlener.persist();
         });
 
@@ -191,17 +194,4 @@ public class DienstverlenerServiceTest {
             Assertions.assertEquals(1, count);
         });
     }
-
-    @Test
-    void findOrCreateDienstverlener_DefaultDienstCreated() {
-        Dienstverlener result = dienstverlenerService.findOrCreateDienstverlener("TestDV", "12345");
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(1, result.getDiensten().size());
-
-        Dienst defaultDienst = result.getDiensten().get(0);
-        Assertions.assertEquals("Alles", defaultDienst.getBeschrijving());
-        Assertions.assertEquals(result, defaultDienst.getDienstverlener());
-    }
-
 }

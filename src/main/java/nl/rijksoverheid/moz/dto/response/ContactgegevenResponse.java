@@ -2,16 +2,17 @@ package nl.rijksoverheid.moz.dto.response;
 
 import nl.rijksoverheid.moz.common.ContactType;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public class ContactgegevenResponse {
-    public Long id;
+    public UUID id;
     public ContactType type;
     public String waarde;
     public boolean isGeverifieerd;
-    public boolean isValid;
-    public LocalDateTime createdAt;
-    public LocalDateTime lastUpdated;
+    public boolean isDefault;
+    public Instant createdAt;
+    public Instant lastUpdated;
     public List<ScopeResponse> scopes;
 }

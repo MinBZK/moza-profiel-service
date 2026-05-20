@@ -3,6 +3,7 @@ package nl.rijksoverheid.moz.controller;
 import io.opentelemetry.api.trace.StatusCode;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -31,6 +32,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
+import java.util.UUID;
 
 /**
  * REST Controller voor het beheren van partijen.
@@ -143,7 +145,7 @@ public class ProfielController {
     public Response addContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
-            ContactgegevenRequest request) {
+            @Valid ContactgegevenRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(identificatieType));
@@ -164,6 +166,7 @@ public class ProfielController {
             LOG.info("Contactgegeven toegevoegd");
             return Response.created(uri).entity(body).build();
         }
+
 
         return Response.ok(body).location(uri).build();
     }
@@ -189,7 +192,7 @@ public class ProfielController {
     public Response updateContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
-            ContactgegevenUpdateRequest request) {
+            @Valid ContactgegevenUpdateRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(identificatieType));
@@ -231,7 +234,7 @@ public class ProfielController {
     public Response deleteContactgegeven(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
-            @PathParam("contactgegevenId") Long contactgegevenId) {
+            @PathParam("contactgegevenId") UUID contactgegevenId) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(identificatieType));
@@ -284,7 +287,7 @@ public class ProfielController {
     public Response addVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
-            VoorkeurRequest request) {
+            @Valid VoorkeurRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(identificatieType));
@@ -299,14 +302,18 @@ public class ProfielController {
         VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        URI uri = URI.create(String.format("/%s/%s", identificatieType, identificatieNummer));
+        URI uri = URI.create(String.format("/voorkeur/%s/%s", identificatieType, identificatieNummer));
 
         if (result.wasCreated()) {
             LOG.info("Voorkeur toegevoegd");
             return Response.created(uri).entity(body).build();
         }
 
-        LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
+        if (result.scopeAdded()) {
+            LOG.info("Scope toegevoegd aan bestaande voorkeur");
+        } else {
+            LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
+        }
         return Response.ok(body).location(uri).build();
     }
 
@@ -331,7 +338,7 @@ public class ProfielController {
     public Response updateVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
-            VoorkeurUpdateRequest request) {
+            @Valid VoorkeurUpdateRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(identificatieType));
@@ -373,7 +380,7 @@ public class ProfielController {
     public Response deleteVoorkeur(
             @PathParam("identificatieType") IdentificatieType identificatieType,
             @PathParam("identificatieNummer") String identificatieNummer,
-            @PathParam("voorkeurId") Long voorkeurId) {
+            @PathParam("voorkeurId") UUID voorkeurId) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(identificatieType));

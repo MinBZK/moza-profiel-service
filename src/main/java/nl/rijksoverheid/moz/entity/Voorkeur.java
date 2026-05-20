@@ -1,34 +1,38 @@
 package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.Index;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.envers.Audited;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Audited
-@Table(indexes = @Index(name = "idx_voorkeur_dedup", columnList = "partij_id, voorkeurType, waarde"))
-public class Voorkeur extends PanacheEntity implements Scoped {
+public class Voorkeur extends PanacheEntityBase {
+
+    @Id
+    @GeneratedValue
+    public UUID id;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -44,26 +48,26 @@ public class Voorkeur extends PanacheEntity implements Scoped {
 
     @OneToMany(mappedBy = "voorkeur", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 32)
-    private List<Scope> scopes = new ArrayList<>();
+    private List<ScopeVoorkeur> scopes = new ArrayList<>();
 
     @Column(updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
-    private LocalDateTime lastUpdated;
+    private Instant lastUpdated;
 
     @Nullable
-    private LocalDateTime lastUsedAt;
+    private Instant lastUsedAt;
 
     @PrePersist
     private void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         createdAt = now;
         lastUpdated = now;
     }
 
     @PreUpdate
     private void onUpdate() {
-        lastUpdated = LocalDateTime.now();
+        lastUpdated = Instant.now();
     }
 
     public VoorkeurType getVoorkeurType() {
@@ -90,11 +94,11 @@ public class Voorkeur extends PanacheEntity implements Scoped {
         this.partij = partij;
     }
 
-    public List<Scope> getScopes() {
+    public List<ScopeVoorkeur> getScopes() {
         return Collections.unmodifiableList(scopes);
     }
 
-    public void addScope(Scope scope) {
+    public void addScope(ScopeVoorkeur scope) {
         scopes.add(scope);
         scope.setVoorkeur(this);
     }
@@ -103,20 +107,20 @@ public class Voorkeur extends PanacheEntity implements Scoped {
         scopes.clear();
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public LocalDateTime getLastUpdated() {
+    public Instant getLastUpdated() {
         return lastUpdated;
     }
 
     @Nullable
-    public LocalDateTime getLastUsedAt() {
+    public Instant getLastUsedAt() {
         return lastUsedAt;
     }
 
-    public void setLastUsedAt(@Nullable LocalDateTime lastUsedAt) {
+    public void setLastUsedAt(@Nullable Instant lastUsedAt) {
         this.lastUsedAt = lastUsedAt;
     }
 }

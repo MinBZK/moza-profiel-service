@@ -1,20 +1,21 @@
 package nl.rijksoverheid.moz.mapper;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import nl.rijksoverheid.moz.dto.response.DienstResponse;
 import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
 import nl.rijksoverheid.moz.dto.response.IdentificatieResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.dto.response.ScopeResponse;
 import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.Scope;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @ApplicationScoped
 public class PartijMapper {
@@ -22,6 +23,13 @@ public class PartijMapper {
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
     public PartijResponse toResponse(Partij partij) {
+        return toResponse(partij, partij.getContactgegevens(), partij.getVoorkeuren());
+    }
+
+    public PartijResponse toResponse(
+            Partij partij,
+            java.util.List<Contactgegeven> contactgegevens,
+            java.util.List<Voorkeur> voorkeuren) {
         PartijResponse response = new PartijResponse();
         response.partijId = partij.id;
 
@@ -29,11 +37,11 @@ public class PartijMapper {
                 .map(this::toIdentificatieResponse)
                 .toList();
 
-        response.contactgegevens = partij.getContactgegevens().stream()
+        response.contactgegevens = contactgegevens.stream()
                 .map(this::toContactgegevensResponse)
                 .toList();
 
-        response.voorkeuren = partij.getVoorkeuren().stream()
+        response.voorkeuren = voorkeuren.stream()
                 .map(this::toVoorkeurResponse)
                 .toList();
 
@@ -49,23 +57,23 @@ public class PartijMapper {
 
     public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
         if (isStale(cg.getLastUsedAt())) {
-            Contactgegeven.update("lastUsedAt = ?1 where id = ?2", LocalDateTime.now(), cg.id);
+            Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
         }
         ContactgegevenResponse cr = new ContactgegevenResponse();
         cr.id = cg.id;
         cr.type = cg.getType();
         cr.waarde = cg.getWaarde();
-        cr.isGeverifieerd = cg.getGeverifieerdAt() != null;
-        cr.isValid = cg.isIsValid();
+        cr.isGeverifieerd = cg.isIsGeverifieerd();
+        cr.isDefault = cg.isIsDefault();
         cr.createdAt = cg.getCreatedAt();
         cr.lastUpdated = cg.getLastUpdated();
-        cr.scopes = cg.getScopes().stream().map(this::toScopeResponse).toList();
+        cr.scopes = cg.getScopes().stream().map(this::toScopeResponseFromContactgegeven).toList();
         return cr;
     }
 
     public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
         if (isStale(voorkeur.getLastUsedAt())) {
-            Voorkeur.update("lastUsedAt = ?1 where id = ?2", LocalDateTime.now(), voorkeur.id);
+            Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
         }
         VoorkeurResponse vr = new VoorkeurResponse();
         vr.id = voorkeur.id;
@@ -73,30 +81,30 @@ public class PartijMapper {
         vr.waarde = voorkeur.getWaarde();
         vr.createdAt = voorkeur.getCreatedAt();
         vr.lastUpdated = voorkeur.getLastUpdated();
-        vr.scopes = voorkeur.getScopes().stream().map(this::toScopeResponse).toList();
+        vr.scopes = voorkeur.getScopes().stream().map(this::toScopeResponseFromVoorkeur).toList();
         return vr;
     }
 
-    private static boolean isStale(LocalDateTime lastUsedAt) {
+    private static boolean isStale(Instant lastUsedAt) {
         return lastUsedAt == null
-                || lastUsedAt.plus(LAST_USED_TOUCH_THRESHOLD).isBefore(LocalDateTime.now());
+                || lastUsedAt.plus(LAST_USED_TOUCH_THRESHOLD).isBefore(Instant.now());
     }
 
-    private ScopeResponse toScopeResponse(Scope scope) {
-        if (scope == null) {
+    private ScopeResponse toScopeResponseFromContactgegeven(ScopeContactgegeven scope) {
+        return toScopeResponse(scope.getDienstverlenerDienst());
+    }
+
+    private ScopeResponse toScopeResponseFromVoorkeur(ScopeVoorkeur scope) {
+        return toScopeResponse(scope.getDienstverlenerDienst());
+    }
+
+    private ScopeResponse toScopeResponse(DienstverlenerDienst link) {
+        if (link == null) {
             return null;
         }
-
         ScopeResponse sr = new ScopeResponse();
-
-        if (scope.getPartij() != null && !scope.getPartij().getIdentificaties().isEmpty()) {
-            sr.partij = toIdentificatieResponse(scope.getPartij().getIdentificaties().getFirst());
-        }
-
-        if (scope.getDienst() != null) {
-            sr.dienst = new DienstResponse(scope.getDienst());
-        }
-
+        sr.dienstverlenerNaam = link.getDienstverlener() != null ? link.getDienstverlener().getNaam() : null;
+        sr.dienstNaam = link.getDienst() != null ? link.getDienst().getNaam() : null;
         return sr;
     }
 }
