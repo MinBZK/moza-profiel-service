@@ -1,16 +1,26 @@
 package nl.rijksoverheid.moz.entity;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
-import jakarta.persistence.*;
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
 @Entity
 @Audited
-public class Partij extends PanacheEntity {
+public class Partij extends PanacheEntityBase {
+
+    @Id
+    @GeneratedValue
+    public UUID id;
 
     @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Identificatie> identificaties = new ArrayList<>();

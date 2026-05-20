@@ -1,57 +1,47 @@
 package nl.rijksoverheid.moz.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
 import jakarta.validation.constraints.NotNull;
 import org.hibernate.envers.Audited;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Audited
-public class Dienst extends PanacheEntity {
+public class Dienst extends PanacheEntityBase {
+
+    @Id
+    @GeneratedValue
+    public UUID id;
 
     @NotNull
+    private String naam;
+
+    @Nullable
     private String beschrijving;
 
-    @JsonIgnore
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "dienstverlener_id")
-    private Dienstverlener dienstverlener;
-
-    @OneToMany(mappedBy = "dienst")
-    private List<Scope> scopes = new ArrayList<>();
-
-    public static Dienst findByBeschrijving(@NotNull String beschrijving) {
-        return Dienst.find("beschrijving = ?1", beschrijving).firstResult();
+    public static Dienst findByNaam(@NotNull String naam) {
+        return Dienst.find("lower(naam) = lower(?1)", naam).firstResult();
     }
 
+    public String getNaam() {
+        return naam;
+    }
+
+    public void setNaam(String naam) {
+        this.naam = naam;
+    }
+
+    @Nullable
     public String getBeschrijving() {
         return beschrijving;
     }
 
-    public void setBeschrijving(String beschrijving) {
+    public void setBeschrijving(@Nullable String beschrijving) {
         this.beschrijving = beschrijving;
-    }
-
-    public Dienstverlener getDienstverlener() {
-        return dienstverlener;
-    }
-
-    public void setDienstverlener(Dienstverlener dienstverlener) {
-        this.dienstverlener = dienstverlener;
-    }
-
-    public List<Scope> getScopes() {
-        return scopes;
-    }
-
-    public void setScopes(List<Scope> scopes) {
-        this.scopes = scopes;
     }
 }

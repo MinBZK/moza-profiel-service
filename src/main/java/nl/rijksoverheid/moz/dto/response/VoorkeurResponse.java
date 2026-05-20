@@ -2,14 +2,15 @@ package nl.rijksoverheid.moz.dto.response;
 
 import nl.rijksoverheid.moz.common.VoorkeurType;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public class VoorkeurResponse {
-    public long id;
+    public UUID id;
     public VoorkeurType voorkeurType;
     public String waarde;
-    public LocalDateTime createdAt;
-    public LocalDateTime lastUpdated;
+    public Instant createdAt;
+    public Instant lastUpdated;
     public List<ScopeResponse> scopes;
 }
