@@ -1,7 +1,9 @@
 
 package nl.rijksoverheid.moz.controller;
 
+import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -10,6 +12,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
@@ -67,6 +70,9 @@ public class ProfielController {
     @Inject
     HashHelper hashHelper;
 
+    @Inject
+    ProcessingHandler processingHandler;
+
     /**
      * Haalt een profiel op van een partij.
      *
@@ -92,7 +98,7 @@ public class ProfielController {
             )
     })
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
-    public Response getPartij(PartijRequest request) {
+    public Response getPartij(@Valid PartijRequest request) {
 
         if (request == null) return missingBody("getPartij");
 
@@ -123,23 +129,26 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Profielen succesvol opgehaald"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
     })
-    @Logboek(name = "getPartijBulk", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
-    public Response getPartijBulk(PartijBulkRequest request) {
+    public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
         if (request == null) return missingBody("getPartijBulk");
 
-        logboekContext.setDataSubjectId(String.join(",", request.identificaties.stream()
-                .map(id -> hashHelper.hashIdentifier(id.identificatieNummer))
-                .toList()));
-        logboekContext.setDataSubjectType(String.join(",", request.identificaties.stream()
-                .map(id -> String.valueOf(id.identificatieType))
-                .distinct()
-                .toList()));
-
-        List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
-        logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Bulk partijen opgehaald");
-        return Response.ok(results).build();
+        try {
+            List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
+            LOG.info("Bulk partijen opgehaald");
+            return Response.ok(results).build();
+        } finally {
+            for (var identificatie : request.identificaties) {
+                LogboekContext ctx = new LogboekContext();
+                ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
+                ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.identificatieNummer));
+                ctx.setDataSubjectType(String.valueOf(identificatie.identificatieType));
+                ctx.setStatus(StatusCode.OK);
+                Span span = processingHandler.startSpan("getPartijBulk", Context.current());
+                processingHandler.addLogboekContextToSpan(span, ctx);
+                span.end();
+            }
+        }
     }
 
     /**
@@ -250,7 +259,7 @@ public class ProfielController {
     @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
     public Response deleteContactgegeven(
             @PathParam("contactgegevenId") UUID contactgegevenId,
-            PartijIdentificatieRequest request) {
+            @Valid PartijIdentificatieRequest request) {
 
         if (request == null) return missingBody("deleteContactgegeven");
 
@@ -381,7 +390,7 @@ public class ProfielController {
     @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
     public Response deleteVoorkeur(
             @PathParam("voorkeurId") UUID voorkeurId,
-            PartijIdentificatieRequest request) {
+            @Valid PartijIdentificatieRequest request) {
 
         if (request == null) return missingBody("deleteVoorkeur");
 
