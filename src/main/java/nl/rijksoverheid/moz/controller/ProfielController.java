@@ -4,6 +4,7 @@ package nl.rijksoverheid.moz.controller;
 import io.opentelemetry.api.trace.StatusCode;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -34,6 +35,7 @@ import org.jboss.logging.Logger;
 
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * REST Controller voor het beheren van partijen.
@@ -170,7 +172,7 @@ public class ProfielController {
             )
     })
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
-    public Response addContactgegeven(ContactgegevenRequest request) {
+    public Response addContactgegeven(@Valid ContactgegevenRequest request) {
 
         if (request == null) return missingBody("addContactgegeven");
 
@@ -189,6 +191,7 @@ public class ProfielController {
         }
 
         LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
+
         return Response.ok(body).location(uri).build();
     }
 
@@ -210,7 +213,7 @@ public class ProfielController {
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
-    public Response updateContactgegeven(ContactgegevenUpdateRequest request) {
+    public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
 
         if (request == null) return missingBody("updateContactgegeven");
 
@@ -246,7 +249,7 @@ public class ProfielController {
     })
     @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
     public Response deleteContactgegeven(
-            @PathParam("contactgegevenId") Long contactgegevenId,
+            @PathParam("contactgegevenId") UUID contactgegevenId,
             PartijIdentificatieRequest request) {
 
         if (request == null) return missingBody("deleteContactgegeven");
@@ -297,7 +300,7 @@ public class ProfielController {
             )
     })
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
-    public Response addVoorkeur(VoorkeurRequest request) {
+    public Response addVoorkeur(@Valid VoorkeurRequest request) {
 
         if (request == null) return missingBody("addVoorkeur");
 
@@ -315,7 +318,11 @@ public class ProfielController {
             return Response.created(uri).entity(body).build();
         }
 
-        LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
+        if (result.scopeAdded()) {
+            LOG.info("Scope toegevoegd aan bestaande voorkeur");
+        } else {
+            LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
+        }
         return Response.ok(body).location(uri).build();
     }
 
@@ -337,7 +344,7 @@ public class ProfielController {
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
-    public Response updateVoorkeur(VoorkeurUpdateRequest request) {
+    public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
 
         if (request == null) return missingBody("updateVoorkeur");
 
@@ -373,7 +380,7 @@ public class ProfielController {
     })
     @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
     public Response deleteVoorkeur(
-            @PathParam("voorkeurId") Long voorkeurId,
+            @PathParam("voorkeurId") UUID voorkeurId,
             PartijIdentificatieRequest request) {
 
         if (request == null) return missingBody("deleteVoorkeur");

@@ -17,15 +17,11 @@ public class PartijRequest {
 
     public String dienstverlener;
 
-    public String dienstverlenerOin;
 
-    public String dienstBeschrijving;
+    public String dienstNaam;
 
     @JsonIgnore
     public boolean isEmpty() {
-        return dienstverlener == null &&
-                dienstverlenerOin == null &&
-                dienstBeschrijving == null;
+        return dienstverlener == null && dienstNaam == null;
     }
-
 }
