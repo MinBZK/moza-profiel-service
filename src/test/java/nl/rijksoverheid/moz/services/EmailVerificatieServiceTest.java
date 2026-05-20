@@ -198,7 +198,7 @@ public class EmailVerificatieServiceTest {
     void vraagEmailVerificatieCodeAan_PartijNotFound() {
         Mockito.doThrow(createWebApplicationException(400)).when(emailVerificatieApi).verifyPost(Mockito.any());
 
-        EmailVerificatieRequest request = new EmailVerificatieRequest();
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
         request.identificatieType = IdentificatieType.BSN;
         request.identificatieNummer = "123456789";
         request.email = "test@test.com";

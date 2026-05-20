@@ -235,10 +235,6 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
             throw new WebApplicationException(
                     "Combinatie (type, waarde) bestaat al voor deze partij",
                     Response.Status.CONFLICT);
-        if (request.type == ContactType.Email) {
-            //TODO: bepaal wat we doen als het versturen van een verificatie code mislukt. Nu storen we een null in de VerificatieReferentieId als het mislukt (omdat de VerificatieService er uit ligt o.i.d.), maar de gebruiker krijgt een OK status code.
-            String referenceId = emailVerificatieService.requestEmailVerificationCode(request.waarde);
-            contact.setVerificatieReferentieId(referenceId);
         }
 
         // Demote BEFORE mutating contact. Hibernate flushes dirty entities before bulk JPQL
