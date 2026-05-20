@@ -196,7 +196,6 @@ public class EmailVerificatieServiceTest {
 
     @Test
     void vraagEmailVerificatieCodeAan_PartijNotFound() {
-        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
         Mockito.doThrow(createWebApplicationException(400)).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
