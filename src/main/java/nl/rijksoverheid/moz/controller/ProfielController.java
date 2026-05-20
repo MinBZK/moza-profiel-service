@@ -35,6 +35,16 @@ import org.jboss.logging.Logger;
 import java.net.URI;
 import java.util.List;
 
+/**
+ * REST Controller voor het beheren van partijen.
+ * <p>
+ * Deze controller biedt endpoints voor:
+ * <ul>
+ *   <li>Ophalen van partijen (enkelvoudig en bulk)</li>
+ *   <li>Beheren van contactgegevens</li>
+ *   <li>Beheren van voorkeuren</li>
+ * </ul>
+ */
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -55,14 +65,12 @@ public class ProfielController {
     @Inject
     HashHelper hashHelper;
 
-    private Response missingBody(String methode) {
-        logboekContext.setDataSubjectId("ONBEKEND");
-        logboekContext.setDataSubjectType("ONBEKEND");
-        logboekContext.setStatus(StatusCode.ERROR);
-        LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-    }
-
+    /**
+     * Haalt een profiel op van een partij.
+     *
+     * @param request Request body met identificatieType (BSN, KVK, RSIN) en identificatieNummer
+     * @return Response met PartijResponse of 404 als de partij niet bestaat
+     */
     @POST
     @Path("/partij")
     @Transactional
@@ -132,6 +140,12 @@ public class ProfielController {
         return Response.ok(results).build();
     }
 
+    /**
+     * Voegt een nieuwe contactgegeven toe voor een partij.
+     *
+     * @param request Request body met contactgegevens en partij identificatie
+     * @return Response 201 Created met Location header naar de aangemaakte resource
+     */
     @POST
     @Path("/contactgegeven")
     @Transactional
@@ -178,6 +192,11 @@ public class ProfielController {
         return Response.ok(body).location(uri).build();
     }
 
+    /**
+     * Update een bestaand contactgegeven van een partij.
+     * IdentificatieType en Nummer kunnen niet gewijzigd worden.
+     * Alleen type, waarde en scope kunnen worden geüpdatet.
+     */
     @PUT
     @Path("/contactgegeven")
     @Transactional
@@ -211,6 +230,9 @@ public class ProfielController {
         return Response.ok().build();
     }
 
+    /**
+     * Verwijder een contactgegeven van een partij.
+     */
     @DELETE
     @Path("/contactgegeven/{contactgegevenId}")
     @Transactional
@@ -245,6 +267,12 @@ public class ProfielController {
         return Response.noContent().build();
     }
 
+    /**
+     * Voegt een nieuwe voorkeur toe voor een partij.
+     *
+     * @param request Request body met voorkeur gegevens en partij identificatie
+     * @return Response 201 Created met Location header naar de aangemaakte resource
+     */
     @POST
     @Path("/voorkeur")
     @Transactional
@@ -291,6 +319,11 @@ public class ProfielController {
         return Response.ok(body).location(uri).build();
     }
 
+    /**
+     * Update een bestaande voorkeur van een partij.
+     * IdentificatieType en Nummer kunnen niet gewijzigd worden.
+     * Alleen type en waarde kunnen worden geüpdatet.
+     */
     @PUT
     @Path("/voorkeur")
     @Transactional
@@ -324,6 +357,9 @@ public class ProfielController {
         return Response.ok().build();
     }
 
+    /**
+     * Verwijder een voorkeur van een partij.
+     */
     @DELETE
     @Path("/voorkeur/{voorkeurId}")
     @Transactional
@@ -356,5 +392,13 @@ public class ProfielController {
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur verwijderd");
         return Response.noContent().build();
+    }
+
+    private Response missingBody(String methode) {
+        logboekContext.setDataSubjectId("ONBEKEND");
+        logboekContext.setDataSubjectType("ONBEKEND");
+        logboekContext.setStatus(StatusCode.ERROR);
+        LOG.warn("Request body mag niet leeg zijn bij " + methode);
+        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
     }
 }
