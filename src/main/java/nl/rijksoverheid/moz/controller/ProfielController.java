@@ -1,6 +1,9 @@
+
 package nl.rijksoverheid.moz.controller;
 
+import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -9,15 +12,17 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
+import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
-import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import nl.rijksoverheid.moz.services.PartijService;
@@ -32,15 +37,19 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller voor het beheren van partijen.
  * <p>
  * Deze controller biedt endpoints voor:
  * <ul>
- *   <li>Ophalen en beheren van partijen</li>
- *   <li>Delete van partijen</li>
+ *   <li>Ophalen van partijen (enkelvoudig en bulk)</li>
+ *   <li>Beheren van contactgegevens</li>
+ *   <li>Beheren van voorkeuren</li>
  * </ul>
  */
 @Path("/api/profielservice/v1")
@@ -63,15 +72,17 @@ public class ProfielController {
     @Inject
     HashHelper hashHelper;
 
+    @Inject
+    ProcessingHandler processingHandler;
+
     /**
      * Haalt een profiel op van een partij.
-     * <p>     *
-     * @param identificatieType Type identificatie (BSN, KVK, RSIN)
-     * @param identificatieNummer Het unieke identificatienummer van de partij
-     * @return Response met ResponseVoorPartij of 404 als de partij niet bestaat
+     *
+     * @param request Request body met identificatieType (BSN, KVK, RSIN) en identificatieNummer
+     * @return Response met PartijResponse of 404 als de partij niet bestaat
      */
-    @GET
-    @Path("/{identificatieType}/{identificatieNummer}")
+    @POST
+    @Path("/partij")
     @Transactional
     @Operation(
             summary = "Ophalen profiel van een partij",
@@ -88,16 +99,15 @@ public class ProfielController {
                     description = "Partij niet gevonden of is verwijderd"
             )
     })
-    @Logboek(name= "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
-    public Response getPartij(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @BeanParam PartijRequest partijRequest) {
+    @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
+    public Response getPartij(@Valid PartijRequest request) {
 
-        PartijResponse result = partijService.getPartijResponse(identificatieType, identificatieNummer, partijRequest);
+        if (request == null) return missingBody("getPartij");
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
+
+        PartijResponse result = partijService.getPartijResponse(request.identificatieType, request.identificatieNummer, request);
 
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -110,16 +120,65 @@ public class ProfielController {
         return Response.ok(result).build();
     }
 
+    @POST
+    @Path("/partijen/bulk")
+    @Transactional
+    @Operation(
+            summary = "Ophalen profielen van meerdere partijen",
+            description = "Haalt profielen op van meerdere partijen. Niet-gevonden partijen worden stilzwijgend weggelaten."
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Alle profielen succesvol opgehaald"),
+            @APIResponse(responseCode = "206", description = "Profielen gedeeltelijk opgehaald"),
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
+            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
+    })
+    public Response getPartijBulk(@Valid PartijBulkRequest request) {
+
+        if (request == null) return missingBody("getPartijBulk");
+
+        List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
+
+        Set<String> foundKeys = results.stream()
+                .flatMap(r -> r.identificaties.stream())
+                .map(id -> id.identificatieType + ":" + id.identificatieNummer)
+                .collect(Collectors.toSet());
+
+        for (var identificatie : request.identificaties) {
+            if (!foundKeys.contains(identificatie.identificatieType + ":" + identificatie.identificatieNummer)) continue;
+
+            LogboekContext ctx = new LogboekContext();
+            ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
+            ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.identificatieNummer));
+            ctx.setDataSubjectType(String.valueOf(identificatie.identificatieType));
+            ctx.setStatus(StatusCode.OK);
+            Span span = processingHandler.startSpan("getPartijBulk", Context.current());
+            processingHandler.addLogboekContextToSpan(span, ctx);
+            span.end();
+        }
+
+        if (results.isEmpty()) {
+            LOG.warn("Geen partijen gevonden in bulk request");
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        if (results.size() < request.identificaties.size()) {
+            LOG.info("Bulk partijen gedeeltelijk opgehaald");
+            return Response.status(Response.Status.PARTIAL_CONTENT).entity(results).build();
+        }
+
+        LOG.info("Bulk partijen opgehaald");
+        return Response.ok(results).build();
+    }
+
     /**
-     * Voegt een niewe contactgegeven toe voor een partij.
+     * Voegt een nieuwe contactgegeven toe voor een partij.
      *
-     * @param identificatieType Type identificatie van de partij
-     * @param identificatieNummer Identificatienummer van de partij
-     * @param request Request body met contactgegevens
+     * @param request Request body met contactgegevens en partij identificatie
      * @return Response 201 Created met Location header naar de aangemaakte resource
      */
     @POST
-    @Path("/contactgegeven/{identificatieType}/{identificatieNummer}")
+    @Path("/contactgegeven")
     @Transactional
     @Operation(
             summary = "Toevoegen nieuwe contactgegeven voor een partij",
@@ -141,25 +200,18 @@ public class ProfielController {
                     description = "Request body mag niet leeg zijn"
             )
     })
-    @Logboek(name= "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
-    public Response addContactgegeven(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @Valid ContactgegevenRequest request) {
+    @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
+    public Response addContactgegeven(@Valid ContactgegevenRequest request) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        if (request == null) return missingBody("addContactgegeven");
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij addContactgegeven");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        AddContactgegevenResult result = partijService.addContactgegeven(identificatieType, identificatieNummer, request);
+        AddContactgegevenResult result = partijService.addContactgegeven(request.identificatieType, request.identificatieNummer, request);
         ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
 
-        URI uri = URI.create(String.format("/contactgegeven/%s/%s", identificatieType, identificatieNummer));
+        URI uri = URI.create("/contactgegeven");
         logboekContext.setStatus(StatusCode.OK);
 
         if (result.wasCreated()) {
@@ -177,7 +229,7 @@ public class ProfielController {
      * Alleen type, waarde en scope kunnen worden geüpdatet.
      */
     @PUT
-    @Path("/contactgegeven/{identificatieType}/{identificatieNummer}/")
+    @Path("/contactgegeven")
     @Transactional
     @Operation(
             summary = "Update contactgegeven van een partij",
@@ -188,22 +240,15 @@ public class ProfielController {
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
-    @Logboek(name= "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
-    public Response updateContactgegeven(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @Valid ContactgegevenUpdateRequest request) {
+    @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
+    public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        if (request == null) return missingBody("updateContactgegeven");
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij updateContactgegeven");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        boolean updated = partijService.updateContactgegeven(identificatieType, identificatieNummer, request);
+        boolean updated = partijService.updateContactgegeven(request.identificatieType, request.identificatieNummer, request);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -220,7 +265,7 @@ public class ProfielController {
      * Verwijder een contactgegeven van een partij.
      */
     @DELETE
-    @Path("/contactgegeven/{identificatieType}/{identificatieNummer}/{contactgegevenId}")
+    @Path("/contactgegeven/{contactgegevenId}")
     @Transactional
     @Operation(
             summary = "Verwijder contactgegeven van een partij",
@@ -230,16 +275,17 @@ public class ProfielController {
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
     })
-    @Logboek(name= "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
+    @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
     public Response deleteContactgegeven(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @PathParam("contactgegevenId") UUID contactgegevenId) {
+            @PathParam("contactgegevenId") UUID contactgegevenId,
+            @Valid PartijIdentificatieRequest request) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        if (request == null) return missingBody("deleteContactgegeven");
 
-        boolean deleted = partijService.deleteContactgegeven(identificatieType, identificatieNummer, contactgegevenId);
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
+
+        boolean deleted = partijService.deleteContactgegeven(request.identificatieType, request.identificatieNummer, contactgegevenId);
 
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -255,13 +301,11 @@ public class ProfielController {
     /**
      * Voegt een nieuwe voorkeur toe voor een partij.
      *
-     * @param identificatieType Type identificatie van de partij
-     * @param identificatieNummer Identificatienummer van de partij
-     * @param request Request body met voorkeur gegevens
+     * @param request Request body met voorkeur gegevens en partij identificatie
      * @return Response 201 Created met Location header naar de aangemaakte resource
      */
     @POST
-    @Path("/voorkeur/{identificatieType}/{identificatieNummer}")
+    @Path("/voorkeur")
     @Transactional
     @Operation(
             summary = "Toevoegen nieuwe voorkeur voor een partij",
@@ -283,26 +327,19 @@ public class ProfielController {
                     description = "Request body mag niet leeg zijn"
             )
     })
-    @Logboek(name= "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
-    public Response addVoorkeur(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @Valid VoorkeurRequest request) {
+    @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
+    public Response addVoorkeur(@Valid VoorkeurRequest request) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        if (request == null) return missingBody("addVoorkeur");
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij addVoorkeur");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        AddVoorkeurResult result = partijService.addVoorkeur(identificatieType, identificatieNummer, request);
+        AddVoorkeurResult result = partijService.addVoorkeur(request.identificatieType, request.identificatieNummer, request);
         VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        URI uri = URI.create(String.format("/voorkeur/%s/%s", identificatieType, identificatieNummer));
+        URI uri = URI.create("/voorkeur");
 
         if (result.wasCreated()) {
             LOG.info("Voorkeur toegevoegd");
@@ -320,10 +357,10 @@ public class ProfielController {
     /**
      * Update een bestaande voorkeur van een partij.
      * IdentificatieType en Nummer kunnen niet gewijzigd worden.
-     * Alleen type, en waarde kunnen worden geüpdatet.
+     * Alleen type en waarde kunnen worden geüpdatet.
      */
     @PUT
-    @Path("/voorkeur/{identificatieType}/{identificatieNummer}/")
+    @Path("/voorkeur")
     @Transactional
     @Operation(
             summary = "Update voorkeur van een partij",
@@ -334,22 +371,15 @@ public class ProfielController {
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
-    @Logboek(name= "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
-    public Response updateVoorkeur(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @Valid VoorkeurUpdateRequest request) {
+    @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
+    public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        if (request == null) return missingBody("updateVoorkeur");
 
-        if (request == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Request body mag niet leeg zijn bij updateVoorkeur");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-        }
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        boolean updated = partijService.updateVoorkeur(identificatieType, identificatieNummer, request);
+        boolean updated = partijService.updateVoorkeur(request.identificatieType, request.identificatieNummer, request);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -366,7 +396,7 @@ public class ProfielController {
      * Verwijder een voorkeur van een partij.
      */
     @DELETE
-    @Path("/voorkeur/{identificatieType}/{identificatieNummer}/{voorkeurId}")
+    @Path("/voorkeur/{voorkeurId}")
     @Transactional
     @Operation(
             summary = "Verwijder voorkeur van een partij",
@@ -376,16 +406,17 @@ public class ProfielController {
             @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
     })
-    @Logboek(name= "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
+    @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
     public Response deleteVoorkeur(
-            @PathParam("identificatieType") IdentificatieType identificatieType,
-            @PathParam("identificatieNummer") String identificatieNummer,
-            @PathParam("voorkeurId") UUID voorkeurId) {
+            @PathParam("voorkeurId") UUID voorkeurId,
+            @Valid PartijIdentificatieRequest request) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(identificatieType));
+        if (request == null) return missingBody("deleteVoorkeur");
 
-        boolean deleted = partijService.deleteVoorkeur(identificatieType, identificatieNummer, voorkeurId);
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
+
+        boolean deleted = partijService.deleteVoorkeur(request.identificatieType, request.identificatieNummer, voorkeurId);
 
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -396,5 +427,13 @@ public class ProfielController {
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur verwijderd");
         return Response.noContent().build();
+    }
+
+    private Response missingBody(String methode) {
+        logboekContext.setDataSubjectId("ONBEKEND");
+        logboekContext.setDataSubjectType("ONBEKEND");
+        logboekContext.setStatus(StatusCode.ERROR);
+        LOG.warn("Request body mag niet leeg zijn bij " + methode);
+        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
     }
 }

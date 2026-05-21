@@ -10,6 +10,7 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -384,6 +386,25 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         partij.removeVoorkeur(voorkeur);
         voorkeur.delete();
         return true;
+    }
+
+    @Transactional
+    public List<PartijResponse> getPartijResponseBulk(List<PartijIdentificatieRequest> identificaties) {
+        Map<IdentificatieType, List<String>> grouped = identificaties.stream()
+                .collect(Collectors.groupingBy(
+                        id -> id.identificatieType,
+                        Collectors.mapping(id -> id.identificatieNummer, Collectors.toList())));
+
+        return grouped.entrySet().stream()
+                .flatMap(entry -> {
+                    List<Partij> found = Partij.list(
+                            "SELECT p FROM Partij p JOIN p.identificaties i " +
+                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2",
+                            entry.getKey(), entry.getValue());
+                    return found.stream();
+                })
+                .map(partijMapper::toResponse)
+                .toList();
     }
 
     @Transactional
