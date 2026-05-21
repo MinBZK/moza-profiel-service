@@ -219,7 +219,6 @@ public class ProfielController {
             return Response.created(uri).entity(body).build();
         }
 
-        LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
 
         return Response.ok(body).location(uri).build();
     }

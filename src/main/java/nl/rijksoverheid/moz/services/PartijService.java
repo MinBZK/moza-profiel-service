@@ -70,8 +70,15 @@ public class PartijService {
                 "partij = ?1 AND type = ?2 AND waarde = ?3",
                 partij, request.type, normalisedWaarde
         ).firstResult();
-
+        
         if (existing != null) {
+            LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
+
+            if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
+                requestAndApplyVerificatieCode(existing);
+                LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
+            }
+
             if (link == null || hasContactgegevenScopeFor(existing.getScopes(), link)) {
                 return new AddContactgegevenResult(existing, false, false);
             }
@@ -86,8 +93,8 @@ public class PartijService {
         contactgegeven.setGeverifieerdAt(null);
 
         if (request.type == ContactType.Email) {
-            String referenceId = emailVerificatieService.requestEmailVerificationCode(normalisedWaarde);
-            contactgegeven.setVerificatieReferentieId(referenceId);
+
+            requestAndApplyVerificatieCode(contactgegeven);
         }
 
         if (link != null) {
@@ -149,6 +156,12 @@ public class PartijService {
 
     private boolean hasContactgegevenScopeFor(List<ScopeContactgegeven> existing, DienstverlenerDienst link) {
         return existing.stream().anyMatch(s -> Objects.equals(s.getDienstverlenerDienst().id, link.id));
+    }
+
+    private void requestAndApplyVerificatieCode(Contactgegeven contact) {
+        String referenceId = emailVerificatieService.requestEmailVerificationCode(contact.getWaarde());
+        contact.setVerificatieReferentieId(referenceId);
+        contact.setIsGeverifieerd(false);
     }
 
 private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
