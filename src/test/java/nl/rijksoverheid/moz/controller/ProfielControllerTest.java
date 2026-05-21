@@ -19,8 +19,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.time.LocalDateTime;
-import java.util.concurrent.atomic.AtomicLong;
+import java.time.Instant;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.restassured.RestAssured.given;
@@ -44,9 +44,11 @@ public class ProfielControllerTest {
     @AfterEach
     @Transactional
     void tearDown() {
+        ScopeContactgegeven.deleteAll();
+        ScopeVoorkeur.deleteAll();
         Contactgegeven.deleteAll();
         Voorkeur.deleteAll();
-        Scope.deleteAll();
+        DienstverlenerDienst.deleteAll();
         Dienst.deleteAll();
         Identificatie.deleteAll();
         Partij.deleteAll();
@@ -89,8 +91,8 @@ public class ProfielControllerTest {
 
     @Test
     void getPartij_TouchesLastUsedAtOnFirstReadButNotWithinThreshold() {
-        AtomicLong contactId = new AtomicLong();
-        AtomicLong voorkeurId = new AtomicLong();
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(KVK, "222222222"));
@@ -118,11 +120,11 @@ public class ProfielControllerTest {
                 .when().get("/api/profielservice/v1/KVK/222222222")
                 .then().statusCode(OK);
 
-        AtomicReference<LocalDateTime> contactFirstTouch = new AtomicReference<>();
-        AtomicReference<LocalDateTime> voorkeurFirstTouch = new AtomicReference<>();
+        AtomicReference<Instant> contactFirstTouch = new AtomicReference<>();
+        AtomicReference<Instant> voorkeurFirstTouch = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
-            LocalDateTime cTs = Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt();
-            LocalDateTime vTs = Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt();
+            Instant cTs = Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt();
+            Instant vTs = Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt();
             Assertions.assertNotNull(cTs);
             Assertions.assertNotNull(vTs);
             contactFirstTouch.set(cTs);
@@ -143,7 +145,7 @@ public class ProfielControllerTest {
 
     @Test
     void getPartij_ReadDoesNotBumpLastUpdated() {
-        AtomicLong contactId = new AtomicLong();
+        AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(KVK, "333333333"));
@@ -156,7 +158,7 @@ public class ProfielControllerTest {
             contactId.set(c.id);
         });
 
-        AtomicReference<LocalDateTime> before = new AtomicReference<>();
+        AtomicReference<Instant> before = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             before.set(Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUpdated());
         });
@@ -220,7 +222,7 @@ public class ProfielControllerTest {
     @Test
     void updateContactgegeven_Success() {
 
-        AtomicLong id = new AtomicLong();
+        AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(BSN, "111111111"));
@@ -244,6 +246,15 @@ public class ProfielControllerTest {
                 .put("/api/profielservice/v1/contactgegeven/BSN/111111111")
                 .then()
                 .statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven updated = Contactgegeven.findById(id.get());
+            Assertions.assertEquals("test2@example.com", updated.getWaarde());
+            Assertions.assertFalse(updated.isIsGeverifieerd(),
+                    "Geverifieerd-status moet resetten zodra de email-waarde verandert");
+            Assertions.assertNull(updated.getGeverifieerdAt(),
+                    "GeverifieerdAt moet leeg zijn na waarde-wijziging");
+        });
     }
 
     @Test
@@ -271,7 +282,7 @@ public class ProfielControllerTest {
     void updateContactgegeven_NotFound() {
 
         var body = new ContactgegevenUpdateRequest();
-        body.id = 1;
+        body.id = UUID.randomUUID();
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
 
@@ -286,7 +297,7 @@ public class ProfielControllerTest {
 
     @Test
     void deleteContactgegeven_Success() {
-        AtomicLong contactGegevenId = new AtomicLong();
+        AtomicReference<UUID> contactGegevenId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(BSN, "111111114"));
@@ -310,7 +321,7 @@ public class ProfielControllerTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/contactgegeven/BSN/111111114/" + 1)
+                .delete("/api/profielservice/v1/contactgegeven/BSN/111111114/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND);
     }
@@ -327,7 +338,7 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/voorkeur/BSN/123456789")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/BSN/123456789"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/voorkeur/BSN/123456789"));
     }
 
     @Test
@@ -350,7 +361,7 @@ public class ProfielControllerTest {
 
     @Test
     void updateVoorkeur_Success() {
-        AtomicLong id = new AtomicLong();
+        AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(BSN, "111111115"));
@@ -399,7 +410,7 @@ public class ProfielControllerTest {
     @Test
     void updateVoorkeur_NotFound() {
         var body = new VoorkeurUpdateRequest();
-        body.id = 1;
+        body.id = UUID.randomUUID();
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "en";
 
@@ -413,7 +424,7 @@ public class ProfielControllerTest {
 
     @Test
     void deleteVoorkeur_Success() {
-        AtomicLong voorkeurId = new AtomicLong();
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(BSN, "111111118"));
@@ -437,7 +448,7 @@ public class ProfielControllerTest {
     void deleteVoorkeur_NotFound() {
         given()
                 .contentType(ContentType.JSON)
-                .delete("/api/profielservice/v1/voorkeur/BSN/111111119/" + 1)
+                .delete("/api/profielservice/v1/voorkeur/BSN/111111119/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND);
     }

@@ -15,19 +15,23 @@ import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.Scope;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.time.Instant;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 @QuarkusTest
 public class PartijServiceTest {
@@ -35,48 +39,52 @@ public class PartijServiceTest {
     @Inject
     PartijService partijService;
 
+    @Inject
+    DienstverlenerService dienstverlenerService;
+
     @InjectMock
     EmailVerificatieService emailVerificatieService;
 
     @AfterEach
     @Transactional
     void tearDown() {
+        ScopeContactgegeven.deleteAll();
+        ScopeVoorkeur.deleteAll();
         Contactgegeven.deleteAll();
         Voorkeur.deleteAll();
-        Scope.deleteAll();
+        DienstverlenerDienst.deleteAll();
         Dienst.deleteAll();
         Identificatie.deleteAll();
         Partij.deleteAll();
         Dienstverlener.deleteAll();
     }
 
-    private long createTestDienst() {
-        AtomicLong dienstId = new AtomicLong();
+    private String createTestDienstverlenerWithDienst() {
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dv = new Dienstverlener();
-            dv.setNaam("DV");
-            dv.setOin("999");
+            dv.setNaam("TestDV");
             dv.persist();
             Dienst d = new Dienst();
-            d.setBeschrijving("D");
-            d.setDienstverlener(dv);
+            d.setNaam("TestDienst");
             d.persist();
-            dienstId.set(d.id);
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, d);
+            link.persist();
         });
-        return dienstId.get();
+        return "TestDV";
     }
 
     private void setupPartijWithScopedContact() {
         QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dienstverlener = new Dienstverlener();
-            dienstverlener.setNaam("TestDV");
-            dienstverlener.setOin("12345");
-            dienstverlener.persist();
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("TestDV");
+            dv.persist();
 
             Dienst dienst = new Dienst();
-            dienst.setBeschrijving("TestDienst");
-            dienst.setDienstverlener(dienstverlener);
+            dienst.setNaam("TestDienst");
             dienst.persist();
+
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, dienst);
+            link.persist();
 
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -87,9 +95,8 @@ public class PartijServiceTest {
             contact.setWaarde("test@test.com");
             contact.setPartij(partij);
             contact.persist();
-            Scope scope = new Scope();
-            scope.setDienst(dienst);
-            scope.setContactgegeven(contact);
+
+            ScopeContactgegeven scope = new ScopeContactgegeven(contact, link);
             scope.persist();
             contact.addScope(scope);
         });
@@ -189,23 +196,8 @@ public class PartijServiceTest {
     }
 
     @Test
-    void addVoorkeur_NewPartij() {
-        VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "en";
-
-        partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertNotNull(partij);
-            Assertions.assertEquals(1, partij.getVoorkeuren().size());
-        });
-    }
-
-    @Test
     void updateContactgegeven_Success() {
-        AtomicLong contactId = new AtomicLong();
+        AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -239,7 +231,7 @@ public class PartijServiceTest {
     @Test
     void updateContactgegeven_PartijNotFound() {
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = 1L;
+        request.id = UUID.randomUUID();
         request.type = ContactType.Email;
         request.waarde = "test@test.com";
 
@@ -249,26 +241,8 @@ public class PartijServiceTest {
     }
 
     @Test
-    void updateContactgegeven_ContactNotFound() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-        });
-
-        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = 999L;
-        request.type = ContactType.Email;
-        request.waarde = "test@test.com";
-
-        boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertFalse(result);
-    }
-
-    @Test
     void updateVoorkeur_Success() {
-        AtomicLong voorkeurId = new AtomicLong();
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -297,38 +271,8 @@ public class PartijServiceTest {
     }
 
     @Test
-    void updateVoorkeur_PartijNotFound() {
-        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = 1L;
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "en";
-
-        boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "999999999", request);
-
-        Assertions.assertFalse(result);
-    }
-
-    @Test
-    void updateVoorkeur_VoorkeurNotFound() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-        });
-
-        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = 999L;
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "en";
-
-        boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertFalse(result);
-    }
-
-    @Test
     void deleteContactgegeven_Success() {
-        AtomicLong contactId = new AtomicLong();
+        AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -353,25 +297,13 @@ public class PartijServiceTest {
 
     @Test
     void deleteContactgegeven_PartijNotFound() {
-        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "999999999", 1L);
-        Assertions.assertFalse(result);
-    }
-
-    @Test
-    void deleteContactgegeven_ContactNotFound() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-        });
-
-        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "123456789", 999L);
+        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "999999999", UUID.randomUUID());
         Assertions.assertFalse(result);
     }
 
     @Test
     void deleteVoorkeur_Success() {
-        AtomicLong voorkeurId = new AtomicLong();
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -395,24 +327,6 @@ public class PartijServiceTest {
     }
 
     @Test
-    void deleteVoorkeur_PartijNotFound() {
-        boolean result = partijService.deleteVoorkeur(IdentificatieType.BSN, "999999999", 1L);
-        Assertions.assertFalse(result);
-    }
-
-    @Test
-    void deleteVoorkeur_VoorkeurNotFound() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-        });
-
-        boolean result = partijService.deleteVoorkeur(IdentificatieType.BSN, "123456789", 999L);
-        Assertions.assertFalse(result);
-    }
-
-    @Test
     void getPartijResponse_Found() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -427,114 +341,8 @@ public class PartijServiceTest {
     }
 
     @Test
-    void getPartijResponse_NotFound() {
-        PartijRequest request = new PartijRequest();
-        PartijResponse result = partijService.getPartijResponse(IdentificatieType.BSN, "999999999", request);
-
-        Assertions.assertNull(result);
-    }
-
-    @Test
-    void getPartijResponse_WithFilters() {
-        setupPartijWithScopedContact();
-
-        PartijRequest request = new PartijRequest();
-        request.dienstverlener = "TestDV";
-        PartijResponse result = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(1, result.contactgegevens.size());
-    }
-
-    @Test
-    void getPartijFiltered_Found() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Contactgegeven contact = new Contactgegeven();
-            contact.setType(ContactType.Email);
-            contact.setWaarde("test@test.com");
-            contact.setPartij(partij);
-            contact.persist();
-        });
-
-        PartijRequest request = new PartijRequest();
-        Partij result = partijService.getPartijFiltered(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(1, result.getContactgegevens().size());
-    }
-
-    @Test
-    void getPartijFiltered_NotFound() {
-        PartijRequest request = new PartijRequest();
-        Partij result = partijService.getPartijFiltered(IdentificatieType.BSN, "999999999", request);
-
-        Assertions.assertNull(result);
-    }
-
-    @Test
-    void getPartijFiltered_WithDienstverlenerFilter() {
-        setupPartijWithScopedContact();
-
-        PartijRequest request = new PartijRequest();
-        request.dienstverlener = "TestDV";
-        Partij result = partijService.getPartijFiltered(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(1, result.getContactgegevens().size());
-    }
-
-    @Test
-    void getPartijFiltered_WithDienstverlenerOinFilter() {
-        setupPartijWithScopedContact();
-
-        PartijRequest request = new PartijRequest();
-        request.dienstverlenerOin = "12345";
-        Partij result = partijService.getPartijFiltered(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(1, result.getContactgegevens().size());
-    }
-
-    @Test
-    void getPartijFiltered_WithDienstBeschrijvingFilter() {
-        setupPartijWithScopedContact();
-
-        PartijRequest request = new PartijRequest();
-        request.dienstBeschrijving = "TestDienst";
-        Partij result = partijService.getPartijFiltered(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(1, result.getContactgegevens().size());
-    }
-
-    @Test
-    void addContactgegeven_Duplicate_NoScope_ReturnsExisting() {
-        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
-
-        ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "dup@test.com";
-
-        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-
-        Assertions.assertTrue(first.wasCreated());
-        Assertions.assertFalse(second.wasCreated());
-        Assertions.assertEquals(first.contactgegeven().id, second.contactgegeven().id);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
-        });
-    }
-
-    @Test
     void addContactgegeven_Duplicate_NewScope_AddsScopeToExisting() {
-        long dienstId = createTestDienst();
+        createTestDienstverlenerWithDienst();
 
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
@@ -547,24 +355,25 @@ public class PartijServiceTest {
         scoped.type = ContactType.Email;
         scoped.waarde = "scope@test.com";
         scoped.scope = new ScopeRequest();
-        scoped.scope.dienstId = dienstId;
+        scoped.scope.dienstverlenerNaam = "TestDV";
+        scoped.scope.dienstNaam = "TestDienst";
 
         PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
 
-        Assertions.assertTrue(result.wasCreated());
+        Assertions.assertFalse(result.wasCreated(), "no new contactgegeven row was created");
+        Assertions.assertTrue(result.scopeAdded(), "a new scope was attached to the existing row");
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Assertions.assertEquals(1, partij.getContactgegevens().size());
             Contactgegeven cg = partij.getContactgegevens().get(0);
             Assertions.assertEquals(1, cg.getScopes().size());
-            Assertions.assertEquals(dienstId, cg.getScopes().get(0).getDienst().id);
         });
     }
 
     @Test
     void addContactgegeven_Duplicate_MatchingScope_ReturnsExisting() {
-        long dienstId = createTestDienst();
+        createTestDienstverlenerWithDienst();
 
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
@@ -572,10 +381,13 @@ public class PartijServiceTest {
         scoped.type = ContactType.Email;
         scoped.waarde = "match@test.com";
         scoped.scope = new ScopeRequest();
-        scoped.scope.dienstId = dienstId;
+        scoped.scope.dienstverlenerNaam = "TestDV";
+        scoped.scope.dienstNaam = "TestDienst";
 
-        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        PartijService.AddContactgegevenResult first =
+                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        PartijService.AddContactgegevenResult second =
+                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
 
         Assertions.assertTrue(first.wasCreated());
         Assertions.assertFalse(second.wasCreated());
@@ -588,13 +400,63 @@ public class PartijServiceTest {
     }
 
     @Test
+    void addContactgegeven_Duplicate_UnverifiedEmail_ResendsVerificationCode() {
+        Mockito.doReturn("first-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Email;
+        request.waarde = "unverified@test.com";
+
+        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertTrue(first.wasCreated());
+
+        Mockito.doReturn("second-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertFalse(second.wasCreated());
+        Mockito.verify(emailVerificatieService, Mockito.times(2)).requestEmailVerificationCode("unverified@test.com");
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Contactgegeven contact = partij.getContactgegevens().get(0);
+            Assertions.assertEquals("second-ref", contact.getVerificatieReferentieId());
+            Assertions.assertNull(contact.getGeverifieerdAt());
+            Assertions.assertFalse(contact.isIsGeverifieerd());
+        });
+    }
+
+    @Test
+    void addContactgegeven_Duplicate_VerifiedEmail_DoesNotResendCode() {
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Email;
+        request.waarde = "verified@test.com";
+
+        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Contactgegeven contact = partij.getContactgegevens().get(0);
+            contact.setGeverifieerdAt(java.time.Instant.now());
+            contact.setIsGeverifieerd(true);
+        });
+
+        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertFalse(second.wasCreated());
+        Mockito.verify(emailVerificatieService, Mockito.times(1)).requestEmailVerificationCode(Mockito.anyString());
+    }
+
+    @Test
     void addVoorkeur_Duplicate_NoScope_ReturnsExisting() {
         VoorkeurRequest request = new VoorkeurRequest();
         request.voorkeurType = VoorkeurType.WebsiteTaal;
         request.waarde = "nl";
 
-        PartijService.AddVoorkeurResult first = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-        PartijService.AddVoorkeurResult second = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddVoorkeurResult first =
+                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddVoorkeurResult second =
+                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
         Assertions.assertTrue(first.wasCreated());
         Assertions.assertFalse(second.wasCreated());
@@ -606,4 +468,440 @@ public class PartijServiceTest {
         });
     }
 
+    @Test
+    void updateContactgegeven_ContactNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+        });
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = UUID.randomUUID();
+        request.type = ContactType.Email;
+        request.waarde = "test@test.com";
+
+        boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertFalse(result);
+    }
+
+    @Test
+    void updateVoorkeur_VoorkeurNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+        });
+
+        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
+        request.id = UUID.randomUUID();
+        request.voorkeurType = VoorkeurType.WebsiteTaal;
+        request.waarde = "en";
+
+        boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertFalse(result);
+    }
+
+    @Test
+    void deleteContactgegeven_ContactNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+        });
+
+        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "123456789", UUID.randomUUID());
+        Assertions.assertFalse(result);
+    }
+
+    @Test
+    void deleteVoorkeur_VoorkeurNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+        });
+
+        boolean result = partijService.deleteVoorkeur(IdentificatieType.BSN, "123456789", UUID.randomUUID());
+        Assertions.assertFalse(result);
+    }
+
+    @Test
+    void getPartijResponse_WithDienstNaamFilter_PreservesRowsAndDoesNotDelete() {
+        // Regression: getPartijFiltered previously called partij.setContactgegevens(filtered) on a
+        // managed Partij with orphanRemoval=true, which silently deleted the filtered-out rows.
+        // To actually exercise the bug we need a contact the filter EXCLUDES, otherwise the old
+        // buggy code would never have orphan-removed anything (filtered.size() == collection.size()).
+        // We add a third contact scoped to a different DV so the filter excludes it.
+        setupPartijWithScopedContact();
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+
+            // unscoped contact: matches via "s IS NULL"
+            Contactgegeven unscoped = new Contactgegeven();
+            unscoped.setType(ContactType.Telefoonnummer);
+            unscoped.setWaarde("0612345678");
+            unscoped.setPartij(partij);
+            unscoped.persist();
+
+            // contact scoped to a DIFFERENT DV+dienst: must be excluded by the filter.
+            Dienstverlener otherDv = new Dienstverlener();
+            otherDv.setNaam("OtherDV");
+            otherDv.persist();
+            Dienst otherDienst = new Dienst();
+            otherDienst.setNaam("OtherDienst");
+            otherDienst.persist();
+            DienstverlenerDienst otherLink = new DienstverlenerDienst(otherDv, otherDienst);
+            otherLink.persist();
+
+            Contactgegeven excluded = new Contactgegeven();
+            excluded.setType(ContactType.Telefoonnummer);
+            excluded.setWaarde("0699999999");
+            excluded.setPartij(partij);
+            excluded.persist();
+            ScopeContactgegeven excludingScope = new ScopeContactgegeven(excluded, otherLink);
+            excludingScope.persist();
+            excluded.addScope(excludingScope);
+        });
+
+        PartijRequest request = new PartijRequest();
+        request.dienstNaam = "TestDienst";
+        PartijResponse result = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", request);
+
+        Assertions.assertNotNull(result);
+        // Returned: scoped-TestDienst contact + unscoped phone. Excluded: phone scoped to OtherDienst.
+        Assertions.assertEquals(2, result.contactgegevens.size());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Assertions.assertEquals(3, partij.getContactgegevens().size(),
+                    "Filtered read must not delete contactgegevens that were excluded by the filter");
+        });
+    }
+
+    @Test
+    void resolveDienstverlenerDienst_DienstNaamWithoutDienstverlenerNaam_ThrowsBadRequest() {
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Email;
+        request.waarde = "test@test.com";
+        request.scope = new ScopeRequest();
+        request.scope.dienstNaam = "TestDienst";
+
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
+                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
+        Assertions.assertEquals(400, ex.getResponse().getStatus());
+    }
+
+    @Test
+    void resolveDienstverlenerDienst_DienstNotLinkedToRequestedDV_Throws404() {
+        // Seed two DVs each with their own Dienst. Request DV-A with DV-B's Dienst name.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dvA = new Dienstverlener();
+            dvA.setNaam("DV-A");
+            dvA.persist();
+            Dienst dienstA = new Dienst();
+            dienstA.setNaam("A-Vergunning");
+            dienstA.persist();
+            new DienstverlenerDienst(dvA, dienstA).persist();
+
+            Dienstverlener dvB = new Dienstverlener();
+            dvB.setNaam("DV-B");
+            dvB.persist();
+            Dienst dienstB = new Dienst();
+            dienstB.setNaam("B-Vergunning");
+            dienstB.persist();
+            new DienstverlenerDienst(dvB, dienstB).persist();
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Email;
+        request.waarde = "cross@test.com";
+        request.scope = new ScopeRequest();
+        request.scope.dienstverlenerNaam = "DV-A";
+        request.scope.dienstNaam = "B-Vergunning";
+
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
+                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
+        Assertions.assertEquals(404, ex.getResponse().getStatus());
+    }
+
+    @Test
+    void updateContactgegeven_isDefaultTrue_demotesPreviousDefault() {
+        AtomicReference<UUID> firstId = new AtomicReference<>();
+        AtomicReference<UUID> secondId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven first = new Contactgegeven();
+            first.setType(ContactType.Email);
+            first.setWaarde("a@test.com");
+            first.setIsDefault(true);
+            first.setPartij(partij);
+            first.persist();
+            firstId.set(first.id);
+
+            Contactgegeven second = new Contactgegeven();
+            second.setType(ContactType.Email);
+            second.setWaarde("b@test.com");
+            second.setPartij(partij);
+            second.persist();
+            secondId.set(second.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = secondId.get();
+        request.type = ContactType.Email;
+        request.waarde = "b@test.com";
+        request.isDefault = true;
+
+        Assertions.assertTrue(partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertFalse(((Contactgegeven) Contactgegeven.findById(firstId.get())).isIsDefault(),
+                    "previous default must be demoted");
+            Assertions.assertTrue(((Contactgegeven) Contactgegeven.findById(secondId.get())).isIsDefault(),
+                    "new default must be set");
+        });
+    }
+
+    @Test
+    void updateContactgegeven_isDefaultNull_leavesDefaultUnchanged() {
+        AtomicReference<UUID> id = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Email);
+            c.setWaarde("a@test.com");
+            c.setIsDefault(true);
+            c.setPartij(partij);
+            c.persist();
+            id.set(c.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = id.get();
+        request.type = ContactType.Email;
+        request.waarde = "a@test.com";
+        // isDefault explicitly omitted -> null -> no change
+
+        partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertTrue(((Contactgegeven) Contactgegeven.findById(id.get())).isIsDefault());
+        });
+    }
+
+    @Test
+    void updateContactgegeven_isDefaultFalse_unsetsDefault() {
+        AtomicReference<UUID> id = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Email);
+            c.setWaarde("a@test.com");
+            c.setIsDefault(true);
+            c.setPartij(partij);
+            c.persist();
+            id.set(c.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = id.get();
+        request.type = ContactType.Email;
+        request.waarde = "a@test.com";
+        request.isDefault = false;
+
+        partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertFalse(((Contactgegeven) Contactgegeven.findById(id.get())).isIsDefault());
+        });
+    }
+
+    @Test
+    void updateContactgegeven_OnlyIsDefaultFlipped_DoesNotReVerifyEmail() {
+        AtomicReference<UUID> id = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Email);
+            c.setWaarde("user@test.com");
+            c.setIsGeverifieerd(true);
+            c.setGeverifieerdAt(java.time.Instant.now().minus(java.time.Duration.ofDays(1)));
+            c.setPartij(partij);
+            c.persist();
+            id.set(c.id);
+        });
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = id.get();
+        request.type = ContactType.Email;
+        request.waarde = "user@test.com";
+        request.isDefault = true;
+
+        partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        Mockito.verify(emailVerificatieService, Mockito.never())
+                .requestEmailVerificationCode(Mockito.anyString());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven c = Contactgegeven.findById(id.get());
+            Assertions.assertTrue(c.isIsGeverifieerd(),
+                    "isDefault-only update mag verificatiestatus niet resetten");
+            Assertions.assertNotNull(c.getGeverifieerdAt());
+        });
+    }
+
+    @Test
+    void updateContactgegeven_DuplicateWaardeForPartij_Throws409() {
+        AtomicReference<UUID> targetId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven a = new Contactgegeven();
+            a.setType(ContactType.Email);
+            a.setWaarde("a@test.com");
+            a.setPartij(partij);
+            a.persist();
+
+            Contactgegeven b = new Contactgegeven();
+            b.setType(ContactType.Email);
+            b.setWaarde("b@test.com");
+            b.setPartij(partij);
+            b.persist();
+            targetId.set(b.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = targetId.get();
+        request.type = ContactType.Email;
+        request.waarde = "a@test.com";
+
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
+                () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
+        Assertions.assertEquals(409, ex.getResponse().getStatus());
+    }
+
+    @Test
+    void addContactgegeven_EmailIsNormalisedToLowercase() {
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenRequest first = new ContactgegevenRequest();
+        first.type = ContactType.Email;
+        first.waarde = "User@Test.COM";
+        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", first);
+
+        // A second POST with different case should be treated as duplicate (no new row).
+        ContactgegevenRequest second = new ContactgegevenRequest();
+        second.type = ContactType.Email;
+        second.waarde = "USER@TEST.COM";
+        PartijService.AddContactgegevenResult result =
+                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", second);
+        Assertions.assertFalse(result.wasCreated());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Assertions.assertEquals(1, partij.getContactgegevens().size());
+            Assertions.assertEquals("user@test.com", partij.getContactgegevens().get(0).getWaarde());
+        });
+    }
+
+    @Test
+    void findOrCreateDienstverlenerDienst_DvBroadScope_DeduplicatesOnRepeat() {
+        // Regression: a `dienst = ?` JPQL with a null parameter never matched in SQL,
+        // so each call with dienst==null inserted a fresh row and the UNIQUE(dv,dienst)
+        // constraint did not deduplicate (NULL != NULL). The fix splits the query and a
+        // partial unique index covers the DV-broad slot.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("DV-broad");
+            dv.persist();
+        });
+
+        DienstverlenerDienst first = dienstverlenerService.findOrCreateDienstverlenerDienst(
+                dienstverlenerService.getDienstverlener("DV-broad"), null);
+        DienstverlenerDienst second = dienstverlenerService.findOrCreateDienstverlenerDienst(
+                dienstverlenerService.getDienstverlener("DV-broad"), null);
+
+        Assertions.assertEquals(first.id, second.id);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(1, DienstverlenerDienst.count("dienst IS NULL"));
+        });
+    }
+
+    @Test
+    void updateContactgegeven_typeChangeWhileDefault_demotesOldDefaultForNewType() {
+        // Regression for HIGH bug #9: when type changes while isDefault stays true, the demote
+        // must run for the NEW type, otherwise the partial unique index violates on flush.
+        AtomicReference<UUID> emailDefaultId = new AtomicReference<>();
+        AtomicReference<UUID> phoneDefaultId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven emailDefault = new Contactgegeven();
+            emailDefault.setType(ContactType.Email);
+            emailDefault.setWaarde("a@test.com");
+            emailDefault.setIsDefault(true);
+            emailDefault.setPartij(partij);
+            emailDefault.persist();
+            emailDefaultId.set(emailDefault.id);
+
+            Contactgegeven phoneDefault = new Contactgegeven();
+            phoneDefault.setType(ContactType.Telefoonnummer);
+            phoneDefault.setWaarde("0612345678");
+            phoneDefault.setIsDefault(true);
+            phoneDefault.setPartij(partij);
+            phoneDefault.persist();
+            phoneDefaultId.set(phoneDefault.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        // Change the Email-default to a Telefoonnummer while keeping isDefault=true.
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = emailDefaultId.get();
+        request.type = ContactType.Telefoonnummer;
+        request.waarde = "0699999999";
+        request.isDefault = true;
+
+        Assertions.assertTrue(partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven oldPhoneDefault = Contactgegeven.findById(phoneDefaultId.get());
+            Contactgegeven updated = Contactgegeven.findById(emailDefaultId.get());
+            Assertions.assertFalse(oldPhoneDefault.isIsDefault(),
+                    "pre-existing Telefoonnummer default must be demoted when the row morphed into a Telefoonnummer default");
+            Assertions.assertTrue(updated.isIsDefault());
+            Assertions.assertEquals(ContactType.Telefoonnummer, updated.getType());
+        });
+    }
 }

@@ -19,7 +19,7 @@ import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenExce
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @ApplicationScoped
 public class EmailVerificatieService {
@@ -66,7 +66,7 @@ public class EmailVerificatieService {
             var response = verificatieServiceGuard.get().call(() -> emailVerificatieApi.verifyPost(request), VerificationResponse.class);
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
-                contact.setGeverifieerdAt(LocalDateTime.now());
+                contact.setGeverifieerdAt(Instant.now());
                 contact.setIsGeverifieerd(true);
                 contact.setVerificatieReferentieId(null);
                 LOG.info("Email succesvol geverifieerd");

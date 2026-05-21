@@ -2,11 +2,16 @@ package nl.rijksoverheid.moz.services;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import org.jboss.logging.Logger;
+
+import java.util.Objects;
 
 @ApplicationScoped
 public class DienstverlenerService {
@@ -14,38 +19,40 @@ public class DienstverlenerService {
     private static final Logger LOG = Logger.getLogger(DienstverlenerService.class);
 
     @Transactional
-    public void addDienstverlener(DienstverlenerRequest dienstverlenerRequest) {
-        findOrCreateDienstverlener(dienstverlenerRequest.naam, dienstverlenerRequest.oin);
+    public Dienstverlener addDienstverlener(DienstverlenerRequest request) {
+        return findOrCreateDienstverlener(request.naam, request.beschrijving);
     }
 
     @Transactional
-    public Dienstverlener getDienstenVoorDienstverlener(String naam) {
-        return Dienstverlener.find("naam = ?1", naam).firstResult();
+    public Dienstverlener getDienstverlener(String naam) {
+        return Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
     }
 
     @Transactional
-    public Dienst addDienstToDienstverlener(String naam, DienstRequest request) {
-        var dienstverlener = findOrCreateDienstverlener(naam, null);
+    public Dienst addDienstToDienstverlener(String dienstverlenerNaam, DienstRequest request) {
+        Dienstverlener dienstverlener = findOrCreateDienstverlener(dienstverlenerNaam, null);
 
-        Dienst dienst = new Dienst();
-        dienst.setBeschrijving(request.beschrijving);
-        dienst.setDienstverlener(dienstverlener);
+        Dienst dienst = Dienst.findByNaam(request.naam);
+        if (dienst == null) {
+            dienst = new Dienst();
+            dienst.setNaam(request.naam);
+            dienst.setBeschrijving(request.beschrijving);
+            dienst.persist();
+        } else if (request.beschrijving != null
+                && !Objects.equals(dienst.getBeschrijving(), request.beschrijving)) {
+            throw new WebApplicationException(
+                    "Dienst '" + request.naam + "' bestaat al met een andere beschrijving. "
+                            + "Laat 'beschrijving' weg of stuur dezelfde waarde.",
+                    Response.Status.CONFLICT);
+        }
 
-        dienstverlener.addDienst(dienst);
-
-        dienst.persist();
-        dienstverlener.persist();
-
+        findOrCreateDienstverlenerDienst(dienstverlener, dienst);
         return dienst;
     }
 
     @Transactional
-    public Dienstverlener findOrCreateDienstverlener(String naam, String oin) {
-        Dienstverlener dienstverlener = Dienstverlener.find(
-                "lower(naam) = lower(?1)",
-                naam
-        ).firstResult();
-
+    public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {
+        Dienstverlener dienstverlener = Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
         if (dienstverlener != null) {
             return dienstverlener;
         }
@@ -53,16 +60,36 @@ public class DienstverlenerService {
         LOG.info("Nieuwe dienstverlener aanmaken");
         dienstverlener = new Dienstverlener();
         dienstverlener.setNaam(naam);
-        dienstverlener.setOin(oin);
-
-        Dienst defaultDienst = new Dienst();
-        defaultDienst.setBeschrijving("Alles");
-        defaultDienst.setDienstverlener(dienstverlener);
-        dienstverlener.addDienst(defaultDienst);
-
+        dienstverlener.setBeschrijving(beschrijving);
         dienstverlener.persist();
-
         return dienstverlener;
     }
 
+    @Transactional
+    public DienstverlenerDienst findOrCreateDienstverlenerDienst(Dienstverlener dienstverlener, Dienst dienst) {
+        // SQL kan niet "kolom = NULL" matchen (altijd unknown), dus dienst==null vereist een
+        // aparte query. Zonder deze split werd elke DV-brede scope-call (dienstNaam ontbreekt)
+        // een duplicate rij omdat de lookup nooit hit gaf en de UNIQUE(dv_id, dienst_id)
+        // constraint geen NULLs dedupliceert.
+        DienstverlenerDienst link;
+        if (dienst == null) {
+            link = DienstverlenerDienst.find(
+                    "dienstverlener = ?1 AND dienst IS NULL",
+                    dienstverlener
+            ).firstResult();
+        } else {
+            link = DienstverlenerDienst.find(
+                    "dienstverlener = ?1 AND dienst = ?2",
+                    dienstverlener, dienst
+            ).firstResult();
+        }
+
+        if (link != null) {
+            return link;
+        }
+
+        link = new DienstverlenerDienst(dienstverlener, dienst);
+        link.persist();
+        return link;
+    }
 }

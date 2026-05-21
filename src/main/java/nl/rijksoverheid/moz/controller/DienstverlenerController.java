@@ -3,6 +3,7 @@ package nl.rijksoverheid.moz.controller;
 
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -48,7 +49,7 @@ public class DienstverlenerController {
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
 
-        Dienstverlener dv = dienstverlenerService.getDienstenVoorDienstverlener(naam);
+        Dienstverlener dv = dienstverlenerService.getDienstverlener(naam);
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
@@ -65,14 +66,14 @@ public class DienstverlenerController {
     @Transactional
     @Operation(
             summary = "Voegt een dienstverlener toe",
-            description = "Voegt een nieuwe dienstverlener toe met oin"
+            description = "Voegt een nieuwe dienstverlener toe met optionele beschrijving"
     )
     @APIResponses({
             @APIResponse(responseCode = "201", description = "Dienstverlener succesvol toegevoegd"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
     })
     public Response addDienstverlener(
-            DienstverlenerRequest dienstverlenerRequest) {
+            @Valid DienstverlenerRequest dienstverlenerRequest) {
         if (dienstverlenerRequest == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
             return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
@@ -85,7 +86,7 @@ public class DienstverlenerController {
     }
 
     @POST
-    @Path("/dienstverlener/{DienstverlenerNaam}/diensten")
+    @Path("/dienstverlener/{dienstverlenerNaam}/diensten")
     @Operation(
             summary = "Voegt een dienst toe aan een dienstverlener",
             description = "Voegt een nieuwe dienst toe met beschrijving"
@@ -95,8 +96,8 @@ public class DienstverlenerController {
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
     })
     public Response addDienstToDienstverlener(
-            @PathParam("DienstverlenerNaam") String dienstverlenerNaam,
-            DienstRequest request
+            @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
+            @Valid DienstRequest request
     ) {
         if (request == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");

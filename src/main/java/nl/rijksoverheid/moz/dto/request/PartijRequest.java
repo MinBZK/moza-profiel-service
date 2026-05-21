@@ -10,17 +10,11 @@ public class PartijRequest {
     @QueryParam("dienstverlener")
     public String dienstverlener;
 
-    @QueryParam("oin")
-    public String dienstverlenerOin;
-
-    @QueryParam("dienstBeschrijving")
-    public String dienstBeschrijving;
+    @QueryParam("dienstNaam")
+    public String dienstNaam;
 
     @JsonIgnore
     public boolean isEmpty() {
-        return dienstverlener == null &&
-                dienstverlenerOin == null &&
-                dienstBeschrijving == null;
+        return dienstverlener == null && dienstNaam == null;
     }
-
 }
