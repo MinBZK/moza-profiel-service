@@ -234,7 +234,7 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
                 .statusCode(OK)
-                .body("size()", org.hamcrest.Matchers.equalTo(2));
+                .body("size()", org.hamcrest.Matchers.equalTo(2));  // all found → 200
     }
 
     @Test
@@ -260,7 +260,7 @@ public class ProfielControllerTest {
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
-                .statusCode(OK)
+                .statusCode(206)  // partial found → 206
                 .body("size()", org.hamcrest.Matchers.equalTo(1));
     }
 
@@ -278,8 +278,7 @@ public class ProfielControllerTest {
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
-                .statusCode(OK)
-                .body("size()", org.hamcrest.Matchers.equalTo(0));
+                .statusCode(NOT_FOUND);  // none found → 404
     }
 
     @Test

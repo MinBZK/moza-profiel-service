@@ -38,7 +38,9 @@ import org.jboss.logging.Logger;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller voor het beheren van partijen.
@@ -126,29 +128,47 @@ public class ProfielController {
             description = "Haalt profielen op van meerdere partijen. Niet-gevonden partijen worden stilzwijgend weggelaten."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Profielen succesvol opgehaald"),
-            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn")
+            @APIResponse(responseCode = "200", description = "Alle profielen succesvol opgehaald"),
+            @APIResponse(responseCode = "206", description = "Profielen gedeeltelijk opgehaald"),
+            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
+            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
         if (request == null) return missingBody("getPartijBulk");
 
-        try {
-            List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
-            LOG.info("Bulk partijen opgehaald");
-            return Response.ok(results).build();
-        } finally {
-            for (var identificatie : request.identificaties) {
-                LogboekContext ctx = new LogboekContext();
-                ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
-                ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.identificatieNummer));
-                ctx.setDataSubjectType(String.valueOf(identificatie.identificatieType));
-                ctx.setStatus(StatusCode.OK);
-                Span span = processingHandler.startSpan("getPartijBulk", Context.current());
-                processingHandler.addLogboekContextToSpan(span, ctx);
-                span.end();
-            }
+        List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
+
+        Set<String> foundKeys = results.stream()
+                .flatMap(r -> r.identificaties.stream())
+                .map(id -> id.identificatieType + ":" + id.identificatieNummer)
+                .collect(Collectors.toSet());
+
+        for (var identificatie : request.identificaties) {
+            if (!foundKeys.contains(identificatie.identificatieType + ":" + identificatie.identificatieNummer)) continue;
+
+            LogboekContext ctx = new LogboekContext();
+            ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
+            ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.identificatieNummer));
+            ctx.setDataSubjectType(String.valueOf(identificatie.identificatieType));
+            ctx.setStatus(StatusCode.OK);
+            Span span = processingHandler.startSpan("getPartijBulk", Context.current());
+            processingHandler.addLogboekContextToSpan(span, ctx);
+            span.end();
         }
+
+        if (results.isEmpty()) {
+            LOG.warn("Geen partijen gevonden in bulk request");
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        if (results.size() < request.identificaties.size()) {
+            LOG.info("Bulk partijen gedeeltelijk opgehaald");
+            return Response.status(Response.Status.PARTIAL_CONTENT).entity(results).build();
+        }
+
+        LOG.info("Bulk partijen opgehaald");
+        return Response.ok(results).build();
     }
 
     /**
