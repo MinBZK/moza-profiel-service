@@ -52,6 +52,29 @@ public class DienstverlenerControllerTest {
     }
 
     @Test
+    void getDienstverlener_IncludesDiensten() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("Test");
+            dv.persist();
+
+            Dienst dienst = new Dienst();
+            dienst.setNaam("TestDienst");
+            dienst.persist();
+
+            new DienstverlenerDienst(dv, dienst).persist();
+        });
+
+        given()
+                .contentType(ContentType.JSON)
+                .get("/api/profielservice/v1/dienstverlener/Test")
+                .then()
+                .statusCode(OK)
+                .body("diensten.size()", org.hamcrest.Matchers.equalTo(1))
+                .body("diensten[0].naam", org.hamcrest.Matchers.equalTo("TestDienst"));
+    }
+
+    @Test
     void getDienstverlener_NotFound() {
         given()
                 .contentType(ContentType.JSON)

@@ -56,7 +56,7 @@ public class DienstverlenerController {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        DienstverlenerResponse response = new DienstverlenerResponse(dv);
+        DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
         LOG.info("Dienstverlener opgehaald");
         return Response.ok(response).build();
     }

@@ -11,6 +11,7 @@ import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import org.jboss.logging.Logger;
 
+import java.util.List;
 import java.util.Objects;
 
 @ApplicationScoped
@@ -48,6 +49,15 @@ public class DienstverlenerService {
 
         findOrCreateDienstverlenerDienst(dienstverlener, dienst);
         return dienst;
+    }
+
+    @Transactional
+    public List<Dienst> getDienstenVoorDienstverlener(Dienstverlener dienstverlener) {
+        return DienstverlenerDienst
+                .<DienstverlenerDienst>find("dienstverlener = ?1 AND dienst IS NOT NULL", dienstverlener)
+                .stream()
+                .map(DienstverlenerDienst::getDienst)
+                .toList();
     }
 
     @Transactional
