@@ -2,7 +2,6 @@ package nl.rijksoverheid.moz.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 
 /**
  * RFC 9457 (Problem Details for HTTP APIs) response body.
@@ -22,11 +21,4 @@ public record ProblemDetail(
     String instance,
     OffsetDateTime timestamp
 ) {
-    public ProblemDetail(String title, Integer status, String detail) {
-        this("about:blank", title, status, detail, null, OffsetDateTime.now(ZoneOffset.UTC));
-    }
-
-    public ProblemDetail(String title, Integer status) {
-        this(title, status, null);
-    }
 }

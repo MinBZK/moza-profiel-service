@@ -30,6 +30,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
+import java.util.List;
 
 
 @Path("/api/profielservice/v1")
@@ -119,7 +120,7 @@ public class DienstverlenerController {
 
         LOG.info("Dienstverlener toegevoegd");
         URI uri = URI.create(String.format("/api/profielservice/v1/dienstverlener/%s", created.getNaam()));
-        DienstverlenerResponse body = new DienstverlenerResponse(created, dienstverlenerService.getDienstenVoorDienstverlener(created));
+        DienstverlenerResponse body = new DienstverlenerResponse(created, List.of());
         return Response.created(uri).entity(body).build();
     }
 

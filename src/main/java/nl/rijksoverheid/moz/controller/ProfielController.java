@@ -211,7 +211,7 @@ public class ProfielController {
         AddContactgegevenResult result = partijService.addContactgegeven(request.identificatieType, request.identificatieNummer, request);
         ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
 
-        URI uri = URI.create("/api/profielservice/v1/contactgegevens/" + result.contactgegeven().id);
+        URI uri = URI.create("/api/profielservice/v1/contactgegeven/" + result.contactgegeven().id);
         logboekContext.setStatus(StatusCode.OK);
 
         if (result.wasCreated()) {
@@ -339,7 +339,7 @@ public class ProfielController {
         VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        URI uri = URI.create("/api/profielservice/v1/voorkeuren/" + result.voorkeur().id);
+        URI uri = URI.create("/api/profielservice/v1/voorkeur/" + result.voorkeur().id);
 
         if (result.wasCreated()) {
             LOG.info("Voorkeur toegevoegd");

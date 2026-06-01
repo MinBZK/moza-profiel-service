@@ -4,6 +4,7 @@ import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.ext.Provider;
+import nl.rijksoverheid.moz.ApiVersion;
 
 /**
  * Sets the response headers required by the NL GOV API Design Rules
@@ -15,8 +16,6 @@ import jakarta.ws.rs.ext.Provider;
 @Provider
 public class SecurityHeadersFilter implements ContainerResponseFilter {
 
-    private static final String API_VERSION = "1.0.0";
-
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
         var headers = responseContext.getHeaders();
@@ -26,6 +25,6 @@ public class SecurityHeadersFilter implements ContainerResponseFilter {
         headers.putSingle("X-Content-Type-Options", "nosniff");
         headers.putSingle("X-Frame-Options", "DENY");
         headers.putSingle("Referrer-Policy", "no-referrer");
-        headers.putSingle("API-Version", API_VERSION);
+        headers.putSingle("API-Version", ApiVersion.CURRENT);
     }
 }

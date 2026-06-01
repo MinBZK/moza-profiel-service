@@ -21,7 +21,7 @@ import org.eclipse.microprofile.openapi.annotations.servers.Server;
 @OpenAPIDefinition(
     info = @Info(
         title = "MOZa Profiel Service API",
-        version = "1.0.0",
+        version = ApiVersion.CURRENT,
         description = "Profiel service voor MijnOverheid Zakelijk: beheer van contactgegevens en communicatievoorkeuren van partijen.",
         contact = @Contact(
             name = "MijnOverheid Zakelijk Team",
