@@ -124,7 +124,7 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", org.hamcrest.Matchers.containsString("/dienstverlener/Test/diensten/"));
     }
 
     @Test

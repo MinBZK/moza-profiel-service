@@ -11,7 +11,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.dto.response.ErrorResponse;
+import nl.rijksoverheid.moz.dto.response.ProblemDetail;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -45,13 +45,13 @@ public class EmailVerificatieController {
             @APIResponse(
                     responseCode = "400",
                     description = "Invalid request format",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             ),
             @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden"),
             @APIResponse(
                     responseCode = "500",
                     description = "Internal server error",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             ),
             @APIResponse(responseCode = "503", description = "NotifyNL API onbereikbaar")
     })
@@ -78,7 +78,7 @@ public class EmailVerificatieController {
             @APIResponse(
                     responseCode = "400",
                     description = "Email verificatie mislukt",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             )
     })
     public Response postEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {

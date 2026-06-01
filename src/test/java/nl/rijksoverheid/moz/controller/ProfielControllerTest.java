@@ -315,7 +315,7 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven"))
+                .header("Location", org.hamcrest.Matchers.containsString("/contactgegevens/"))
                 .body("waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
     }
 
@@ -470,7 +470,7 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/voorkeur"));
+                .header("Location", org.hamcrest.Matchers.containsString("/voorkeuren/"));
     }
 
     @Test

@@ -211,7 +211,7 @@ public class ProfielController {
         AddContactgegevenResult result = partijService.addContactgegeven(request.identificatieType, request.identificatieNummer, request);
         ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
 
-        URI uri = URI.create("/contactgegeven");
+        URI uri = URI.create("/api/profielservice/v1/contactgegevens/" + result.contactgegeven().id);
         logboekContext.setStatus(StatusCode.OK);
 
         if (result.wasCreated()) {
@@ -339,7 +339,7 @@ public class ProfielController {
         VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        URI uri = URI.create("/voorkeur");
+        URI uri = URI.create("/api/profielservice/v1/voorkeuren/" + result.voorkeur().id);
 
         if (result.wasCreated()) {
             LOG.info("Voorkeur toegevoegd");
@@ -434,6 +434,8 @@ public class ProfielController {
         logboekContext.setDataSubjectType("ONBEKEND");
         logboekContext.setStatus(StatusCode.ERROR);
         LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        // Throw rather than build a Response: the GlobalExceptionMapper renders
+        // it as application/problem+json (RFC 9457) instead of a plain string.
+        throw new jakarta.ws.rs.BadRequestException("Request body mag niet leeg zijn");
     }
 }
