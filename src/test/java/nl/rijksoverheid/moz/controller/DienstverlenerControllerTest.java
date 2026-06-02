@@ -94,7 +94,10 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"))
+                .body("naam", org.hamcrest.Matchers.equalTo("Test"))
+                .body("beschrijving", org.hamcrest.Matchers.equalTo("Test beschrijving"))
+                .body("diensten.size()", org.hamcrest.Matchers.equalTo(0));
     }
 
     @Test

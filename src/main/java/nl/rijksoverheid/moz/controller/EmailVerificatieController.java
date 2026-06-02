@@ -3,10 +3,11 @@ package nl.rijksoverheid.moz.controller;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.InternalServerErrorException;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.ServiceUnavailableException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
@@ -47,13 +48,21 @@ public class EmailVerificatieController {
                     description = "Invalid request format",
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             ),
-            @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden"),
+            @APIResponse(
+                    responseCode = "404",
+                    description = "Partij of Contactgegeven niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+            ),
             @APIResponse(
                     responseCode = "500",
                     description = "Internal server error",
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             ),
-            @APIResponse(responseCode = "503", description = "NotifyNL API onbereikbaar")
+            @APIResponse(
+                    responseCode = "503",
+                    description = "NotifyNL API onbereikbaar",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+            )
     })
     public Response postEmailVerificatieCodeAanvraag(EmailVerificatieCodeAanvraagRequest aanvraag) {
         int result = emailVerificatieService.vraagEmailVerificatieCodeAan(aanvraag);
@@ -64,10 +73,10 @@ public class EmailVerificatieController {
         }
         else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
             LOG.warn("Partij of Contactgegeven niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw new NotFoundException("Partij of Contactgegeven niet gevonden");
         } else {
             LOG.warn("NotifyNL API onbereikbaar");
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+            throw new ServiceUnavailableException("NotifyNL API onbereikbaar", 30L);
         }
     }
 

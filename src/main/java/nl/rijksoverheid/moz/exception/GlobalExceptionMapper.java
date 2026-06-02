@@ -4,6 +4,7 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.ValidationException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -57,17 +58,25 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
     }
 
     private Response handleWebApplicationException(WebApplicationException e) {
-        Response response = e.getResponse();
-        int status = response.getStatus();
+        Response original = e.getResponse();
+        int status = original.getStatus();
         boolean isServerError = status >= 500;
 
         String detail = isServerError ? null : e.getMessage();
         LOG.errorf(e, "WebApplicationException with status %d: %s", status, e.getMessage());
 
-        return problem(
+        Response.ResponseBuilder builder = problemBuilder(
                 Response.Status.fromStatusCode(status),
                 typeSlug(Response.Status.fromStatusCode(status)),
                 detail);
+
+        // Propagate Retry-After (and any future advisory headers) set on the thrown exception.
+        String retryAfter = original.getHeaderString(HttpHeaders.RETRY_AFTER);
+        if (retryAfter != null) {
+            builder.header(HttpHeaders.RETRY_AFTER, retryAfter);
+        }
+
+        return builder.build();
     }
 
     private Response handleGenericException(Throwable e) {
@@ -76,6 +85,10 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
     }
 
     private Response problem(Response.Status status, String typeSlug, String detail) {
+        return problemBuilder(status, typeSlug, detail).build();
+    }
+
+    private Response.ResponseBuilder problemBuilder(Response.Status status, String typeSlug, String detail) {
         ProblemDetail body = new ProblemDetail(
                 ERROR_TYPE_BASE + "/" + typeSlug,
                 status.getReasonPhrase(),
@@ -85,7 +98,7 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
                         ? uriInfo.getRequestUri().toString()
                         : null,
                 OffsetDateTime.now(ZoneOffset.UTC));
-        return Response.status(status).entity(body).type(PROBLEM_JSON).build();
+        return Response.status(status).entity(body).type(PROBLEM_JSON);
     }
 
     private static String typeSlug(Response.Status status) {

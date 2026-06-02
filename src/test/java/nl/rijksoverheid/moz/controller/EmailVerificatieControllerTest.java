@@ -108,6 +108,7 @@ public class EmailVerificatieControllerTest {
                 .body(body)
                 .post("/api/profielservice/v1/emailverificatie/code")
                 .then()
-                .statusCode(SERVICE_UNAVAILABLE);
+                .statusCode(SERVICE_UNAVAILABLE)
+                .header("Retry-After", "30");
     }
 }
