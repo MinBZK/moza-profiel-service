@@ -57,7 +57,13 @@ public class PartijMapper {
 
     public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
         if (isStale(cg.getLastUsedAt())) {
-            Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
+            if (cg.isTeVerwijderenOpAutomatisch()) {
+                Contactgegeven.update(
+                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false where id = ?2",
+                        Instant.now(), cg.id);
+            } else {
+                Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
+            }
         }
         ContactgegevenResponse cr = new ContactgegevenResponse();
         cr.id = cg.id;
@@ -67,13 +73,20 @@ public class PartijMapper {
         cr.isDefault = cg.isIsDefault();
         cr.createdAt = cg.getCreatedAt();
         cr.lastUpdated = cg.getLastUpdated();
+        cr.teVerwijderenOp = cg.getTeVerwijderenOp();
         cr.scopes = cg.getScopes().stream().map(this::toScopeResponseFromContactgegeven).toList();
         return cr;
     }
 
     public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
         if (isStale(voorkeur.getLastUsedAt())) {
-            Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
+            if (voorkeur.isTeVerwijderenOpAutomatisch()) {
+                Voorkeur.update(
+                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false where id = ?2",
+                        Instant.now(), voorkeur.id);
+            } else {
+                Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
+            }
         }
         VoorkeurResponse vr = new VoorkeurResponse();
         vr.id = voorkeur.id;
@@ -81,6 +94,7 @@ public class PartijMapper {
         vr.waarde = voorkeur.getWaarde();
         vr.createdAt = voorkeur.getCreatedAt();
         vr.lastUpdated = voorkeur.getLastUpdated();
+        vr.teVerwijderenOp = voorkeur.getTeVerwijderenOp();
         vr.scopes = voorkeur.getScopes().stream().map(this::toScopeResponseFromVoorkeur).toList();
         return vr;
     }
