@@ -10,10 +10,12 @@ import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
+import nl.rijksoverheid.moz.dto.response.ErrorResponse;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
@@ -37,6 +39,8 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -75,6 +79,9 @@ public class ProfielController {
     @Inject
     ProcessingHandler processingHandler;
 
+    @jakarta.ws.rs.core.Context
+    UriInfo uriInfo;
+
     /**
      * Haalt een profiel op van een partij.
      *
@@ -96,7 +103,8 @@ public class ProfielController {
             ),
             @APIResponse(
                     responseCode = "404",
-                    description = "Partij niet gevonden of is verwijderd"
+                    description = "Partij niet gevonden of is verwijderd",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class))
             )
     })
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
@@ -112,7 +120,7 @@ public class ProfielController {
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Partij niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return notFound("Partij niet gevonden", "Geen partij gevonden voor het opgegeven identificatienummer.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -131,7 +139,8 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Alle profielen succesvol opgehaald"),
             @APIResponse(responseCode = "206", description = "Profielen gedeeltelijk opgehaald"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
+            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
@@ -159,7 +168,7 @@ public class ProfielController {
 
         if (results.isEmpty()) {
             LOG.warn("Geen partijen gevonden in bulk request");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return notFound("Partijen niet gevonden", "Geen partijen gevonden voor de opgegeven identificaties.");
         }
 
         if (results.size() < request.identificaties.size()) {
@@ -238,7 +247,8 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
     public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
@@ -253,7 +263,7 @@ public class ProfielController {
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -273,7 +283,8 @@ public class ProfielController {
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
-            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
     public Response deleteContactgegeven(
@@ -290,7 +301,7 @@ public class ProfielController {
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor verwijdering");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -369,7 +380,8 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
     public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
@@ -384,7 +396,7 @@ public class ProfielController {
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -404,7 +416,8 @@ public class ProfielController {
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
-            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
     public Response deleteVoorkeur(
@@ -421,12 +434,26 @@ public class ProfielController {
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur verwijderd");
         return Response.noContent().build();
+    }
+
+    private Response notFound(String title, String detail) {
+        return Response.status(Response.Status.NOT_FOUND)
+                .type("application/problem+json")
+                .entity(new ErrorResponse(
+                        "about:blank",
+                        title,
+                        404,
+                        detail,
+                        uriInfo.getRequestUri().getPath(),
+                        OffsetDateTime.now(ZoneOffset.UTC)
+                ))
+                .build();
     }
 
     private Response missingBody(String methode) {

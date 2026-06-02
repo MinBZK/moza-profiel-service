@@ -7,8 +7,10 @@ import jakarta.ws.rs.InternalServerErrorException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.dto.response.ErrorResponse;
@@ -20,6 +22,8 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
@@ -31,6 +35,9 @@ public class EmailVerificatieController {
 
     @Inject
     EmailVerificatieService emailVerificatieService;
+
+    @Context
+    UriInfo uriInfo;
 
     @POST
     @Path("/emailverificatie/code")
@@ -47,7 +54,8 @@ public class EmailVerificatieController {
                     description = "Invalid request format",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
             ),
-            @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden"),
+            @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class))),
             @APIResponse(
                     responseCode = "500",
                     description = "Internal server error",
@@ -64,7 +72,17 @@ public class EmailVerificatieController {
         }
         else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
             LOG.warn("Partij of Contactgegeven niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return Response.status(Response.Status.NOT_FOUND)
+                    .type("application/problem+json")
+                    .entity(new ErrorResponse(
+                            "about:blank",
+                            "Partij of contactgegeven niet gevonden",
+                            404,
+                            "Geen partij of contactgegeven gevonden voor het opgegeven identificatienummer.",
+                            uriInfo.getRequestUri().getPath(),
+                            OffsetDateTime.now(ZoneOffset.UTC)
+                    ))
+                    .build();
         } else {
             LOG.warn("NotifyNL API onbereikbaar");
             return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();

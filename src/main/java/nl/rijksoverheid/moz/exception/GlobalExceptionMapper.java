@@ -3,12 +3,16 @@ package nl.rijksoverheid.moz.exception;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.ValidationException;
 import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import nl.rijksoverheid.moz.dto.response.ErrorResponse;
 import org.jboss.logging.Logger;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.stream.Collectors;
 
 @Provider
@@ -16,6 +20,9 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
     private static final Logger LOG = Logger.getLogger(GlobalExceptionMapper.class);
     private static final String PROBLEM_JSON = "application/problem+json";
+
+    @Context
+    UriInfo uriInfo;
 
     @Override
     public Response toResponse(Throwable exception) {
@@ -67,10 +74,11 @@ public class GlobalExceptionMapper implements ExceptionMapper<Throwable> {
 
         String title = response.getStatusInfo().getReasonPhrase();
         String detail = isServerError ? null : e.getMessage();
+        String instance = uriInfo.getRequestUri().getPath();
 
         LOG.errorf(e, "WebApplicationException occurred with status %d: %s", status, e.getMessage());
 
-        ErrorResponse errorResponse = new ErrorResponse(title, status, detail);
+        ErrorResponse errorResponse = new ErrorResponse("about:blank", title, status, detail, instance, OffsetDateTime.now(ZoneOffset.UTC));
         return Response.status(status)
                 .entity(errorResponse)
                 .type(PROBLEM_JSON)

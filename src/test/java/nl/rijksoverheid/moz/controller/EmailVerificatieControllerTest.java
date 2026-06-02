@@ -90,7 +90,9 @@ public class EmailVerificatieControllerTest {
                 .body(body)
                 .post("/api/profielservice/v1/emailverificatie/code")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Partij of contactgegeven niet gevonden"));
     }
 
     @Test

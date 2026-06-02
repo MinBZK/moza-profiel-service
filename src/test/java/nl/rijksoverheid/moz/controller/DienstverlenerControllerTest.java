@@ -80,7 +80,9 @@ public class DienstverlenerControllerTest {
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Dienstverlener niet gevonden"));
     }
 
     @Test

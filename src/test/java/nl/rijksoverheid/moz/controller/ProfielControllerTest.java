@@ -204,7 +204,13 @@ public class ProfielControllerTest {
                 .when()
                 .post("/api/profielservice/v1/partij")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("type", org.hamcrest.Matchers.equalTo("about:blank"))
+                .body("title", org.hamcrest.Matchers.equalTo("Partij niet gevonden"))
+                .body("status", org.hamcrest.Matchers.equalTo(404))
+                .body("detail", org.hamcrest.Matchers.equalTo("Geen partij gevonden voor het opgegeven identificatienummer."))
+                .body("instance", org.hamcrest.Matchers.equalTo("/api/profielservice/v1/partij"));
     }
 
     @Test
@@ -278,7 +284,9 @@ public class ProfielControllerTest {
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
-                .statusCode(NOT_FOUND);  // none found → 404
+                .statusCode(NOT_FOUND)  // none found → 404
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Partijen niet gevonden"));
     }
 
     @Test
@@ -412,7 +420,9 @@ public class ProfielControllerTest {
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Contactgegeven niet gevonden"));
     }
 
     @Test
@@ -453,7 +463,9 @@ public class ProfielControllerTest {
                 .body(body)
                 .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Contactgegeven niet gevonden"));
     }
 
     @Test
@@ -557,7 +569,9 @@ public class ProfielControllerTest {
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Voorkeur niet gevonden"));
     }
 
     @Test
@@ -616,6 +630,8 @@ public class ProfielControllerTest {
                 .body(body)
                 .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", org.hamcrest.Matchers.equalTo("Voorkeur niet gevonden"));
     }
 }

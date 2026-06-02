@@ -10,20 +10,27 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
+import nl.rijksoverheid.moz.dto.response.ErrorResponse;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 
 @Path("/api/profielservice/v1")
@@ -37,6 +44,9 @@ public class DienstverlenerController {
     @Inject
     DienstverlenerService dienstverlenerService;
 
+    @Context
+    UriInfo uriInfo;
+
     @GET
     @Path("/dienstverlener/{naam}")
     @Operation(
@@ -44,8 +54,9 @@ public class DienstverlenerController {
             description = "Geeft gegevens van gevraagde Dienstverlener terug"
     )
     @APIResponses({
-            @APIResponse(responseCode = "201", description = "Dienstverlener succesvol opgehaald"),
-            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden")
+            @APIResponse(responseCode = "200", description = "Dienstverlener succesvol opgehaald"),
+            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
 
@@ -53,7 +64,17 @@ public class DienstverlenerController {
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return Response.status(Response.Status.NOT_FOUND)
+                    .type("application/problem+json")
+                    .entity(new ErrorResponse(
+                            "about:blank",
+                            "Dienstverlener niet gevonden",
+                            404,
+                            "Geen dienstverlener gevonden met de opgegeven naam.",
+                            uriInfo.getRequestUri().getPath(),
+                            OffsetDateTime.now(ZoneOffset.UTC)
+                    ))
+                    .build();
         }
 
         DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
