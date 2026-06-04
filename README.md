@@ -27,3 +27,18 @@ De circuit breaker wordt geconfigureerd via de volgende properties in `applicati
 - `verificatie-service.circuit-breaker.failure-ratio`: Drempelwaarde voor het percentage mislukte aanroepen waarboven het circuit opent (standaard `1.0` — circuit opent alleen bij volledige uitval).
 - `verificatie-service.circuit-breaker.delay`: Wachttijd in seconden in de open toestand voordat het circuit half-open gaat (standaard `30`).
 - `verificatie-service.circuit-breaker.success-threshold`: Aantal opeenvolgende successen in half-open toestand dat nodig is om het circuit te sluiten (standaard `2`).
+
+## Contracttesting
+
+De Profiel Service maakt gebruik van contracttesting om te waarborgen dat wijzigingen aan de API consumenten niet ongemerkt breken.
+
+### Hoe het werkt
+
+- **OpenAPI-schemavalidatie**: elke integratietest valideert automatisch dat verzoeken en antwoorden overeenkomen met de live OpenAPI-specificatie van de service (`/q/openapi`).
+- **Pact-providerverificatie**: pact-bestanden (JSON) in `src/test/resources/pacts/` beschrijven de verwachte contracten. De provider test verifieert dat de service hieraan voldoet. Het huidige bestand `moza-profiel-service.json` is een zelftestcontract van de provider zelf.
+
+### Contracten bijdragen als consument
+
+Ben je consument van de Profiel Service API en wil je een contract bijdragen? Neem dan contact op met het team om dit samen te bespreken. We stellen dan samen een pact-bestand op dat de verwachtingen van jouw toepassing beschrijft.
+
+Een Pact Broker is een mogelijke toekomstige stap, afhankelijk van de behoefte van het team.
