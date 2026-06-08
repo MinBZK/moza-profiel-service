@@ -16,6 +16,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 
@@ -47,8 +49,8 @@ public class DienstverlenerControllerTest {
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
                 .statusCode(OK)
-                .body("naam", org.hamcrest.Matchers.equalTo("Test"))
-                .body("beschrijving", org.hamcrest.Matchers.equalTo("Een test dienstverlener"));
+                .body("naam", equalTo("Test"))
+                .body("beschrijving", equalTo("Een test dienstverlener"));
     }
 
     @Test
@@ -70,8 +72,8 @@ public class DienstverlenerControllerTest {
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
                 .statusCode(OK)
-                .body("diensten.size()", org.hamcrest.Matchers.equalTo(1))
-                .body("diensten[0].naam", org.hamcrest.Matchers.equalTo("TestDienst"));
+                .body("diensten.size()", equalTo(1))
+                .body("diensten[0].naam", equalTo("TestDienst"));
     }
 
     @Test
@@ -82,7 +84,7 @@ public class DienstverlenerControllerTest {
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
-                .body("title", org.hamcrest.Matchers.equalTo("Dienstverlener niet gevonden"));
+                .body("title", equalTo("Dienstverlener niet gevonden"));
     }
 
     @Test
@@ -96,7 +98,7 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", endsWith("/dienstverlener/Test"));
     }
 
     @Test
@@ -127,7 +129,7 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", endsWith("/dienstverlener/Test"));
     }
 
     @Test

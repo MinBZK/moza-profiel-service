@@ -185,7 +185,7 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
             throw HttpProblem.builder()
                     .withStatus(Response.Status.NOT_FOUND)
                     .withTitle(Response.Status.NOT_FOUND.getReasonPhrase())
-                    .withDetail("Dienstverlener met naam " + scope.dienstverlenerNaam + " bestaat niet")
+                    .withDetail("Dienstverlener bestaat niet")
                     .build();
         }
 
@@ -202,8 +202,7 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
             throw HttpProblem.builder()
                     .withStatus(Response.Status.NOT_FOUND)
                     .withTitle(Response.Status.NOT_FOUND.getReasonPhrase())
-                    .withDetail("Dienst '" + scope.dienstNaam + "' bestaat niet voor dienstverlener '"
-                            + scope.dienstverlenerNaam + "'")
+                    .withDetail("Dienst bestaat niet voor de opgegeven dienstverlener")
                     .build();
         }
 

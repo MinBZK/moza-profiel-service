@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 @QuarkusTest
@@ -92,7 +93,7 @@ public class EmailVerificatieControllerTest {
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
-                .body("title", org.hamcrest.Matchers.equalTo("Partij of contactgegeven niet gevonden"));
+                .body("title", equalTo("Partij of contactgegeven niet gevonden"));
     }
 
     @Test

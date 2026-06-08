@@ -44,7 +44,7 @@ public class DienstverlenerService {
             throw HttpProblem.builder()
                     .withStatus(Response.Status.CONFLICT)
                     .withTitle(Response.Status.CONFLICT.getReasonPhrase())
-                    .withDetail("Dienst '" + request.naam + "' bestaat al met een andere beschrijving. "
+                    .withDetail("Dienst bestaat al met een andere beschrijving. "
                             + "Laat 'beschrijving' weg of stuur dezelfde waarde.")
                     .build();
         }
