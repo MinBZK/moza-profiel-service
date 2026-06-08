@@ -16,7 +16,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 
 @QuarkusTest

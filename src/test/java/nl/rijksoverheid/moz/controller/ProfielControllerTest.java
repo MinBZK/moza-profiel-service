@@ -14,7 +14,15 @@ import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.entity.*;
+import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
+import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
+import nl.rijksoverheid.moz.entity.Identificatie;
+import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
+import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -31,7 +39,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 @QuarkusTest
 public class ProfielControllerTest {
