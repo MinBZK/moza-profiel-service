@@ -466,7 +466,7 @@ public class PartijService {
             if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(request.dienstverlenerNaam)) return false;
             if (request.dienstNaam == null) return true;
             Dienst dienst = dd.getDienst();
-            return dienst != null && dienst.getNaam().equalsIgnoreCase(request.dienstNaam);
+            return dienst == null || dienst.getNaam().equalsIgnoreCase(request.dienstNaam);
         });
 
         if (!authorized) {

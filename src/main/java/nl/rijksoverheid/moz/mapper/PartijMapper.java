@@ -56,11 +56,13 @@ public class PartijMapper {
     }
 
     public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
+        Instant clearedAt = null;
         if (isStale(cg.getLastUsedAt())) {
             if (cg.isTeVerwijderenOpAutomatisch()) {
+                clearedAt = Instant.now();
                 Contactgegeven.update(
-                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false where id = ?2",
-                        Instant.now(), cg.id);
+                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
+                        clearedAt, cg.id);
             } else {
                 Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
             }
@@ -72,18 +74,20 @@ public class PartijMapper {
         cr.isGeverifieerd = cg.isIsGeverifieerd();
         cr.isDefault = cg.isIsDefault();
         cr.createdAt = cg.getCreatedAt();
-        cr.lastUpdated = cg.getLastUpdated();
-        cr.teVerwijderenOp = cg.getTeVerwijderenOp();
+        cr.lastUpdated = clearedAt != null ? clearedAt : cg.getLastUpdated();
+        cr.teVerwijderenOp = clearedAt != null ? null : cg.getTeVerwijderenOp();
         cr.scopes = cg.getScopes().stream().map(this::toScopeResponseFromContactgegeven).toList();
         return cr;
     }
 
     public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
+        Instant clearedAt = null;
         if (isStale(voorkeur.getLastUsedAt())) {
             if (voorkeur.isTeVerwijderenOpAutomatisch()) {
+                clearedAt = Instant.now();
                 Voorkeur.update(
-                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false where id = ?2",
-                        Instant.now(), voorkeur.id);
+                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
+                        clearedAt, voorkeur.id);
             } else {
                 Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
             }
@@ -93,8 +97,8 @@ public class PartijMapper {
         vr.voorkeurType = voorkeur.getVoorkeurType();
         vr.waarde = voorkeur.getWaarde();
         vr.createdAt = voorkeur.getCreatedAt();
-        vr.lastUpdated = voorkeur.getLastUpdated();
-        vr.teVerwijderenOp = voorkeur.getTeVerwijderenOp();
+        vr.lastUpdated = clearedAt != null ? clearedAt : voorkeur.getLastUpdated();
+        vr.teVerwijderenOp = clearedAt != null ? null : voorkeur.getTeVerwijderenOp();
         vr.scopes = voorkeur.getScopes().stream().map(this::toScopeResponseFromVoorkeur).toList();
         return vr;
     }
