@@ -42,7 +42,7 @@ public class DienstverlenerService {
         } else if (request.beschrijving != null
                 && !Objects.equals(dienst.getBeschrijving(), request.beschrijving)) {
             throw HttpProblem.valueOf(Response.Status.CONFLICT,
-                    "Dienst '" + request.naam + "' bestaat al met een andere beschrijving. "
+                    "Dienst bestaat al met een andere beschrijving. "
                             + "Laat 'beschrijving' weg of stuur dezelfde waarde.");
         }
 

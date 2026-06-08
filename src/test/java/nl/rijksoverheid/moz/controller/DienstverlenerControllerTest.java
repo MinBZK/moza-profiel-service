@@ -16,6 +16,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
@@ -50,8 +53,8 @@ public class DienstverlenerControllerTest {
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
                 .statusCode(OK)
-                .body("naam", org.hamcrest.Matchers.equalTo("Test"))
-                .body("beschrijving", org.hamcrest.Matchers.equalTo("Een test dienstverlener"));
+                .body("naam", equalTo("Test"))
+                .body("beschrijving", equalTo("Een test dienstverlener"));
     }
 
     @Test
@@ -73,8 +76,8 @@ public class DienstverlenerControllerTest {
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
                 .statusCode(OK)
-                .body("diensten.size()", org.hamcrest.Matchers.equalTo(1))
-                .body("diensten[0].naam", org.hamcrest.Matchers.equalTo("TestDienst"));
+                .body("diensten.size()", equalTo(1))
+                .body("diensten[0].naam", equalTo("TestDienst"));
     }
 
     @Test
@@ -97,10 +100,10 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"))
-                .body("naam", org.hamcrest.Matchers.equalTo("Test"))
-                .body("beschrijving", org.hamcrest.Matchers.equalTo("Test beschrijving"))
-                .body("diensten.size()", org.hamcrest.Matchers.equalTo(0));
+                .header("Location", endsWith("/dienstverlener/Test"))
+                .body("naam", equalTo("Test"))
+                .body("beschrijving", equalTo("Test beschrijving"))
+                .body("diensten.size()", equalTo(0));
     }
 
     @Test
@@ -110,9 +113,9 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(BAD_REQUEST)
-                .header("Content-Type", org.hamcrest.Matchers.containsString("application/problem+json"))
-                .body("status", org.hamcrest.Matchers.equalTo(400))
-                .body("detail", org.hamcrest.Matchers.equalTo("Request body mag niet leeg zijn"));
+                .header("Content-Type", containsString("application/problem+json"))
+                .body("status", equalTo(400))
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
     }
 
     @Test
@@ -133,7 +136,7 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.containsString("/dienstverlener/Test/diensten/"));
+                .header("Location", containsString("/dienstverlener/Test/diensten/"));
     }
 
     @Test

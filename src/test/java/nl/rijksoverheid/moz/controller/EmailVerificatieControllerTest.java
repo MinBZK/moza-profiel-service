@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
@@ -94,9 +96,9 @@ public class EmailVerificatieControllerTest {
                 .post("/api/profielservice/v1/emailverificatie/code")
                 .then()
                 .statusCode(NOT_FOUND)
-                .header("Content-Type", org.hamcrest.Matchers.containsString("application/problem+json"))
-                .body("status", org.hamcrest.Matchers.equalTo(404))
-                .body("detail", org.hamcrest.Matchers.equalTo("Partij of Contactgegeven niet gevonden"));
+                .header("Content-Type", containsString("application/problem+json"))
+                .body("status", equalTo(404))
+                .body("detail", equalTo("Partij of Contactgegeven niet gevonden"));
     }
 
     @Test

@@ -180,7 +180,7 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         Dienstverlener dienstverlener = dienstverlenerService.getDienstverlener(scope.dienstverlenerNaam);
         if (dienstverlener == null) {
             throw HttpProblem.valueOf(Response.Status.NOT_FOUND,
-                    "Dienstverlener met naam " + scope.dienstverlenerNaam + " bestaat niet");
+                    "Dienstverlener bestaat niet");
         }
 
         if (scope.dienstNaam == null) {
@@ -194,8 +194,7 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
 
         if (link == null) {
             throw HttpProblem.valueOf(Response.Status.NOT_FOUND,
-                    "Dienst '" + scope.dienstNaam + "' bestaat niet voor dienstverlener '"
-                            + scope.dienstverlenerNaam + "'");
+                    "Dienst bestaat niet voor deze dienstverlener");
         }
 
         return link;
