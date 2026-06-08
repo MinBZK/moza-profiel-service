@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+    <!--
+      Complexity metrics are aimed at production code. Test code (data-heavy fuzz and
+      parameterised tests, long arrange blocks) routinely trips them with little value,
+      so the complexity checks are suppressed for test sources. Import, whitespace and
+      line-length rules still apply to tests.
+    -->
+    <suppress checks="CyclomaticComplexity|NPathComplexity|BooleanExpressionComplexity"
+              files="[\\/]src[\\/]test[\\/]"/>
+</suppressions>

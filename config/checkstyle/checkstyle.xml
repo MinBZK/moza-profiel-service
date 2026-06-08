@@ -10,7 +10,7 @@
   the check goal to verify in pom.xml). Grow the ruleset by adding modules below.
 -->
 <module name="Checker">
-    <property name="severity" value="warning"/>
+    <property name="severity" value="error"/>
     <property name="charset" value="UTF-8"/>
     <property name="fileExtensions" value="java"/>
 
@@ -47,8 +47,20 @@
             <property name="separateLineBetweenGroups" value="true"/>
         </module>
 
+        <!-- Complexity (suppressed for test sources via suppressions.xml) -->
+        <module name="CyclomaticComplexity">
+            <property name="max" value="15"/>
+        </module>
+        <module name="NPathComplexity"/>
+        <module name="BooleanExpressionComplexity"/>
+
         <!-- Whitespace / statements -->
-        <module name="WhitespaceAround"/>
+        <module name="WhitespaceAround">
+            <!-- Don't flag idiomatic empty bodies like `record X(...) {}`. -->
+            <property name="allowEmptyTypes" value="true"/>
+            <property name="allowEmptyConstructors" value="true"/>
+            <property name="allowEmptyMethods" value="true"/>
+        </module>
         <module name="OneStatementPerLine"/>
     </module>
 </module>

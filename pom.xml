@@ -160,7 +160,7 @@
         <dependency>
             <groupId>nl.mijnoverheidzakelijk.ldv</groupId>
             <artifactId>logboekdataverwerking-wrapper</artifactId>
-            <version>1.2.1-SNAPSHOT</version>
+            <version>1.3.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.quarkiverse.wiremock</groupId>
@@ -300,10 +300,9 @@
             </plugin>
 
             <!--
-              Checkstyle is currently report-only: no execution is bound to a build phase
-              and failOnViolation is false, so `mvn verify` is unaffected. Run a baseline with
-              `mvn checkstyle:check`. To enforce later, raise rule severity to error and add a
-              <execution> binding the `check` goal to the verify phase.
+              Checkstyle gate: the `check` goal is bound to the validate phase and fails the
+              build on any violation (rule severity is error in config/checkstyle/checkstyle.xml).
+              Bound to validate so it runs on `mvn test` as well as `mvn verify` and fails fast.
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -320,8 +319,17 @@
                     <configLocation>config/checkstyle/checkstyle.xml</configLocation>
                     <includeTestSourceDirectory>true</includeTestSourceDirectory>
                     <consoleOutput>true</consoleOutput>
-                    <failOnViolation>false</failOnViolation>
+                    <failOnViolation>true</failOnViolation>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>checkstyle-validate</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
