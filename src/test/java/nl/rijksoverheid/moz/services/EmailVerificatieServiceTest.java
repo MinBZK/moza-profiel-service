@@ -5,6 +5,7 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
@@ -278,9 +279,9 @@ public class EmailVerificatieServiceTest {
         Mockito.doThrow(new RuntimeException("boom")).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = makeVerifyRequest("111111104");
-        WebApplicationException ex = Assertions.assertThrows(WebApplicationException.class,
+        HttpProblem ex = Assertions.assertThrows(HttpProblem.class,
                 () -> service.verifieerEmail(request));
-        Assertions.assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), ex.getResponse().getStatus());
+        Assertions.assertEquals(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(), ex.getStatus().getStatusCode());
     }
 
     @Test

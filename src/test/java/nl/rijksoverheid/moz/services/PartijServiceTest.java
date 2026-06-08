@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.services;
 
+import io.quarkiverse.httpproblem.HttpProblem;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -588,10 +589,10 @@ public class PartijServiceTest {
         request.scope = new ScopeRequest();
         request.scope.dienstNaam = "TestDienst";
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        HttpProblem ex = Assertions.assertThrows(
+                HttpProblem.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.getResponse().getStatus());
+        Assertions.assertEquals(400, ex.getStatus().getStatusCode());
     }
 
     @Test
@@ -624,10 +625,10 @@ public class PartijServiceTest {
         request.scope.dienstverlenerNaam = "DV-A";
         request.scope.dienstNaam = "B-Vergunning";
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        HttpProblem ex = Assertions.assertThrows(
+                HttpProblem.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(404, ex.getResponse().getStatus());
+        Assertions.assertEquals(404, ex.getStatus().getStatusCode());
     }
 
     @Test
@@ -802,10 +803,10 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "a@test.com";
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        HttpProblem ex = Assertions.assertThrows(
+                HttpProblem.class,
                 () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(409, ex.getResponse().getStatus());
+        Assertions.assertEquals(409, ex.getStatus().getStatusCode());
     }
 
     @Test

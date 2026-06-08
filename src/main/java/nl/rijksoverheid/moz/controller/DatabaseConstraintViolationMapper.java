@@ -1,11 +1,12 @@
 package nl.rijksoverheid.moz.controller;
 
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import org.hibernate.exception.ConstraintViolationException;
 import org.jboss.logging.Logger;
+
+import java.util.Map;
 
 /**
  * Maps Hibernate's DB-level constraint violations (UNIQUE, partial unique indexes, foreign keys)
@@ -23,8 +24,13 @@ public class DatabaseConstraintViolationMapper implements ExceptionMapper<Constr
         String constraintName = exception.getConstraintName();
         LOG.warnf("Database constraint violation: %s", constraintName != null ? constraintName : "<unknown>");
         return Response.status(Response.Status.CONFLICT)
-                .type(MediaType.TEXT_PLAIN)
-                .entity("Resource bestaat al of conflicteert met een unique constraint")
+                .type("application/problem+json")
+                .entity(Map.of(
+                        "type", "about:blank",
+                        "title", Response.Status.CONFLICT.getReasonPhrase(),
+                        "status", Response.Status.CONFLICT.getStatusCode(),
+                        "detail", "Resource bestaat al of conflicteert met een unique constraint"
+                ))
                 .build();
     }
 }

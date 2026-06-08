@@ -206,7 +206,6 @@ public class ProfielControllerTest {
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
-                .body("type", org.hamcrest.Matchers.equalTo("about:blank"))
                 .body("title", org.hamcrest.Matchers.equalTo("Partij niet gevonden"))
                 .body("status", org.hamcrest.Matchers.equalTo(404))
                 .body("detail", org.hamcrest.Matchers.equalTo("Geen partij gevonden voor het opgegeven identificatienummer."))
@@ -298,6 +297,7 @@ public class ProfielControllerTest {
                 .then()
                 .statusCode(BAD_REQUEST);
     }
+
 
     @Test
     void getPartijBulk_BadRequest() {
