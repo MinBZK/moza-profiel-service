@@ -97,7 +97,8 @@ public class ProfielController {
             ),
             @APIResponse(
                     responseCode = "404",
-                    description = "Partij niet gevonden of is verwijderd"
+                    description = "Partij niet gevonden of is verwijderd",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
             )
     })
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
@@ -113,7 +114,7 @@ public class ProfielController {
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Partij niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Partij niet gevonden");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -132,7 +133,11 @@ public class ProfielController {
             @APIResponse(responseCode = "200", description = "Alle profielen succesvol opgehaald"),
             @APIResponse(responseCode = "206", description = "Profielen gedeeltelijk opgehaald"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
+            @APIResponse(
+                    responseCode = "404",
+                    description = "Geen enkel profiel gevonden",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+            )
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
@@ -160,7 +165,7 @@ public class ProfielController {
 
         if (results.isEmpty()) {
             LOG.warn("Geen partijen gevonden in bulk request");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Geen enkel profiel gevonden");
         }
 
         if (results.size() < request.identificaties.size()) {
