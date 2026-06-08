@@ -4,6 +4,7 @@ package nl.rijksoverheid.moz.controller;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -434,8 +435,8 @@ public class ProfielController {
         logboekContext.setDataSubjectType("ONBEKEND");
         logboekContext.setStatus(StatusCode.ERROR);
         LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        // Throw rather than build a Response: the GlobalExceptionMapper renders
-        // it as application/problem+json (RFC 9457) instead of a plain string.
-        throw new jakarta.ws.rs.BadRequestException("Request body mag niet leeg zijn");
+        // Throw rather than build a Response so it renders as
+        // application/problem+json (RFC 9457) instead of a plain string.
+        throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
     }
 }

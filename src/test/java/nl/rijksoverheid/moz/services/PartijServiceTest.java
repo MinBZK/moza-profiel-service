@@ -588,10 +588,10 @@ public class PartijServiceTest {
         request.scope = new ScopeRequest();
         request.scope.dienstNaam = "TestDienst";
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.getResponse().getStatus());
+        Assertions.assertEquals(400, ex.getStatusCode());
     }
 
     @Test
@@ -624,10 +624,10 @@ public class PartijServiceTest {
         request.scope.dienstverlenerNaam = "DV-A";
         request.scope.dienstNaam = "B-Vergunning";
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(404, ex.getResponse().getStatus());
+        Assertions.assertEquals(404, ex.getStatusCode());
     }
 
     @Test
@@ -802,10 +802,10 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "a@test.com";
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(409, ex.getResponse().getStatus());
+        Assertions.assertEquals(409, ex.getStatusCode());
     }
 
     @Test

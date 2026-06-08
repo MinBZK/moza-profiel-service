@@ -4,7 +4,7 @@ import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.WebApplicationException;
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
@@ -171,18 +171,16 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
 
         if (scope.dienstverlenerNaam == null) {
             if (scope.dienstNaam != null) {
-                throw new WebApplicationException(
-                        "dienstNaam zonder dienstverlenerNaam is ongeldig",
-                        Response.Status.BAD_REQUEST);
+                throw HttpProblem.valueOf(Response.Status.BAD_REQUEST,
+                        "dienstNaam zonder dienstverlenerNaam is ongeldig");
             }
             return null;
         }
 
         Dienstverlener dienstverlener = dienstverlenerService.getDienstverlener(scope.dienstverlenerNaam);
         if (dienstverlener == null) {
-            throw new WebApplicationException(
-                    "Dienstverlener met naam " + scope.dienstverlenerNaam + " bestaat niet",
-                    Response.Status.NOT_FOUND);
+            throw HttpProblem.valueOf(Response.Status.NOT_FOUND,
+                    "Dienstverlener met naam " + scope.dienstverlenerNaam + " bestaat niet");
         }
 
         if (scope.dienstNaam == null) {
@@ -195,10 +193,9 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         ).firstResult();
 
         if (link == null) {
-            throw new WebApplicationException(
+            throw HttpProblem.valueOf(Response.Status.NOT_FOUND,
                     "Dienst '" + scope.dienstNaam + "' bestaat niet voor dienstverlener '"
-                            + scope.dienstverlenerNaam + "'",
-                    Response.Status.NOT_FOUND);
+                            + scope.dienstverlenerNaam + "'");
         }
 
         return link;
@@ -247,9 +244,8 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
                 || !Objects.equals(oldWaarde, newWaarde);
 
         if (valueChanged && newWaarde != null && existingDuplicateExists(partij, request.type, newWaarde, contact.id)) {
-            throw new WebApplicationException(
-                    "Combinatie (type, waarde) bestaat al voor deze partij",
-                    Response.Status.CONFLICT);
+            throw HttpProblem.valueOf(Response.Status.CONFLICT,
+                    "Combinatie (type, waarde) bestaat al voor deze partij");
         }
 
         // Demote BEFORE mutating contact. Hibernate flushes dirty entities before bulk JPQL
@@ -325,9 +321,8 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
         Voorkeur collision = findExistingVoorkeur(partij, request.voorkeurType, targetLink);
         if (collision != null && !collision.id.equals(voorkeur.id)) {
-            throw new WebApplicationException(
-                    "Andere voorkeur bestaat al voor deze partij + type + scope",
-                    Response.Status.CONFLICT);
+            throw HttpProblem.valueOf(Response.Status.CONFLICT,
+                    "Andere voorkeur bestaat al voor deze partij + type + scope");
         }
 
         voorkeur.setVoorkeurType(request.voorkeurType);

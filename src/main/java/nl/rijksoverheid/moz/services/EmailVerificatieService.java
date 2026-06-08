@@ -3,6 +3,7 @@ package nl.rijksoverheid.moz.services;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
@@ -86,7 +87,7 @@ public class EmailVerificatieService {
             return false;
         } catch (Exception e) {
             LOG.error("Onverwachte fout tijdens verifiëren van email code: " + e.getMessage(), e);
-            throw new WebApplicationException("Interne fout bij verwerken email verificatie", Response.Status.INTERNAL_SERVER_ERROR);
+            throw HttpProblem.valueOf(Response.Status.INTERNAL_SERVER_ERROR, "Interne fout bij verwerken email verificatie");
         }
     }
 

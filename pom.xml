@@ -38,6 +38,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
+        <!-- RFC 9457 problem+json error responses. Versioned independently from the
+             Quarkus platform; 3.33.x targets the 3.33 line but runs on 3.36. -->
+        <dependency>
+            <groupId>io.quarkiverse.httpproblem</groupId>
+            <artifactId>quarkus-http-problem</artifactId>
+            <version>3.33.1</version>
+        </dependency>
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator</artifactId>

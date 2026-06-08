@@ -106,7 +106,10 @@ public class DienstverlenerControllerTest {
                 .contentType(ContentType.JSON)
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
-                .statusCode(BAD_REQUEST);
+                .statusCode(BAD_REQUEST)
+                .header("Content-Type", org.hamcrest.Matchers.containsString("application/problem+json"))
+                .body("status", org.hamcrest.Matchers.equalTo(400))
+                .body("detail", org.hamcrest.Matchers.equalTo("Request body mag niet leeg zijn"));
     }
 
     @Test

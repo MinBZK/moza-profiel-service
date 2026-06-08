@@ -1,10 +1,10 @@
 
 package nl.rijksoverheid.moz.controller;
 
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
-import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -17,7 +17,6 @@ import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.response.DienstResponse;
 import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
-import nl.rijksoverheid.moz.dto.response.ProblemDetail;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
@@ -60,12 +59,12 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "404",
                     description = "Dienstverlener niet gevonden",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Interne serverfout",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
@@ -98,23 +97,23 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "400",
                     description = "Request body ontbreekt of is ongeldig",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "409",
                     description = "Dienstverlener bestaat al met conflicterende waarden",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Interne serverfout",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response addDienstverlener(@Valid DienstverlenerRequest dienstverlenerRequest) {
         if (dienstverlenerRequest == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
-            throw new BadRequestException("Request body mag niet leeg zijn");
+            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
         }
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
@@ -140,17 +139,17 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "400",
                     description = "Request body ontbreekt of is ongeldig",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "409",
                     description = "Dienst bestaat al met een andere beschrijving",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Interne serverfout",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response addDienstToDienstverlener(
@@ -159,7 +158,7 @@ public class DienstverlenerController {
     ) {
         if (request == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
-            throw new BadRequestException("Request body mag niet leeg zijn");
+            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
         }
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");

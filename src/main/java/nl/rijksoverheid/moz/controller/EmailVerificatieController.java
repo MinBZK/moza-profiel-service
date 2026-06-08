@@ -1,18 +1,16 @@
 
 package nl.rijksoverheid.moz.controller;
 
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.ServiceUnavailableException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.dto.response.ProblemDetail;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -46,22 +44,22 @@ public class EmailVerificatieController {
             @APIResponse(
                     responseCode = "400",
                     description = "Invalid request format",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "404",
                     description = "Partij of Contactgegeven niet gevonden",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Internal server error",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "503",
                     description = "NotifyNL API onbereikbaar",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response postEmailVerificatieCodeAanvraag(EmailVerificatieCodeAanvraagRequest aanvraag) {
@@ -73,10 +71,14 @@ public class EmailVerificatieController {
         }
         else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
             LOG.warn("Partij of Contactgegeven niet gevonden");
-            throw new NotFoundException("Partij of Contactgegeven niet gevonden");
+            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Partij of Contactgegeven niet gevonden");
         } else {
             LOG.warn("NotifyNL API onbereikbaar");
-            throw new ServiceUnavailableException("NotifyNL API onbereikbaar", 30L);
+            throw HttpProblem.builder()
+                    .withStatus(Response.Status.SERVICE_UNAVAILABLE)
+                    .withDetail("NotifyNL API onbereikbaar")
+                    .withHeader("Retry-After", "30")
+                    .build();
         }
     }
 
@@ -87,7 +89,7 @@ public class EmailVerificatieController {
             @APIResponse(
                     responseCode = "400",
                     description = "Email verificatie mislukt",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response postEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
