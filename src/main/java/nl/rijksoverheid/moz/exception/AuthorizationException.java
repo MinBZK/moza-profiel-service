@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.exception;
 
+import jakarta.validation.constraints.NotNull;
 import java.util.Objects;
 
 /**
@@ -10,7 +11,7 @@ public class AuthorizationException extends RuntimeException {
 
     private final String detail;
 
-    public AuthorizationException(String detail) {
+    public AuthorizationException(@NotNull String detail) {
         super(Objects.requireNonNull(detail, "detail"));
         this.detail = detail;
     }

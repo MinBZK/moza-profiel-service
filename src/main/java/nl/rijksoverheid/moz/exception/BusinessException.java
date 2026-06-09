@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.exception;
 
+import jakarta.validation.constraints.NotNull;
 import java.util.Objects;
 
 public class BusinessException extends RuntimeException {
@@ -23,7 +24,7 @@ public class BusinessException extends RuntimeException {
     private final Kind kind;
     private final String detail;
 
-    public BusinessException(Kind kind, String detail) {
+    public BusinessException(@NotNull Kind kind, @NotNull String detail) {
         super(Objects.requireNonNull(detail, "detail"));
         this.kind = kind;
         this.detail = detail;

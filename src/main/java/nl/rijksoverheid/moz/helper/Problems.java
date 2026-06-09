@@ -18,10 +18,22 @@ public final class Problems {
     }
 
     public static HttpProblem missingBody() {
+        return badRequest(Response.Status.BAD_REQUEST.getReasonPhrase(), "Request body mag niet leeg zijn");
+    }
+
+    public static HttpProblem badRequest(String title, String detail) {
         return HttpProblem.builder()
                 .withStatus(Response.Status.BAD_REQUEST)
-                .withTitle(Response.Status.BAD_REQUEST.getReasonPhrase())
-                .withDetail("Request body mag niet leeg zijn")
+                .withTitle(title)
+                .withDetail(detail)
+                .build();
+    }
+
+    public static HttpProblem serviceUnavailable(String title, String detail) {
+        return HttpProblem.builder()
+                .withStatus(Response.Status.SERVICE_UNAVAILABLE)
+                .withTitle(title)
+                .withDetail(detail)
                 .build();
     }
 

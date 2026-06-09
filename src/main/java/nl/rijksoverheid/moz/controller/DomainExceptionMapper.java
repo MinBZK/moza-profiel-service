@@ -19,26 +19,32 @@ public class DomainExceptionMapper {
             case CONFLICT -> Response.Status.CONFLICT;
             case BAD_REQUEST -> Response.Status.BAD_REQUEST;
         };
+        LOG.warn("Domeinvalidatiefout: " + e.getDetail());
+
         return Problems.problemResponse(status, e.getTitle(), e.getDetail());
     }
 
     @ServerExceptionMapper
     public Response mapTechnicalException(TechnicalException e) {
         LOG.error("Technische fout: " + e.getDetail(), e);
+
         return Problems.problemResponse(Response.Status.INTERNAL_SERVER_ERROR, e.getTitle(), e.getDetail());
     }
 
     @ServerExceptionMapper
     public Response mapAuthorizationException(AuthorizationException e) {
+        LOG.warn("Autorisatiefout: " + e.getDetail());
+
         return Problems.problemResponse(Response.Status.FORBIDDEN, e.getTitle(), e.getDetail());
     }
 
     @ServerExceptionMapper
     public Response mapUnhandledException(Exception e) {
         LOG.error("Onverwachte fout opgetreden", e);
+
         return Problems.problemResponse(
                 Response.Status.INTERNAL_SERVER_ERROR,
-                Response.Status.INTERNAL_SERVER_ERROR.getReasonPhrase(),
+                "Internal Server Error",
                 "Er is een onverwachte fout opgetreden");
     }
 }

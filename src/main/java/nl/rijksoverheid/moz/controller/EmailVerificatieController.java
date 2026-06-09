@@ -61,7 +61,7 @@ public class EmailVerificatieController {
                     "Geen partij of contactgegeven gevonden voor het opgegeven identificatienummer.");
         } else {
             LOG.warn("NotifyNL API onbereikbaar");
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+            throw Problems.serviceUnavailable("Service Unavailable", "NotifyNL API is tijdelijk onbereikbaar.");
         }
     }
 
@@ -80,7 +80,7 @@ public class EmailVerificatieController {
             return Response.ok().build();
         } else {
             LOG.warn("Email verificatie mislukt");
-            return Response.status(Response.Status.BAD_REQUEST).build();
+            throw Problems.badRequest("Email verificatie mislukt", "De opgegeven verificatiecode is ongeldig of verlopen.");
         }
     }
 }
