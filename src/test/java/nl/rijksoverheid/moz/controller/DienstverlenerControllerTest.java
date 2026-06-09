@@ -100,7 +100,7 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", endsWith("/dienstverlener/Test"))
+                .header("Location", endsWith("/api/profielservice/v1/dienstverlener/Test"))
                 .body("naam", equalTo("Test"))
                 .body("beschrijving", equalTo("Test beschrijving"))
                 .body("diensten.size()", equalTo(0));
@@ -148,7 +148,7 @@ public class DienstverlenerControllerTest {
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", containsString("/dienstverlener/Test/diensten/"));
+                .header("Location", containsString("/api/profielservice/v1/dienstverlener/Test/diensten/"));
     }
 
     @Test

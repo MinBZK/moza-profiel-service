@@ -338,7 +338,7 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", containsString("/contactgegeven/"))
+                .header("Location", containsString("/api/profielservice/v1/contactgegeven/"))
                 .body("waarde", equalTo("test@example.com"));
     }
 
@@ -493,7 +493,7 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", containsString("/voorkeur/"));
+                .header("Location", containsString("/api/profielservice/v1/voorkeur/"));
     }
 
     @Test

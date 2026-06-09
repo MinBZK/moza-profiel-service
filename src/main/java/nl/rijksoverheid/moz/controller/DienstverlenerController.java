@@ -13,6 +13,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import nl.rijksoverheid.moz.common.ApiResponseDescriptions;
 import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
@@ -112,7 +113,9 @@ public class DienstverlenerController {
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
-        URI uri = URI.create(String.format("/api/profielservice/v1/dienstverlener/%s", created.getNaam()));
+        URI uri = UriBuilder.fromResource(DienstverlenerController.class)
+                .path("dienstverlener").path("{naam}")
+                .build(created.getNaam());
         DienstverlenerResponse body = new DienstverlenerResponse(created, List.of());
         return Response.created(uri).entity(body).build();
     }
@@ -148,7 +151,9 @@ public class DienstverlenerController {
     ) {
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");
-        URI uri = URI.create(String.format("/api/profielservice/v1/dienstverlener/%s/diensten/%s", dienstverlenerNaam, created.id));
+        URI uri = UriBuilder.fromResource(DienstverlenerController.class)
+                .path("dienstverlener").path("{dienstverlenerNaam}").path("diensten").path("{id}")
+                .build(dienstverlenerNaam, created.id);
         return Response.created(uri).entity(new DienstResponse(created)).build();
     }
 }

@@ -17,6 +17,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
@@ -228,7 +229,9 @@ public class ProfielController {
         AddContactgegevenResult result = partijService.addContactgegeven(request.identificatieType, request.identificatieNummer, request);
         ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
 
-        URI uri = URI.create("/api/profielservice/v1/contactgegeven/" + result.contactgegeven().id);
+        URI uri = UriBuilder.fromResource(ProfielController.class)
+                .path("contactgegeven").path("{id}")
+                .build(result.contactgegeven().id);
         logboekContext.setStatus(StatusCode.OK);
 
         if (result.wasCreated()) {
@@ -353,7 +356,9 @@ public class ProfielController {
         VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        URI uri = URI.create("/api/profielservice/v1/voorkeur/" + result.voorkeur().id);
+        URI uri = UriBuilder.fromResource(ProfielController.class)
+                .path("voorkeur").path("{id}")
+                .build(result.voorkeur().id);
 
         if (result.wasCreated()) {
             LOG.info("Voorkeur toegevoegd");
