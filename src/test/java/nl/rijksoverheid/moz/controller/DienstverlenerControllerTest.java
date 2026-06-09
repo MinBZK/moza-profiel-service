@@ -119,6 +119,18 @@ public class DienstverlenerControllerTest {
     }
 
     @Test
+    void addDienstverlener_LiteralNullBody() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("null")
+                .post("/api/profielservice/v1/dienstverlener")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .header("Content-Type", containsString("application/problem+json"))
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
+    }
+
+    @Test
     void addDienstToDienstverlener_Success() {
         DienstRequest request = new DienstRequest();
         request.naam = "TestDienst";

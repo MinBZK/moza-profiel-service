@@ -23,9 +23,14 @@ class StandardErrorResponsesTest {
                 .when().get("/openapi.json?format=JSON")
                 .then()
                 .statusCode(200)
+                // One operation per controller, to prove the class-level 500 propagated everywhere.
                 .body("paths.'/api/profielservice/v1/partij'.post.responses.'500'.description",
                         equalTo("Interne serverfout"))
                 .body("paths.'/api/profielservice/v1/partij'.post.responses.'500'.content.'application/problem+json'.schema.'$ref'",
-                        containsString("HttpProblem"));
+                        containsString("HttpProblem"))
+                .body("paths.'/api/profielservice/v1/dienstverlener/{naam}'.get.responses.'500'.description",
+                        equalTo("Interne serverfout"))
+                .body("paths.'/api/profielservice/v1/emailverificatie/code'.post.responses.'500'.description",
+                        equalTo("Interne serverfout"));
     }
 }
