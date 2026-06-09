@@ -3,6 +3,8 @@ package nl.rijksoverheid.moz.helper;
 import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
 
+import java.util.Map;
+
 public final class Problems {
 
     private Problems() {}
@@ -20,6 +22,18 @@ public final class Problems {
                 .withStatus(Response.Status.BAD_REQUEST)
                 .withTitle(Response.Status.BAD_REQUEST.getReasonPhrase())
                 .withDetail("Request body mag niet leeg zijn")
+                .build();
+    }
+
+    public static Response problemResponse(Response.Status status, String title, String detail) {
+        return Response.status(status)
+                .type("application/problem+json")
+                .entity(Map.of(
+                        "type", "about:blank",
+                        "title", title,
+                        "status", status.getStatusCode(),
+                        "detail", detail
+                ))
                 .build();
     }
 }

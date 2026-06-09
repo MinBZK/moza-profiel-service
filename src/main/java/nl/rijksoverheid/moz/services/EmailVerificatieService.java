@@ -3,9 +3,9 @@ package nl.rijksoverheid.moz.services;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
@@ -85,15 +85,9 @@ public class EmailVerificatieService {
             LOG.errorf("NotifyNL Verificatie API Error (%d): %s",
                     e.getResponse().getStatus(), errorBody);
             return false;
-        } catch (HttpProblem e) {
-            throw e;
         } catch (Exception e) {
             LOG.error("Onverwachte fout tijdens verifiëren van email code: " + e.getMessage(), e);
-            throw HttpProblem.builder()
-                    .withStatus(Response.Status.INTERNAL_SERVER_ERROR)
-                    .withTitle(Response.Status.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                    .withDetail("Interne fout bij verwerken email verificatie")
-                    .build();
+            throw new TechnicalException("Interne fout bij verwerken email verificatie", e);
         }
     }
 

@@ -12,9 +12,18 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
+import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.entity.*;
+import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
+import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
+import nl.rijksoverheid.moz.entity.Identificatie;
+import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
+import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -33,7 +42,11 @@ import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 @QuarkusTest
 public class ProfielControllerTest {
@@ -347,6 +360,46 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void addContactgegeven_UnknownDienstverlenerInScope_Returns404() {
+        var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
+        body.type = ContactType.Email;
+        body.waarde = "test@example.com";
+        body.scope = new ScopeRequest();
+        body.scope.dienstverlenerNaam = "BestaatNiet";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Not Found"));
+    }
+
+    @Test
+    void addContactgegeven_DienstNaamWithoutDienstverlenerNaam_Returns400() {
+        var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
+        body.type = ContactType.Email;
+        body.waarde = "test@example.com";
+        body.scope = new ScopeRequest();
+        body.scope.dienstNaam = "SomeDienst";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Bad Request"));
     }
 
     @Test

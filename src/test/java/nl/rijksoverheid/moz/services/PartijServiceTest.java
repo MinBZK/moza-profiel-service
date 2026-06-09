@@ -1,6 +1,6 @@
 package nl.rijksoverheid.moz.services;
 
-import io.quarkiverse.httpproblem.HttpProblem;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -589,10 +589,10 @@ public class PartijServiceTest {
         request.scope = new ScopeRequest();
         request.scope.dienstNaam = "TestDienst";
 
-        HttpProblem ex = Assertions.assertThrows(
-                HttpProblem.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.getStatus().getStatusCode());
+        Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
     }
 
     @Test
@@ -625,10 +625,10 @@ public class PartijServiceTest {
         request.scope.dienstverlenerNaam = "DV-A";
         request.scope.dienstNaam = "B-Vergunning";
 
-        HttpProblem ex = Assertions.assertThrows(
-                HttpProblem.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(404, ex.getStatus().getStatusCode());
+        Assertions.assertEquals(BusinessException.Kind.NOT_FOUND, ex.getKind());
     }
 
     @Test
@@ -803,10 +803,10 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "a@test.com";
 
-        HttpProblem ex = Assertions.assertThrows(
-                HttpProblem.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(409, ex.getStatus().getStatusCode());
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 
     @Test
