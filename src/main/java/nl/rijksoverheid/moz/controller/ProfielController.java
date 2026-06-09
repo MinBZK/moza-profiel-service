@@ -31,6 +31,7 @@ import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
+import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import nl.rijksoverheid.moz.services.PartijService;
@@ -92,6 +93,7 @@ public class ProfielController {
     @POST
     @Path("/partij")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Ophalen profiel van een partij",
             description = "Haalt het profiel op van een partij"
@@ -110,8 +112,6 @@ public class ProfielController {
     })
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartij(@Valid PartijRequest request) {
-
-        if (request == null) throw missingBody("getPartij");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -132,6 +132,7 @@ public class ProfielController {
     @POST
     @Path("/partijen/bulk")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Ophalen profielen van meerdere partijen",
             description = "Haalt profielen op van meerdere partijen. Niet-gevonden partijen worden stilzwijgend weggelaten."
@@ -147,8 +148,6 @@ public class ProfielController {
             )
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
-
-        if (request == null) throw missingBody("getPartijBulk");
 
         List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
 
@@ -193,6 +192,7 @@ public class ProfielController {
     @POST
     @Path("/contactgegeven")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Toevoegen nieuwe contactgegeven voor een partij",
             description = "Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende partijen."
@@ -215,8 +215,6 @@ public class ProfielController {
     })
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
     public Response addContactgegeven(@Valid ContactgegevenRequest request) {
-
-        if (request == null) throw missingBody("addContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -244,6 +242,7 @@ public class ProfielController {
     @PUT
     @Path("/contactgegeven")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Update contactgegeven van een partij",
             description = "Werk type, waarde en scope van een contactgegeven bij. Identificatie kan niet aangepast worden."
@@ -255,8 +254,6 @@ public class ProfielController {
     })
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
     public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
-
-        if (request == null) throw missingBody("updateContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -280,6 +277,7 @@ public class ProfielController {
     @DELETE
     @Path("/contactgegeven/{contactgegevenId}")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Verwijder contactgegeven van een partij",
             description = "Verwijdert een contactgegeven volledig"
@@ -292,8 +290,6 @@ public class ProfielController {
     public Response deleteContactgegeven(
             @PathParam("contactgegevenId") UUID contactgegevenId,
             @Valid PartijIdentificatieRequest request) {
-
-        if (request == null) throw missingBody("deleteContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -320,6 +316,7 @@ public class ProfielController {
     @POST
     @Path("/voorkeur")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Toevoegen nieuwe voorkeur voor een partij",
             description = "Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende partijen."
@@ -342,8 +339,6 @@ public class ProfielController {
     })
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
     public Response addVoorkeur(@Valid VoorkeurRequest request) {
-
-        if (request == null) throw missingBody("addVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -375,6 +370,7 @@ public class ProfielController {
     @PUT
     @Path("/voorkeur")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Update voorkeur van een partij",
             description = "Werk type, waarde en scope van een voorkeur bij. Identificatie kan niet aangepast worden."
@@ -386,8 +382,6 @@ public class ProfielController {
     })
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
     public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
-
-        if (request == null) throw missingBody("updateVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -411,6 +405,7 @@ public class ProfielController {
     @DELETE
     @Path("/voorkeur/{voorkeurId}")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Verwijder voorkeur van een partij",
             description = "Verwijdert een voorkeur volledig"
@@ -423,8 +418,6 @@ public class ProfielController {
     public Response deleteVoorkeur(
             @PathParam("voorkeurId") UUID voorkeurId,
             @Valid PartijIdentificatieRequest request) {
-
-        if (request == null) throw missingBody("deleteVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -442,17 +435,4 @@ public class ProfielController {
         return Response.noContent().build();
     }
 
-    /**
-     * Legt de LDV-context vast voor een lege request body en levert de bijbehorende
-     * fout op. Geeft de exception terug zodat de aanroeper {@code throw missingBody(...)}
-     * doet; zo blijft het returntype eerlijk over wat er gebeurt en rendert de fout als
-     * application/problem+json (RFC 9457) in plaats van een platte string.
-     */
-    private HttpProblem missingBody(String methode) {
-        logboekContext.setDataSubjectId("ONBEKEND");
-        logboekContext.setDataSubjectType("ONBEKEND");
-        logboekContext.setStatus(StatusCode.ERROR);
-        LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        return HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
-    }
 }

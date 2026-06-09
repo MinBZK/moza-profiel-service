@@ -20,6 +20,7 @@ import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
 import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -84,6 +85,7 @@ public class DienstverlenerController {
     @POST
     @Path("/dienstverlener/")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Voegt een dienstverlener toe",
             description = "Voegt een nieuwe dienstverlener toe met optionele beschrijving."
@@ -111,8 +113,6 @@ public class DienstverlenerController {
             )
     })
     public Response addDienstverlener(@Valid DienstverlenerRequest dienstverlenerRequest) {
-        if (dienstverlenerRequest == null) throw missingBody("addDienstverlener");
-
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
@@ -124,6 +124,7 @@ public class DienstverlenerController {
     @POST
     @Path("/dienstverlener/{dienstverlenerNaam}/diensten")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Voegt een dienst toe aan een dienstverlener",
             description = "Voegt een nieuwe dienst toe met beschrijving aan een bestaande dienstverlener."
@@ -154,22 +155,9 @@ public class DienstverlenerController {
             @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
             @Valid DienstRequest request
     ) {
-        if (request == null) throw missingBody("addDienstToDienstverlener");
-
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = URI.create(String.format("/api/profielservice/v1/dienstverlener/%s/diensten/%s", dienstverlenerNaam, created.id));
         return Response.created(uri).entity(new DienstResponse(created)).build();
-    }
-
-    /**
-     * Levert de fout op voor een lege request body, zodat de aanroeper
-     * {@code throw missingBody(...)} doet. RESTEasy Reactive valideert een ontbrekende
-     * body niet via @NotNull (de body wordt dan null en de methode draait door), dus
-     * houden we de check expliciet. De fout rendert als application/problem+json (RFC 9457).
-     */
-    private HttpProblem missingBody(String methode) {
-        LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        return HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
     }
 }
