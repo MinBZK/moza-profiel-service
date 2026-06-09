@@ -20,6 +20,7 @@ import jakarta.ws.rs.core.Response;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
+import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
@@ -104,13 +105,13 @@ public class ProfielController {
             @APIResponse(
                     responseCode = "404",
                     description = "Partij niet gevonden of is verwijderd",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartij(@Valid PartijRequest request) {
 
-        if (request == null) return missingBody("getPartij");
+        if (request == null) throw missingBody("getPartij");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -142,12 +143,12 @@ public class ProfielController {
             @APIResponse(
                     responseCode = "404",
                     description = "Geen enkel profiel gevonden",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
-        if (request == null) return missingBody("getPartijBulk");
+        if (request == null) throw missingBody("getPartijBulk");
 
         List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
 
@@ -215,7 +216,7 @@ public class ProfielController {
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
     public Response addContactgegeven(@Valid ContactgegevenRequest request) {
 
-        if (request == null) return missingBody("addContactgegeven");
+        if (request == null) throw missingBody("addContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -255,7 +256,7 @@ public class ProfielController {
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
     public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
 
-        if (request == null) return missingBody("updateContactgegeven");
+        if (request == null) throw missingBody("updateContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -292,7 +293,7 @@ public class ProfielController {
             @PathParam("contactgegevenId") UUID contactgegevenId,
             @Valid PartijIdentificatieRequest request) {
 
-        if (request == null) return missingBody("deleteContactgegeven");
+        if (request == null) throw missingBody("deleteContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -342,7 +343,7 @@ public class ProfielController {
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
     public Response addVoorkeur(@Valid VoorkeurRequest request) {
 
-        if (request == null) return missingBody("addVoorkeur");
+        if (request == null) throw missingBody("addVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -386,7 +387,7 @@ public class ProfielController {
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
     public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
 
-        if (request == null) return missingBody("updateVoorkeur");
+        if (request == null) throw missingBody("updateVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -423,7 +424,7 @@ public class ProfielController {
             @PathParam("voorkeurId") UUID voorkeurId,
             @Valid PartijIdentificatieRequest request) {
 
-        if (request == null) return missingBody("deleteVoorkeur");
+        if (request == null) throw missingBody("deleteVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -441,13 +442,17 @@ public class ProfielController {
         return Response.noContent().build();
     }
 
-    private Response missingBody(String methode) {
+    /**
+     * Legt de LDV-context vast voor een lege request body en levert de bijbehorende
+     * fout op. Geeft de exception terug zodat de aanroeper {@code throw missingBody(...)}
+     * doet; zo blijft het returntype eerlijk over wat er gebeurt en rendert de fout als
+     * application/problem+json (RFC 9457) in plaats van een platte string.
+     */
+    private HttpProblem missingBody(String methode) {
         logboekContext.setDataSubjectId("ONBEKEND");
         logboekContext.setDataSubjectType("ONBEKEND");
         logboekContext.setStatus(StatusCode.ERROR);
         LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        // Throw rather than build a Response so it renders as
-        // application/problem+json (RFC 9457) instead of a plain string.
-        throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
+        return HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
     }
 }

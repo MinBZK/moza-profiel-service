@@ -17,6 +17,7 @@ import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.response.DienstResponse;
 import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
+import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
@@ -39,7 +40,6 @@ import java.util.List;
 public class DienstverlenerController {
 
     private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
-    private static final String PROBLEM_JSON = "application/problem+json";
 
     @Inject
     DienstverlenerService dienstverlenerService;
@@ -59,12 +59,12 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "404",
                     description = "Dienstverlener niet gevonden",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Interne serverfout",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
@@ -97,24 +97,22 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "400",
                     description = "Request body ontbreekt of is ongeldig",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "409",
                     description = "Dienstverlener bestaat al met conflicterende waarden",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Interne serverfout",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response addDienstverlener(@Valid DienstverlenerRequest dienstverlenerRequest) {
-        if (dienstverlenerRequest == null) {
-            LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
-            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
-        }
+        if (dienstverlenerRequest == null) throw missingBody("addDienstverlener");
+
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
@@ -139,30 +137,39 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "400",
                     description = "Request body ontbreekt of is ongeldig",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "409",
                     description = "Dienst bestaat al met een andere beschrijving",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Interne serverfout",
-                    content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response addDienstToDienstverlener(
             @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
             @Valid DienstRequest request
     ) {
-        if (request == null) {
-            LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
-            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
-        }
+        if (request == null) throw missingBody("addDienstToDienstverlener");
+
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = URI.create(String.format("/api/profielservice/v1/dienstverlener/%s/diensten/%s", dienstverlenerNaam, created.id));
         return Response.created(uri).entity(new DienstResponse(created)).build();
+    }
+
+    /**
+     * Levert de fout op voor een lege request body, zodat de aanroeper
+     * {@code throw missingBody(...)} doet. RESTEasy Reactive valideert een ontbrekende
+     * body niet via @NotNull (de body wordt dan null en de methode draait door), dus
+     * houden we de check expliciet. De fout rendert als application/problem+json (RFC 9457).
+     */
+    private HttpProblem missingBody(String methode) {
+        LOG.warn("Request body mag niet leeg zijn bij " + methode);
+        return HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Request body mag niet leeg zijn");
     }
 }

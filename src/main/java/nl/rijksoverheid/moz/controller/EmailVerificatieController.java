@@ -9,6 +9,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
@@ -44,22 +45,22 @@ public class EmailVerificatieController {
             @APIResponse(
                     responseCode = "400",
                     description = "Invalid request format",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "404",
                     description = "Partij of Contactgegeven niet gevonden",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "500",
                     description = "Internal server error",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "503",
-                    description = "NotifyNL API onbereikbaar",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    description = "Service tijdelijk niet beschikbaar",
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response postEmailVerificatieCodeAanvraag(EmailVerificatieCodeAanvraagRequest aanvraag) {
@@ -76,7 +77,7 @@ public class EmailVerificatieController {
             LOG.warn("NotifyNL API onbereikbaar");
             throw HttpProblem.builder()
                     .withStatus(Response.Status.SERVICE_UNAVAILABLE)
-                    .withDetail("NotifyNL API onbereikbaar")
+                    .withDetail("Service tijdelijk niet beschikbaar. Probeer het later opnieuw.")
                     .withHeader("Retry-After", "30")
                     .build();
         }
@@ -89,7 +90,7 @@ public class EmailVerificatieController {
             @APIResponse(
                     responseCode = "400",
                     description = "Email verificatie mislukt",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = HttpProblem.class))
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     public Response postEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
