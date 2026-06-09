@@ -13,6 +13,7 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
+import nl.rijksoverheid.moz.dto.request.ClearTeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
@@ -436,7 +437,7 @@ public class PartijService {
 
         requireDienstverlenerAuthorized(voorkeur.getScopes().stream()
                 .map(ScopeVoorkeur::getDienstverlenerDienst)
-                .toList(), request, "Dienstverlener is niet bevoegd voor deze voorkeur");
+                .toList(), request.dienstverlenerNaam, request.dienstNaam, "Dienstverlener is niet bevoegd voor deze voorkeur");
 
         applyTeVerwijderenOp(request.teVerwijderenOp, voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
         return true;
@@ -455,18 +456,90 @@ public class PartijService {
 
         requireDienstverlenerAuthorized(contact.getScopes().stream()
                 .map(ScopeContactgegeven::getDienstverlenerDienst)
-                .toList(), request, "Dienstverlener is niet bevoegd voor dit contactgegeven");
+                .toList(), request.dienstverlenerNaam, request.dienstNaam, "Dienstverlener is niet bevoegd voor dit contactgegeven");
 
         applyTeVerwijderenOp(request.teVerwijderenOp, contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
         return true;
     }
 
-    private void requireDienstverlenerAuthorized(List<DienstverlenerDienst> links, TeVerwijderenOpRequest request, String message) {
+    @Transactional
+    public boolean clearVoorkeurTeVerwijderenOpByDienstverlener(ClearTeVerwijderenOpRequest request) {
+        Partij partij = getPartij(request.identificatieType, request.identificatieNummer);
+        if (partij == null) return false;
+
+        Voorkeur voorkeur = partij.getVoorkeuren().stream()
+                .filter(v -> v.id.equals(request.id))
+                .findFirst()
+                .orElse(null);
+        if (voorkeur == null) return false;
+
+        requireDienstverlenerAuthorized(voorkeur.getScopes().stream()
+                .map(ScopeVoorkeur::getDienstverlenerDienst)
+                .toList(), request.dienstverlenerNaam, request.dienstNaam, "Dienstverlener is niet bevoegd voor deze voorkeur");
+
+        voorkeur.setTeVerwijderenOp(null);
+        voorkeur.setTeVerwijderenOpAutomatisch(false);
+        return true;
+    }
+
+    @Transactional
+    public boolean clearContactgegevenTeVerwijderenOpByDienstverlener(ClearTeVerwijderenOpRequest request) {
+        Partij partij = getPartij(request.identificatieType, request.identificatieNummer);
+        if (partij == null) return false;
+
+        Contactgegeven contact = partij.getContactgegevens().stream()
+                .filter(c -> c.id.equals(request.id))
+                .findFirst()
+                .orElse(null);
+        if (contact == null) return false;
+
+        requireDienstverlenerAuthorized(contact.getScopes().stream()
+                .map(ScopeContactgegeven::getDienstverlenerDienst)
+                .toList(), request.dienstverlenerNaam, request.dienstNaam, "Dienstverlener is niet bevoegd voor dit contactgegeven");
+
+        contact.setTeVerwijderenOp(null);
+        contact.setTeVerwijderenOpAutomatisch(false);
+        return true;
+    }
+
+    @Transactional
+    public boolean clearVoorkeurTeVerwijderenOpByPartij(IdentificatieType identificatieType, String identificatieNummer, UUID voorkeurId) {
+        Partij partij = getPartij(identificatieType, identificatieNummer);
+        if (partij == null) return false;
+
+        Voorkeur voorkeur = partij.getVoorkeuren().stream()
+                .filter(v -> v.id.equals(voorkeurId))
+                .findFirst()
+                .orElse(null);
+        if (voorkeur == null) return false;
+
+        voorkeur.setTeVerwijderenOp(null);
+        voorkeur.setTeVerwijderenOpAutomatisch(false);
+        return true;
+    }
+
+    @Transactional
+    public boolean clearContactgegevenTeVerwijderenOpByPartij(IdentificatieType identificatieType, String identificatieNummer, UUID contactgegevenId) {
+        Partij partij = getPartij(identificatieType, identificatieNummer);
+        if (partij == null) return false;
+
+        Contactgegeven contact = partij.getContactgegevens().stream()
+                .filter(c -> c.id.equals(contactgegevenId))
+                .findFirst()
+                .orElse(null);
+        if (contact == null) return false;
+
+        contact.setTeVerwijderenOp(null);
+        contact.setTeVerwijderenOpAutomatisch(false);
+        return true;
+    }
+
+    private void requireDienstverlenerAuthorized(List<DienstverlenerDienst> links, String dienstverlenerNaam, String dienstNaam, String message) {
         boolean authorized = links.stream().anyMatch(dd -> {
-            if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(request.dienstverlenerNaam)) return false;
-            if (request.dienstNaam == null) return true;
+            if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(dienstverlenerNaam)) return false;
+            if (dienstNaam == null) return true;
             Dienst dienst = dd.getDienst();
-            return dienst == null || dienst.getNaam().equalsIgnoreCase(request.dienstNaam);
+            return dienst == null || dienst.getNaam().equalsIgnoreCase(dienstNaam);
         });
 
         if (!authorized) {
