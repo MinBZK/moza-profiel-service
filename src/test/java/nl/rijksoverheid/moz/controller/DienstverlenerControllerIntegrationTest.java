@@ -12,7 +12,6 @@ import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
-import nl.rijksoverheid.moz.helper.OpenApiValidationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +20,7 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 
 @QuarkusTest
-public class DienstverlenerControllerTest extends OpenApiValidationTest {
+public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTest {
 
     @AfterEach
     @Transactional

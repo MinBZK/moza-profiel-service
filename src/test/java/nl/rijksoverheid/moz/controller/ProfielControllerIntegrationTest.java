@@ -5,7 +5,6 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.helper.OpenApiValidationTest;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,7 +33,7 @@ import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 @QuarkusTest
-public class ProfielControllerTest extends OpenApiValidationTest {
+public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;

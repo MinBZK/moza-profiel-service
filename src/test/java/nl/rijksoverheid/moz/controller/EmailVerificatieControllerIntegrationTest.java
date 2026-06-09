@@ -6,7 +6,6 @@ import io.restassured.http.ContentType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.helper.OpenApiValidationTest;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -15,7 +14,7 @@ import static io.restassured.RestAssured.given;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 @QuarkusTest
-public class EmailVerificatieControllerTest extends OpenApiValidationTest {
+public class EmailVerificatieControllerIntegrationTest extends OpenApiValidationTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;

@@ -1,4 +1,4 @@
-package nl.rijksoverheid.moz.helper;
+package nl.rijksoverheid.moz.controller;
 
 import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.report.LevelResolver;
@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
  *   body (e.g. 200 from updateContactgegeven / postEmailVerificatie). IGNORE is correct here:
  *   the check is structurally wrong for these endpoints, not a real spec gap.
  */
-public abstract class OpenApiValidationTest {
+abstract class OpenApiValidationTest {
 
     protected static OpenApiValidationFilter validationFilter;
 
