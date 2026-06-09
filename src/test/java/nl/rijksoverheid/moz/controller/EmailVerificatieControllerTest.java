@@ -119,4 +119,28 @@ public class EmailVerificatieControllerTest {
                 .statusCode(SERVICE_UNAVAILABLE)
                 .header("Retry-After", "30");
     }
+
+    @Test
+    void postEmailVerificatie_EmptyBody() {
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .post("/api/profielservice/v1/emailverificatie")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .header("Content-Type", containsString("application/problem+json"))
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
+    }
+
+    @Test
+    void postEmailVerificatieCodeAanvraag_EmptyBody() {
+        given()
+                .contentType(ContentType.JSON)
+                .when()
+                .post("/api/profielservice/v1/emailverificatie/code")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .header("Content-Type", containsString("application/problem+json"))
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
+    }
 }

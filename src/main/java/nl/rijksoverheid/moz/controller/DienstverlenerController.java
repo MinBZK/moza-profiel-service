@@ -17,6 +17,7 @@ import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.response.DienstResponse;
 import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
+import nl.rijksoverheid.moz.common.ApiResponseDescriptions;
 import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -38,6 +39,11 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Dienstverlener", description = "Endpoints voor het beheren van dienstverleners en diensten")
+@APIResponse(
+        responseCode = "500",
+        description = ApiResponseDescriptions.INTERNAL_SERVER_ERROR,
+        content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+)
 public class DienstverlenerController {
 
     private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
@@ -60,11 +66,6 @@ public class DienstverlenerController {
             @APIResponse(
                     responseCode = "404",
                     description = "Dienstverlener niet gevonden",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            ),
-            @APIResponse(
-                    responseCode = "500",
-                    description = "Interne serverfout",
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
@@ -98,17 +99,12 @@ public class DienstverlenerController {
             ),
             @APIResponse(
                     responseCode = "400",
-                    description = "Request body ontbreekt of is ongeldig",
+                    description = ApiResponseDescriptions.BAD_REQUEST_BODY,
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "409",
                     description = "Dienstverlener bestaat al met conflicterende waarden",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            ),
-            @APIResponse(
-                    responseCode = "500",
-                    description = "Interne serverfout",
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
@@ -137,17 +133,12 @@ public class DienstverlenerController {
             ),
             @APIResponse(
                     responseCode = "400",
-                    description = "Request body ontbreekt of is ongeldig",
+                    description = ApiResponseDescriptions.BAD_REQUEST_BODY,
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "409",
                     description = "Dienst bestaat al met een andere beschrijving",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            ),
-            @APIResponse(
-                    responseCode = "500",
-                    description = "Interne serverfout",
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })

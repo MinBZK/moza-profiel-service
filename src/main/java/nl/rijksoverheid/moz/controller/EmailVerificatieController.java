@@ -9,9 +9,11 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.common.ApiResponseDescriptions;
 import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -25,6 +27,11 @@ import org.jboss.logging.Logger;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "EmailVerificatie", description = "Endpoints voor het verifiëren van emails")
+@APIResponse(
+        responseCode = "500",
+        description = ApiResponseDescriptions.INTERNAL_SERVER_ERROR,
+        content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+)
 public class EmailVerificatieController {
 
     private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
@@ -34,6 +41,7 @@ public class EmailVerificatieController {
 
     @POST
     @Path("/emailverificatie/code")
+    @RequireBody
     @Operation(
             summary = "(Opnieuw) aanvragen voor een code van een (al geverifieerde) mail adres",
             description = "Vraagt een email verificatie code aan. " +
@@ -44,17 +52,12 @@ public class EmailVerificatieController {
             @APIResponse(responseCode = "200", description = "Email verificatie code aanvraag succesvol"),
             @APIResponse(
                     responseCode = "400",
-                    description = "Invalid request format",
+                    description = ApiResponseDescriptions.BAD_REQUEST_BODY,
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
                     responseCode = "404",
                     description = "Partij of Contactgegeven niet gevonden",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            ),
-            @APIResponse(
-                    responseCode = "500",
-                    description = "Internal server error",
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             ),
             @APIResponse(
@@ -85,6 +88,7 @@ public class EmailVerificatieController {
 
     @POST
     @Path("/emailverificatie")
+    @RequireBody
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Email verificatie succesvol"),
             @APIResponse(
