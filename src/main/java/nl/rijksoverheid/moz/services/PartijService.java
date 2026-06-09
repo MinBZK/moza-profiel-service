@@ -13,10 +13,12 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
+import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
@@ -27,7 +29,11 @@ import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import org.jboss.logging.Logger;
 
+import java.time.Instant;
+import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.function.Consumer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,6 +80,8 @@ public class PartijService {
         if (existing != null) {
             LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
 
+            applyTeVerwijderenOp(request.teVerwijderenOp, existing.getLastUsedAt(), existing.getCreatedAt(), existing::setTeVerwijderenOp);
+
             if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
                 requestAndApplyVerificatieCode(existing);
                 LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
@@ -93,9 +101,10 @@ public class PartijService {
         contactgegeven.setGeverifieerdAt(null);
 
         if (request.type == ContactType.Email) {
-
             requestAndApplyVerificatieCode(contactgegeven);
         }
+
+        applyTeVerwijderenOp(request.teVerwijderenOp, null, Instant.now(), contactgegeven::setTeVerwijderenOp);
 
         if (link != null) {
             contactgegeven.addScope(new ScopeContactgegeven(contactgegeven, link));
@@ -122,6 +131,9 @@ public class PartijService {
             if (!Objects.equals(existing.getWaarde(), request.waarde)) {
                 existing.setWaarde(request.waarde);
             }
+
+            applyTeVerwijderenOp(request.teVerwijderenOp, existing.getLastUsedAt(), existing.getCreatedAt(), existing::setTeVerwijderenOp);
+
             return new AddVoorkeurResult(existing, false, false);
         }
 
@@ -129,6 +141,8 @@ public class PartijService {
         voorkeur.setPartij(partij);
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
+
+        applyTeVerwijderenOp(request.teVerwijderenOp, null, Instant.now(), voorkeur::setTeVerwijderenOp);
 
         if (link != null) {
             voorkeur.addScope(new ScopeVoorkeur(voorkeur, link));
@@ -164,7 +178,24 @@ public class PartijService {
         contact.setIsGeverifieerd(false);
     }
 
-private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
+    private void applyTeVerwijderenOp(Instant requested, Instant lastUsedAt, Instant createdAt, Consumer<Instant> setter) {
+        if (requested == null) return;
+
+        if (!requested.isAfter(Instant.now())) {
+            throw new WebApplicationException("teVerwijderenOp moet in de toekomst liggen", Response.Status.BAD_REQUEST);
+        }
+
+        Instant referenceDate = lastUsedAt != null ? lastUsedAt : createdAt;
+        Instant maxDate = referenceDate.atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).toInstant();
+
+        if (requested.isAfter(maxDate)) {
+            throw new WebApplicationException("teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen", Response.Status.BAD_REQUEST);
+        }
+
+        setter.accept(requested);
+    }
+
+    private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         if (scope == null) {
             return null;
         }
@@ -284,6 +315,8 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         }
 
         contact.setIsDefault(targetDefault);
+        applyTeVerwijderenOp(request.teVerwijderenOp, contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
+
         return true;
     }
 
@@ -333,6 +366,8 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
         replaceScopesVoorkeur(voorkeur, targetLink);
+        applyTeVerwijderenOp(request.teVerwijderenOp, voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
+
         return true;
     }
 
@@ -386,6 +421,57 @@ private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
         partij.removeVoorkeur(voorkeur);
         voorkeur.delete();
         return true;
+    }
+
+    @Transactional
+    public boolean updateVoorkeurTeVerwijderenOpByDienstverlener(TeVerwijderenOpRequest request) {
+        Partij partij = getPartij(request.identificatieType, request.identificatieNummer);
+        if (partij == null) return false;
+
+        Voorkeur voorkeur = partij.getVoorkeuren().stream()
+                .filter(v -> v.id.equals(request.id))
+                .findFirst()
+                .orElse(null);
+        if (voorkeur == null) return false;
+
+        requireDienstverlenerAuthorized(voorkeur.getScopes().stream()
+                .map(ScopeVoorkeur::getDienstverlenerDienst)
+                .toList(), request, "Dienstverlener is niet bevoegd voor deze voorkeur");
+
+        applyTeVerwijderenOp(request.teVerwijderenOp, voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
+        return true;
+    }
+
+    @Transactional
+    public boolean updateContactgegevenTeVerwijderenOpByDienstverlener(TeVerwijderenOpRequest request) {
+        Partij partij = getPartij(request.identificatieType, request.identificatieNummer);
+        if (partij == null) return false;
+
+        Contactgegeven contact = partij.getContactgegevens().stream()
+                .filter(c -> c.id.equals(request.id))
+                .findFirst()
+                .orElse(null);
+        if (contact == null) return false;
+
+        requireDienstverlenerAuthorized(contact.getScopes().stream()
+                .map(ScopeContactgegeven::getDienstverlenerDienst)
+                .toList(), request, "Dienstverlener is niet bevoegd voor dit contactgegeven");
+
+        applyTeVerwijderenOp(request.teVerwijderenOp, contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
+        return true;
+    }
+
+    private void requireDienstverlenerAuthorized(List<DienstverlenerDienst> links, TeVerwijderenOpRequest request, String message) {
+        boolean authorized = links.stream().anyMatch(dd -> {
+            if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(request.dienstverlenerNaam)) return false;
+            if (request.dienstNaam == null) return true;
+            Dienst dienst = dd.getDienst();
+            return dienst == null || dienst.getNaam().equalsIgnoreCase(request.dienstNaam);
+        });
+
+        if (!authorized) {
+            throw new WebApplicationException(message, Response.Status.FORBIDDEN);
+        }
     }
 
     @Transactional
