@@ -3,11 +3,14 @@ package nl.rijksoverheid.moz.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
-import nl.rijksoverheid.moz.common.VoorkeurType;
 
 import java.time.Instant;
+import java.util.UUID;
 
-public class VoorkeurRequest {
+public class TeVerwijderenOpRequest {
+
+    @NotNull
+    public UUID id;
 
     @NotNull
     public IdentificatieType identificatieType;
@@ -15,13 +18,11 @@ public class VoorkeurRequest {
     @NotBlank
     public String identificatieNummer;
 
-    @NotNull
-    public VoorkeurType voorkeurType;
+    @NotBlank
+    public String dienstverlenerNaam;
+
+    public String dienstNaam;
 
     @NotNull
-    public String waarde;
-
-    public ScopeRequest scope;
-
     public Instant teVerwijderenOp;
 }

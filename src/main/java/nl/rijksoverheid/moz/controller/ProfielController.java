@@ -28,6 +28,7 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
+import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
@@ -446,4 +447,78 @@ public class ProfielController {
         return Response.noContent().build();
     }
 
+    @PATCH
+    @Path("/voorkeur/te-verwijderen-op")
+    @Transactional
+    @Operation(
+            summary = "Stel te-verwijderen-op in voor een voorkeur (Dienstverlener)",
+            description = "Stelt of overschrijft de te-verwijderen-op datum voor een voorkeur. Alleen toegestaan voor een Dienstverlener met een bestaande scope op de voorkeur."
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Te-verwijderen-op succesvol bijgewerkt"),
+            @APIResponse(responseCode = "400", description = "Ongeldige waarde voor te-verwijderen-op"),
+            @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op deze voorkeur"),
+            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
+    })
+    @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
+    public Response updateVoorkeurTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
+        if (request == null) return missingBody("updateVoorkeurTeVerwijderenOp");
+
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
+
+        boolean updated = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
+
+        if (!updated) {
+            logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Voorkeur of partij niet gevonden voor te-verwijderen-op update");
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Te-verwijderen-op bijgewerkt voor voorkeur");
+        return Response.ok().build();
+    }
+
+    @PATCH
+    @Path("/contactgegeven/te-verwijderen-op")
+    @Transactional
+    @Operation(
+            summary = "Stel te-verwijderen-op in voor een contactgegeven (Dienstverlener)",
+            description = "Stelt of overschrijft de te-verwijderen-op datum voor een contactgegeven. Alleen toegestaan voor een Dienstverlener met een bestaande scope op het contactgegeven."
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Te-verwijderen-op succesvol bijgewerkt"),
+            @APIResponse(responseCode = "400", description = "Ongeldige waarde voor te-verwijderen-op"),
+            @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op dit contactgegeven"),
+            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
+    })
+    @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
+    public Response updateContactgegevenTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
+
+        if (request == null) return missingBody("updateContactgegevenTeVerwijderenOp");
+
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
+        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
+
+        boolean updated = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(request);
+
+        if (!updated) {
+            logboekContext.setStatus(StatusCode.ERROR);
+            LOG.warn("Contactgegeven of partij niet gevonden voor te-verwijderen-op update");
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Te-verwijderen-op bijgewerkt voor contactgegeven");
+        return Response.ok().build();
+    }
+
+    private Response missingBody(String methode) {
+        logboekContext.setDataSubjectId("ONBEKEND");
+        logboekContext.setDataSubjectType("ONBEKEND");
+        logboekContext.setStatus(StatusCode.ERROR);
+        LOG.warn("Request body mag niet leeg zijn bij " + methode);
+        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+    }
 }

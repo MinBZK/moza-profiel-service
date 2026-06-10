@@ -1,0 +1,13 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "url": "/request",
+    "bodyPatterns": [
+      {"contains": "unavailable@test.nl"}
+    ]
+  },
+  "response": {
+    "status": 500
+  }
+}
