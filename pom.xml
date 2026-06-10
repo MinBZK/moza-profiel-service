@@ -38,8 +38,7 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
-        <!-- RFC 9457 problem+json error responses. Versioned independently from the
-             Quarkus platform; 3.33.x targets the 3.33 line but runs on 3.36. -->
+        <!-- RFC 9457 problem+json error responses. Heeft niet dezelfde versie als Quarkus-platform beschikbaar -->
         <dependency>
             <groupId>io.quarkiverse.httpproblem</groupId>
             <artifactId>quarkus-http-problem</artifactId>
