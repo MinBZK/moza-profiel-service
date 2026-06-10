@@ -453,7 +453,7 @@ public class ProfielController {
     })
     @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
     public Response updateVoorkeurTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
-        if (request == null) return missingBody("updateVoorkeurTeVerwijderenOp");
+        if (request == null) throw missingBody("updateVoorkeurTeVerwijderenOp");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -487,7 +487,7 @@ public class ProfielController {
     @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
     public Response updateContactgegevenTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
 
-        if (request == null) return missingBody("updateContactgegevenTeVerwijderenOp");
+        if (request == null) throw missingBody("updateContactgegevenTeVerwijderenOp");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
