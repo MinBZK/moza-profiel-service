@@ -10,6 +10,7 @@ import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
@@ -450,20 +451,19 @@ public class ProfielController {
     @PATCH
     @Path("/voorkeur/te-verwijderen-op")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Stel te-verwijderen-op in voor een voorkeur (Dienstverlener)",
             description = "Stelt of overschrijft de te-verwijderen-op datum voor een voorkeur. Alleen toegestaan voor een Dienstverlener met een bestaande scope op de voorkeur."
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Te-verwijderen-op succesvol bijgewerkt"),
-            @APIResponse(responseCode = "400", description = "Ongeldige waarde voor te-verwijderen-op"),
+            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
             @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op deze voorkeur"),
-            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.VOORKEUR_OF_PARTIJ_NIET_GEVONDEN)
     })
     @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
     public Response updateVoorkeurTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
-        if (request == null) return missingBody("updateVoorkeurTeVerwijderenOp");
-
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
@@ -483,20 +483,19 @@ public class ProfielController {
     @PATCH
     @Path("/contactgegeven/te-verwijderen-op")
     @Transactional
+    @RequireBody
     @Operation(
             summary = "Stel te-verwijderen-op in voor een contactgegeven (Dienstverlener)",
             description = "Stelt of overschrijft de te-verwijderen-op datum voor een contactgegeven. Alleen toegestaan voor een Dienstverlener met een bestaande scope op het contactgegeven."
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Te-verwijderen-op succesvol bijgewerkt"),
-            @APIResponse(responseCode = "400", description = "Ongeldige waarde voor te-verwijderen-op"),
+            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
             @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op dit contactgegeven"),
-            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.CONTACTGEGEVEN_OF_PARTIJ_NIET_GEVONDEN)
     })
     @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
     public Response updateContactgegevenTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
-
-        if (request == null) return missingBody("updateContactgegevenTeVerwijderenOp");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -514,11 +513,4 @@ public class ProfielController {
         return Response.ok().build();
     }
 
-    private Response missingBody(String methode) {
-        logboekContext.setDataSubjectId("ONBEKEND");
-        logboekContext.setDataSubjectType("ONBEKEND");
-        logboekContext.setStatus(StatusCode.ERROR);
-        LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
-    }
 }

@@ -182,14 +182,14 @@ public class PartijService {
         if (requested == null) return;
 
         if (!requested.isAfter(Instant.now())) {
-            throw new WebApplicationException("teVerwijderenOp moet in de toekomst liggen", Response.Status.BAD_REQUEST);
+            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "teVerwijderenOp moet in de toekomst liggen");
         }
 
         Instant referenceDate = lastUsedAt != null ? lastUsedAt : createdAt;
         Instant maxDate = referenceDate.atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).toInstant();
 
         if (requested.isAfter(maxDate)) {
-            throw new WebApplicationException("teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen", Response.Status.BAD_REQUEST);
+            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen");
         }
 
         setter.accept(requested);
@@ -464,7 +464,7 @@ public class PartijService {
         });
 
         if (!authorized) {
-            throw new WebApplicationException(message, Response.Status.FORBIDDEN);
+            throw HttpProblem.valueOf(Response.Status.FORBIDDEN, message);
         }
     }
 

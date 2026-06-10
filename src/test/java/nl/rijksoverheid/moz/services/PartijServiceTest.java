@@ -862,10 +862,10 @@ public class PartijServiceTest {
         request.waarde = "nl";
         request.teVerwijderenOp = Instant.now().minus(Duration.ofDays(1));
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.getResponse().getStatus());
+        Assertions.assertEquals(400, ex.toResponse().getStatus());
     }
 
     @Test
@@ -877,10 +877,10 @@ public class PartijServiceTest {
         request.waarde = "nl";
         request.teVerwijderenOp = beyondMax;
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.getResponse().getStatus());
+        Assertions.assertEquals(400, ex.toResponse().getStatus());
     }
 
     @Test
@@ -1035,10 +1035,10 @@ public class PartijServiceTest {
         request.dienstverlenerNaam = "OnbekendeDV";
         request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
-        Assertions.assertEquals(403, ex.getResponse().getStatus());
+        Assertions.assertEquals(403, ex.toResponse().getStatus());
     }
 
     @Test
@@ -1097,10 +1097,10 @@ public class PartijServiceTest {
         request.dienstNaam = "AndereDienst";
         request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
-                jakarta.ws.rs.WebApplicationException.class,
+        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
+                io.quarkiverse.httpproblem.HttpProblem.class,
                 () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
-        Assertions.assertEquals(403, ex.getResponse().getStatus());
+        Assertions.assertEquals(403, ex.toResponse().getStatus());
     }
 
     @Test
