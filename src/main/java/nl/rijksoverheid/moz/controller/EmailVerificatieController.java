@@ -89,6 +89,10 @@ public class EmailVerificatieController {
     @POST
     @Path("/emailverificatie")
     @RequireBody
+    @Operation(
+            summary = "Verifieer een email met een verificatie code",
+            description = "Verifieert een email adres aan de hand van de eerder aangevraagde verificatie code."
+    )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Email verificatie succesvol"),
             @APIResponse(
@@ -105,7 +109,7 @@ public class EmailVerificatieController {
             return Response.ok().build();
         } else {
             LOG.warn("Email verificatie mislukt");
-            return Response.status(Response.Status.BAD_REQUEST).build();
+            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Email verificatie mislukt");
         }
     }
 }
