@@ -158,8 +158,12 @@ public class ProfielController {
                     description = "Profielen gedeeltelijk opgehaald",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(type = SchemaType.ARRAY, implementation = PartijResponse.class))
             ),
-            @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
+            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
+            @APIResponse(
+                    responseCode = "404",
+                    description = "Geen enkel profiel gevonden",
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+            )
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 

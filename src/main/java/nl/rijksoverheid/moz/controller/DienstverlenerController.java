@@ -59,8 +59,16 @@ public class DienstverlenerController {
             description = "Geeft gegevens van gevraagde dienstverlener terug, inclusief de aangesloten diensten."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Dienstverlener succesvol opgehaald"),
-            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden")
+            @APIResponse(
+                    responseCode = "200",
+                    description = "Dienstverlener succesvol opgehaald",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstverlenerResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "404",
+                    description = "Dienstverlener niet gevonden",
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
+            )
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
 
@@ -68,7 +76,7 @@ public class DienstverlenerController {
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Dienstverlener niet gevonden");
         }
 
         DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
