@@ -30,6 +30,7 @@ import nl.rijksoverheid.moz.services.PartijService;
 import nl.rijksoverheid.moz.services.PartijService.AddContactgegevenResult;
 import nl.rijksoverheid.moz.services.PartijService.AddVoorkeurResult;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
@@ -129,8 +130,16 @@ public class ProfielController {
             description = "Haalt profielen op van meerdere partijen. Niet-gevonden partijen worden stilzwijgend weggelaten."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Alle profielen succesvol opgehaald"),
-            @APIResponse(responseCode = "206", description = "Profielen gedeeltelijk opgehaald"),
+            @APIResponse(
+                    responseCode = "200",
+                    description = "Alle profielen succesvol opgehaald",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(type = SchemaType.ARRAY, implementation = PartijResponse.class))
+            ),
+            @APIResponse(
+                    responseCode = "206",
+                    description = "Profielen gedeeltelijk opgehaald",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(type = SchemaType.ARRAY, implementation = PartijResponse.class))
+            ),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
             @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
     })
@@ -146,13 +155,12 @@ public class ProfielController {
                 .collect(Collectors.toSet());
 
         for (var identificatie : request.identificaties) {
-            if (!foundKeys.contains(identificatie.identificatieType + ":" + identificatie.identificatieNummer)) continue;
-
+            boolean found = foundKeys.contains(identificatie.identificatieType + ":" + identificatie.identificatieNummer);
             LogboekContext ctx = new LogboekContext();
             ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
             ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.identificatieNummer));
             ctx.setDataSubjectType(String.valueOf(identificatie.identificatieType));
-            ctx.setStatus(StatusCode.OK);
+            ctx.setStatus(found ? StatusCode.OK : StatusCode.UNSET);
             Span span = processingHandler.startSpan("getPartijBulk", Context.current());
             processingHandler.addLogboekContextToSpan(span, ctx);
             span.end();

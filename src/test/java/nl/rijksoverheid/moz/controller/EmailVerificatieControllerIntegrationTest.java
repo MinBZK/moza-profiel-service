@@ -14,7 +14,7 @@ import static io.restassured.RestAssured.given;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 @QuarkusTest
-public class EmailVerificatieControllerTest {
+public class EmailVerificatieControllerIntegrationTest extends OpenApiValidationTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;
@@ -30,6 +30,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
@@ -67,6 +68,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
@@ -85,6 +87,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
@@ -103,6 +106,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)

@@ -20,7 +20,7 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 
 @QuarkusTest
-public class DienstverlenerControllerTest {
+public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTest {
 
     @AfterEach
     @Transactional
@@ -43,6 +43,7 @@ public class DienstverlenerControllerTest {
         });
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
@@ -66,6 +67,7 @@ public class DienstverlenerControllerTest {
         });
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
@@ -77,6 +79,7 @@ public class DienstverlenerControllerTest {
     @Test
     void getDienstverlener_NotFound() {
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
@@ -89,6 +92,7 @@ public class DienstverlenerControllerTest {
         request.naam = "Test";
         request.beschrijving = "Test beschrijving";
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/dienstverlener")
@@ -119,6 +123,7 @@ public class DienstverlenerControllerTest {
         });
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")

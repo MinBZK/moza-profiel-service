@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,7 +33,7 @@ import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
 
 @QuarkusTest
-public class ProfielControllerTest {
+public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;
@@ -60,8 +59,8 @@ public class ProfielControllerTest {
     }
 
     private void assertSecondPostReturns200(String path, Object body, String expectedWaarde) {
-        given().contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
-        given().contentType(ContentType.JSON).body(body).post(path).then()
+        given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
+        given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then()
                 .statusCode(OK)
                 .body("waarde", org.hamcrest.Matchers.equalTo(expectedWaarde));
     }
@@ -85,6 +84,7 @@ public class ProfielControllerTest {
         request.identificatieNummer = "111111111";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .when()
@@ -128,7 +128,7 @@ public class ProfielControllerTest {
         request.identificatieType = KVK;
         request.identificatieNummer = "222222222";
 
-        given().contentType(ContentType.JSON)
+        given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
                 .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
@@ -144,7 +144,7 @@ public class ProfielControllerTest {
             voorkeurFirstTouch.set(vTs);
         });
 
-        given().contentType(ContentType.JSON)
+        given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
                 .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
@@ -181,7 +181,7 @@ public class ProfielControllerTest {
         request.identificatieType = KVK;
         request.identificatieNummer = "333333333";
 
-        given().contentType(ContentType.JSON)
+        given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
                 .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
@@ -199,6 +199,7 @@ public class ProfielControllerTest {
         request.identificatieNummer = "999999999";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .when()
@@ -229,6 +230,7 @@ public class ProfielControllerTest {
         request.identificaties = List.of(id1, id2);
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
@@ -256,6 +258,7 @@ public class ProfielControllerTest {
         request.identificaties = List.of(id1, id2);
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
@@ -274,6 +277,7 @@ public class ProfielControllerTest {
         request.identificaties = List.of(id);
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
@@ -310,6 +314,7 @@ public class ProfielControllerTest {
         body.waarde = "test@example.com";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .post("/api/profielservice/v1/contactgegeven")
@@ -362,6 +367,7 @@ public class ProfielControllerTest {
         body.waarde = "test2@example.com";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
@@ -408,6 +414,7 @@ public class ProfielControllerTest {
         body.waarde = "test2@example.com";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
@@ -435,6 +442,7 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111114";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/contactgegeven/" + contactGegevenId.get())
@@ -449,6 +457,7 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111114";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
@@ -465,6 +474,7 @@ public class ProfielControllerTest {
         body.waarde = "nl";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .post("/api/profielservice/v1/voorkeur")
@@ -516,6 +526,7 @@ public class ProfielControllerTest {
         body.waarde = "en";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
@@ -553,6 +564,7 @@ public class ProfielControllerTest {
         body.waarde = "en";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
@@ -598,6 +610,7 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111118";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
@@ -612,6 +625,7 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111119";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
