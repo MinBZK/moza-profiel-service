@@ -1,0 +1,329 @@
+{
+  "consumer": {
+    "name": "moza-profiel-service-self"
+  },
+  "provider": {
+    "name": "moza-profiel-service"
+  },
+  "interactions": [
+    {
+      "description": "getPartij - Partij gevonden voor BSN 111111111",
+      "providerStates": [
+        {
+          "name": "Partij bestaat voor BSN 111111111"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/profielservice/v1/partij",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "identificatieType": "BSN",
+          "identificatieNummer": "111111111"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "partijId": "00000000-0000-0000-0000-000000000001",
+          "identificaties": [
+            {
+              "identificatieType": "BSN",
+              "identificatieNummer": "111111111"
+            }
+          ],
+          "contactgegevens": [],
+          "voorkeuren": []
+        },
+        "matchingRules": {
+          "body": {
+            "$.partijId": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.identificaties": {
+              "matchers": [{"match": "type", "min": 1}],
+              "combine": "AND"
+            },
+            "$.contactgegevens": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.voorkeuren": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "getPartij - Partij niet gevonden voor BSN 999999999",
+      "providerStates": [
+        {
+          "name": "Geen Partij voor BSN 999999999"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/profielservice/v1/partij",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "identificatieType": "BSN",
+          "identificatieNummer": "999999999"
+        }
+      },
+      "response": {
+        "status": 404
+      }
+    },
+    {
+      "description": "addVoorkeur - Voorkeur aangemaakt voor nieuwe Partij",
+      "providerStates": [
+        {
+          "name": "Geen Partij voor BSN 111111111"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/profielservice/v1/voorkeur",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "identificatieType": "BSN",
+          "identificatieNummer": "111111111",
+          "voorkeurType": "WebsiteTaal",
+          "waarde": "nl"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Location": "/voorkeur"
+        },
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "voorkeurType": "WebsiteTaal",
+          "waarde": "nl"
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.voorkeurType": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.waarde": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          },
+          "header": {
+            "Location": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "addVoorkeur - Bestaande Voorkeur geeft 200 terug",
+      "providerStates": [
+        {
+          "name": "Partij met WebsiteTaal voorkeur voor BSN 111111111"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/profielservice/v1/voorkeur",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "identificatieType": "BSN",
+          "identificatieNummer": "111111111",
+          "voorkeurType": "WebsiteTaal",
+          "waarde": "en"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "voorkeurType": "WebsiteTaal",
+          "waarde": "en"
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.voorkeurType": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "addContactgegeven - Contactgegeven aangemaakt voor nieuwe Partij",
+      "providerStates": [
+        {
+          "name": "Geen Partij voor BSN 222222222"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/profielservice/v1/contactgegeven",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "identificatieType": "BSN",
+          "identificatieNummer": "222222222",
+          "type": "Email",
+          "waarde": "test@example.com"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Location": "/contactgegeven"
+        },
+        "body": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "type": "Email",
+          "waarde": "test@example.com"
+        },
+        "matchingRules": {
+          "body": {
+            "$.id": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.type": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          },
+          "header": {
+            "Location": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "getPartijBulk - Gedeeltelijk gevonden geeft 206 terug",
+      "providerStates": [
+        {
+          "name": "Partij bestaat voor BSN 111111111 maar niet voor BSN 999999999"
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "path": "/api/profielservice/v1/partijen/bulk",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "identificaties": [
+            {
+              "identificatieType": "BSN",
+              "identificatieNummer": "111111111"
+            },
+            {
+              "identificatieType": "BSN",
+              "identificatieNummer": "999999999"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 206,
+        "body": [
+          {
+            "partijId": "00000000-0000-0000-0000-000000000001"
+          }
+        ],
+        "matchingRules": {
+          "body": {
+            "$": {
+              "matchers": [{"match": "type", "min": 1}],
+              "combine": "AND"
+            },
+            "$[0].partijId": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "getDienstverlener - Dienstverlener gevonden",
+      "providerStates": [
+        {
+          "name": "Dienstverlener TestDV bestaat"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/profielservice/v1/dienstverlener/TestDV"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "naam": "TestDV"
+        },
+        "matchingRules": {
+          "body": {
+            "$.naam": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "getDienstverlener - Dienstverlener niet gevonden",
+      "providerStates": [
+        {
+          "name": "Geen Dienstverlener bestaat"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/profielservice/v1/dienstverlener/Onbekend"
+      },
+      "response": {
+        "status": 404
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "3.0.0"
+    }
+  }
+}
