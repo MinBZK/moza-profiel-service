@@ -9,11 +9,8 @@ import java.util.Objects;
  */
 public class AuthorizationException extends RuntimeException {
 
-    private final String detail;
-
     public AuthorizationException(@NotNull String detail) {
         super(Objects.requireNonNull(detail, "detail"));
-        this.detail = detail;
     }
 
     public String getTitle() {
@@ -21,6 +18,6 @@ public class AuthorizationException extends RuntimeException {
     }
 
     public String getDetail() {
-        return detail;
+        return getMessage();
     }
 }

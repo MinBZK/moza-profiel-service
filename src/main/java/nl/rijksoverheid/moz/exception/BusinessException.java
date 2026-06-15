@@ -22,12 +22,10 @@ public class BusinessException extends RuntimeException {
     }
 
     private final Kind kind;
-    private final String detail;
 
     public BusinessException(@NotNull Kind kind, @NotNull String detail) {
         super(Objects.requireNonNull(detail, "detail"));
-        this.kind = kind;
-        this.detail = detail;
+        this.kind = Objects.requireNonNull(kind, "kind");
     }
 
     public Kind getKind() {
@@ -39,6 +37,6 @@ public class BusinessException extends RuntimeException {
     }
 
     public String getDetail() {
-        return detail;
+        return getMessage();
     }
 }
