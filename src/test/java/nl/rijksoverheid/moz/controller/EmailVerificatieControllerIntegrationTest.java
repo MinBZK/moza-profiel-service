@@ -18,7 +18,7 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.SERVICE_UNAVAILABLE;
 
 @QuarkusTest
-public class EmailVerificatieControllerTest {
+public class EmailVerificatieControllerIntegrationTest extends OpenApiValidationTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;
@@ -34,6 +34,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
@@ -71,6 +72,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
@@ -89,6 +91,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)
@@ -109,6 +112,7 @@ public class EmailVerificatieControllerTest {
         body.identificatieType = IdentificatieType.BSN;
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .when()
                 .body(body)

@@ -46,7 +46,7 @@ public class DienstverlenerController {
             description = "Geeft gegevens van gevraagde Dienstverlener terug"
     )
     @APIResponses({
-            @APIResponse(responseCode = "201", description = "Dienstverlener succesvol opgehaald"),
+            @APIResponse(responseCode = "200", description = "Dienstverlener succesvol opgehaald"),
             @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden",
                     content = @Content(mediaType = "application/problem+json"))
     })

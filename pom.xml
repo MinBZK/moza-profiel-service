@@ -26,6 +26,13 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Pin swagger-parser to the version required by quarkus-openapi-generator (2.16.0-lts needs 2.1.40).
+                 The Atlassian swagger-request-validator brings in 2.1.22 which is too old and lacks setResolveResponses. -->
+            <dependency>
+                <groupId>io.swagger.parser.v3</groupId>
+                <artifactId>swagger-parser</artifactId>
+                <version>2.1.40</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -170,6 +177,20 @@
             <version>1.6.1</version>
         </dependency>
 
+        <!-- Contract testing -->
+        <dependency>
+            <groupId>com.atlassian.oai</groupId>
+            <artifactId>swagger-request-validator-restassured</artifactId>
+            <version>2.44.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>au.com.dius.pact.provider</groupId>
+            <artifactId>junit5</artifactId>
+            <version>4.6.18</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-logging-json</artifactId>
@@ -217,6 +238,9 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire-plugin.version}</version>
                 <configuration>
+                    <!-- Explicit working directory anchors @PactFolder relative paths to the module root,
+                         regardless of where Maven was invoked (parent build, IDE, etc.). -->
+                    <workingDirectory>${project.basedir}</workingDirectory>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
