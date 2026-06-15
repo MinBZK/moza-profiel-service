@@ -60,8 +60,8 @@ public class EmailVerificatieController {
             throw Problems.notFound("Partij of contactgegeven niet gevonden",
                     "Geen partij of contactgegeven gevonden voor het opgegeven identificatienummer.");
         } else {
-            LOG.warn("NotifyNL API onbereikbaar");
-            throw Problems.serviceUnavailable("Service Unavailable", "NotifyNL API is tijdelijk onbereikbaar.");
+            LOG.warn("Versturen van verificatie code is mislukt");
+            throw Problems.serviceUnavailable("Service Unavailable", "Versturen van verificatie code is mislukt.");
         }
     }
 

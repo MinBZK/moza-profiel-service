@@ -313,6 +313,17 @@ public class ProfielControllerTest {
                 .statusCode(BAD_REQUEST);
     }
 
+    @Test
+    void getPartij_InvalidRequestBody_Returns400() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .when()
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(BAD_REQUEST);
+    }
+
 
     @Test
     void getPartijBulk_BadRequest() {
