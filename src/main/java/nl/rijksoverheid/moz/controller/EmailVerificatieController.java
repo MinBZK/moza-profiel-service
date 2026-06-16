@@ -3,7 +3,6 @@ package nl.rijksoverheid.moz.controller;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.InternalServerErrorException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -11,11 +10,10 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.dto.response.ErrorResponse;
+import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
-import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -42,17 +40,12 @@ public class EmailVerificatieController {
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Email verificatie code aanvraag succesvol"),
-            @APIResponse(
-                    responseCode = "400",
-                    description = "Invalid request format",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden"),
-            @APIResponse(
-                    responseCode = "500",
-                    description = "Internal server error",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
-            ),
+            @APIResponse(responseCode = "400", description = "Invalid request format",
+                    content = @Content(mediaType = "application/problem+json")),
+            @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden",
+                    content = @Content(mediaType = "application/problem+json")),
+            @APIResponse(responseCode = "500", description = "Internal server error",
+                    content = @Content(mediaType = "application/problem+json")),
             @APIResponse(responseCode = "503", description = "NotifyNL API onbereikbaar")
     })
     public Response postEmailVerificatieCodeAanvraag(EmailVerificatieCodeAanvraagRequest aanvraag) {
@@ -64,10 +57,11 @@ public class EmailVerificatieController {
         }
         else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
             LOG.warn("Partij of Contactgegeven niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Partij of contactgegeven niet gevonden",
+                    "Geen partij of contactgegeven gevonden voor het opgegeven identificatienummer.");
         } else {
-            LOG.warn("NotifyNL API onbereikbaar");
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+            LOG.warn("Versturen van verificatie code is mislukt");
+            throw Problems.serviceUnavailable("Service Unavailable", "Versturen van verificatie code is mislukt.");
         }
     }
 
@@ -75,11 +69,8 @@ public class EmailVerificatieController {
     @Path("/emailverificatie")
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Email verificatie succesvol"),
-            @APIResponse(
-                    responseCode = "400",
-                    description = "Email verificatie mislukt",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))
-            )
+            @APIResponse(responseCode = "400", description = "Email verificatie mislukt",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     public Response postEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
@@ -89,7 +80,7 @@ public class EmailVerificatieController {
             return Response.ok().build();
         } else {
             LOG.warn("Email verificatie mislukt");
-            return Response.status(Response.Status.BAD_REQUEST).build();
+            throw Problems.badRequest("Email verificatie mislukt", "De opgegeven verificatiecode is ongeldig of verlopen.");
         }
     }
 }

@@ -24,7 +24,9 @@ import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
+import io.quarkiverse.httpproblem.HttpProblem;
 import nl.rijksoverheid.moz.helper.HashHelper;
+import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import nl.rijksoverheid.moz.services.PartijService;
 import nl.rijksoverheid.moz.services.PartijService.AddContactgegevenResult;
@@ -98,13 +100,14 @@ public class ProfielController {
             ),
             @APIResponse(
                     responseCode = "404",
-                    description = "Partij niet gevonden of is verwijderd"
+                    description = "Partij niet gevonden of is verwijderd",
+                    content = @Content(mediaType = "application/problem+json")
             )
     })
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartij(@Valid PartijRequest request) {
 
-        if (request == null) return missingBody("getPartij");
+        if (request == null) throw missingBody("getPartij");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -114,7 +117,7 @@ public class ProfielController {
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Partij niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Partij niet gevonden", "Geen partij gevonden voor het opgegeven identificatienummer.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -141,11 +144,12 @@ public class ProfielController {
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(type = SchemaType.ARRAY, implementation = PartijResponse.class))
             ),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden")
+            @APIResponse(responseCode = "404", description = "Geen enkel profiel gevonden",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
-        if (request == null) return missingBody("getPartijBulk");
+        if (request == null) throw missingBody("getPartijBulk");
 
         List<PartijResponse> results = partijService.getPartijResponseBulk(request.identificaties);
 
@@ -168,7 +172,7 @@ public class ProfielController {
 
         if (results.isEmpty()) {
             LOG.warn("Geen partijen gevonden in bulk request");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Partijen niet gevonden", "Geen partijen gevonden voor de opgegeven identificaties.");
         }
 
         if (results.size() < request.identificaties.size()) {
@@ -212,7 +216,7 @@ public class ProfielController {
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
     public Response addContactgegeven(@Valid ContactgegevenRequest request) {
 
-        if (request == null) return missingBody("addContactgegeven");
+        if (request == null) throw missingBody("addContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -247,12 +251,13 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
     public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
 
-        if (request == null) return missingBody("updateContactgegeven");
+        if (request == null) throw missingBody("updateContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -262,7 +267,7 @@ public class ProfielController {
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -282,14 +287,15 @@ public class ProfielController {
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
-            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Contactgegeven of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
     public Response deleteContactgegeven(
             @PathParam("contactgegevenId") UUID contactgegevenId,
             @Valid PartijIdentificatieRequest request) {
 
-        if (request == null) return missingBody("deleteContactgegeven");
+        if (request == null) throw missingBody("deleteContactgegeven");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -299,7 +305,7 @@ public class ProfielController {
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor verwijdering");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -339,7 +345,7 @@ public class ProfielController {
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
     public Response addVoorkeur(@Valid VoorkeurRequest request) {
 
-        if (request == null) return missingBody("addVoorkeur");
+        if (request == null) throw missingBody("addVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -378,12 +384,13 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),
             @APIResponse(responseCode = "400", description = "Request body mag niet leeg zijn"),
-            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
     public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
 
-        if (request == null) return missingBody("updateVoorkeur");
+        if (request == null) throw missingBody("updateVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -393,7 +400,7 @@ public class ProfielController {
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -413,14 +420,15 @@ public class ProfielController {
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
-            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden")
+            @APIResponse(responseCode = "404", description = "Voorkeur of partij niet gevonden",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
     public Response deleteVoorkeur(
             @PathParam("voorkeurId") UUID voorkeurId,
             @Valid PartijIdentificatieRequest request) {
 
-        if (request == null) return missingBody("deleteVoorkeur");
+        if (request == null) throw missingBody("deleteVoorkeur");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -430,7 +438,7 @@ public class ProfielController {
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -453,7 +461,7 @@ public class ProfielController {
     })
     @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
     public Response updateVoorkeurTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
-        if (request == null) return missingBody("updateVoorkeurTeVerwijderenOp");
+        if (request == null) throw missingBody("updateVoorkeurTeVerwijderenOp");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -487,7 +495,7 @@ public class ProfielController {
     @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
     public Response updateContactgegevenTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
 
-        if (request == null) return missingBody("updateContactgegevenTeVerwijderenOp");
+        if (request == null) throw missingBody("updateContactgegevenTeVerwijderenOp");
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
@@ -505,11 +513,11 @@ public class ProfielController {
         return Response.ok().build();
     }
 
-    private Response missingBody(String methode) {
+    private HttpProblem missingBody(String methode) {
         logboekContext.setDataSubjectId("ONBEKEND");
         logboekContext.setDataSubjectType("ONBEKEND");
         logboekContext.setStatus(StatusCode.ERROR);
         LOG.warn("Request body mag niet leeg zijn bij " + methode);
-        return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+        return Problems.missingBody();
     }
 }

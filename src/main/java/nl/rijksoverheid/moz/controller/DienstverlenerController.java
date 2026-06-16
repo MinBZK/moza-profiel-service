@@ -16,8 +16,10 @@ import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -45,15 +47,15 @@ public class DienstverlenerController {
     )
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Dienstverlener succesvol opgehaald"),
-            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden")
+            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden",
+                    content = @Content(mediaType = "application/problem+json"))
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
-
         Dienstverlener dv = dienstverlenerService.getDienstverlener(naam);
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Dienstverlener niet gevonden", "Geen dienstverlener gevonden met de opgegeven naam.");
         }
 
         DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
@@ -76,7 +78,7 @@ public class DienstverlenerController {
             @Valid DienstverlenerRequest dienstverlenerRequest) {
         if (dienstverlenerRequest == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+            throw Problems.missingBody();
         }
         dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
@@ -101,7 +103,7 @@ public class DienstverlenerController {
     ) {
         if (request == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
-            return Response.status(Response.Status.BAD_REQUEST).entity("Request body mag niet leeg zijn").build();
+            throw Problems.missingBody();
         }
         dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");

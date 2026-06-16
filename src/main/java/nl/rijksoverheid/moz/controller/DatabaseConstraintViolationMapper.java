@@ -1,9 +1,9 @@
 package nl.rijksoverheid.moz.controller;
 
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+import nl.rijksoverheid.moz.helper.Problems;
 import org.hibernate.exception.ConstraintViolationException;
 import org.jboss.logging.Logger;
 
@@ -22,9 +22,9 @@ public class DatabaseConstraintViolationMapper implements ExceptionMapper<Constr
     public Response toResponse(ConstraintViolationException exception) {
         String constraintName = exception.getConstraintName();
         LOG.warnf("Database constraint violation: %s", constraintName != null ? constraintName : "<unknown>");
-        return Response.status(Response.Status.CONFLICT)
-                .type(MediaType.TEXT_PLAIN)
-                .entity("Resource bestaat al of conflicteert met een unique constraint")
-                .build();
+        return Problems.problemResponse(
+                Response.Status.CONFLICT,
+                Response.Status.CONFLICT.getReasonPhrase(),
+                "Resource bestaat al of conflicteert met een unique constraint");
     }
 }
