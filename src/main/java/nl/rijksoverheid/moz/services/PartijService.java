@@ -4,9 +4,9 @@ import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.exception.AuthorizationException;
 import nl.rijksoverheid.moz.exception.BusinessException;
+import nl.rijksoverheid.moz.exception.BusinessException.Kind;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
@@ -183,14 +183,14 @@ public class PartijService {
         if (requested == null) return;
 
         if (!requested.isAfter(Instant.now())) {
-            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "teVerwijderenOp moet in de toekomst liggen");
+            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp moet in de toekomst liggen");
         }
 
         Instant referenceDate = lastUsedAt != null ? lastUsedAt : createdAt;
         Instant maxDate = referenceDate.atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).toInstant();
 
         if (requested.isAfter(maxDate)) {
-            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen");
+            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen");
         }
 
         setter.accept(requested);
@@ -203,7 +203,7 @@ public class PartijService {
 
         if (scope.dienstverlenerNaam == null) {
             if (scope.dienstNaam != null) {
-                throw HttpProblem.valueOf(Response.Status.BAD_REQUEST,
+                throw new BusinessException(Kind.BAD_REQUEST,
                         "dienstNaam zonder dienstverlenerNaam is ongeldig");
             }
             return null;
@@ -211,7 +211,7 @@ public class PartijService {
 
         Dienstverlener dienstverlener = dienstverlenerService.getDienstverlener(scope.dienstverlenerNaam);
         if (dienstverlener == null) {
-            throw HttpProblem.valueOf(Response.Status.NOT_FOUND,
+            throw new BusinessException(Kind.NOT_FOUND,
                     "Dienstverlener bestaat niet");
         }
 
@@ -225,7 +225,7 @@ public class PartijService {
         ).firstResult();
 
         if (link == null) {
-            throw HttpProblem.valueOf(Response.Status.NOT_FOUND,
+            throw new BusinessException(Kind.NOT_FOUND,
                     "Dienst bestaat niet voor deze dienstverlener");
         }
 
@@ -275,7 +275,7 @@ public class PartijService {
                 || !Objects.equals(oldWaarde, newWaarde);
 
         if (valueChanged && newWaarde != null && existingDuplicateExists(partij, request.type, newWaarde, contact.id)) {
-            throw HttpProblem.valueOf(Response.Status.CONFLICT,
+            throw new BusinessException(Kind.CONFLICT,
                     "Combinatie (type, waarde) bestaat al voor deze partij");
         }
 
@@ -354,7 +354,7 @@ public class PartijService {
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
         Voorkeur collision = findExistingVoorkeur(partij, request.voorkeurType, targetLink);
         if (collision != null && !collision.id.equals(voorkeur.id)) {
-            throw HttpProblem.valueOf(Response.Status.CONFLICT,
+            throw new BusinessException(Kind.CONFLICT,
                     "Andere voorkeur bestaat al voor deze partij + type + scope");
         }
 
@@ -465,7 +465,7 @@ public class PartijService {
         });
 
         if (!authorized) {
-            throw HttpProblem.valueOf(Response.Status.FORBIDDEN, message);
+            throw new AuthorizationException(message);
         }
     }
 

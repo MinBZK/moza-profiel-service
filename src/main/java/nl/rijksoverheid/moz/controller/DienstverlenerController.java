@@ -23,14 +23,11 @@ import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.filter.RequireBody;
-import nl.rijksoverheid.moz.services.DienstverlenerService;
-import org.eclipse.microprofile.openapi.annotations.Operation;
-import org.eclipse.microprofile.openapi.annotations.media.Content;
-import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -118,7 +115,7 @@ public class DienstverlenerController {
             LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
             throw Problems.missingBody();
         }
-        dienstverlenerService.addDienstverlener(dienstverlenerRequest);
+        Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
@@ -161,7 +158,7 @@ public class DienstverlenerController {
             LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
             throw Problems.missingBody();
         }
-        dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
+        Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
                 .path("dienstverlener").path("{dienstverlenerNaam}").path("diensten").path("{id}")

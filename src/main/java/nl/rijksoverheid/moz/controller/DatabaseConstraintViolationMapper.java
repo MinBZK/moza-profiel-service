@@ -1,6 +1,5 @@
 package nl.rijksoverheid.moz.controller;
 
-import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
@@ -13,7 +12,7 @@ import org.jboss.logging.Logger;
  * to HTTP 409. Application pre-checks try to avoid these, but concurrent writes can still race
  * past the pre-check and land here at flush time. quarkus-http-problem's default mapper would
  * treat this Hibernate exception as a 500, so this mapper keeps the 409 semantics and emits the
- * standard RFC 9457 application/problem+json body via {@link HttpProblem}.
+ * standard RFC 9457 application/problem+json body via {@link Problems#problemResponse}.
  */
 @Provider
 public class DatabaseConstraintViolationMapper implements ExceptionMapper<ConstraintViolationException> {

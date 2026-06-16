@@ -2,9 +2,8 @@ package nl.rijksoverheid.moz.services;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.exception.BusinessException;
+import nl.rijksoverheid.moz.exception.BusinessException.Kind;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Dienst;
@@ -42,7 +41,7 @@ public class DienstverlenerService {
             dienst.persist();
         } else if (request.beschrijving != null
                 && !Objects.equals(dienst.getBeschrijving(), request.beschrijving)) {
-            throw HttpProblem.valueOf(Response.Status.CONFLICT,
+            throw new BusinessException(Kind.CONFLICT,
                     "Dienst bestaat al met een andere beschrijving. Laat 'beschrijving' weg of stuur dezelfde waarde.");
         }
 

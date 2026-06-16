@@ -36,7 +36,6 @@ import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
 import nl.rijksoverheid.moz.filter.RequireBody;
-import io.quarkiverse.httpproblem.HttpProblem;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
@@ -133,7 +132,7 @@ public class ProfielController {
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Partij niet gevonden");
-            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Partij niet gevonden");
+            throw Problems.notFound("Partij niet gevonden", "Geen partij gevonden voor het opgegeven identificatienummer.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -190,7 +189,7 @@ public class ProfielController {
 
         if (results.isEmpty()) {
             LOG.warn("Geen partijen gevonden in bulk request");
-            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Geen enkel profiel gevonden");
+            throw Problems.notFound("Partijen niet gevonden", "Geen van de opgegeven partijen is gevonden.");
         }
 
         if (results.size() < request.identificaties.size()) {
