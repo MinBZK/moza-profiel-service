@@ -5,19 +5,11 @@ import java.util.Objects;
 
 public class TechnicalException extends RuntimeException {
 
-    public TechnicalException(@NotNull String detail) {
-        super(Objects.requireNonNull(detail, "detail"));
-    }
-
-    public TechnicalException(@NotNull String detail, Throwable cause) {
-        super(Objects.requireNonNull(detail, "detail"), cause);
+    public TechnicalException(@NotNull String message, Throwable cause) {
+        super(Objects.requireNonNull(message, "message"), cause);
     }
 
     public String getTitle() {
         return "Internal Server Error";
-    }
-
-    public String getDetail() {
-        return getMessage();
     }
 }

@@ -19,23 +19,23 @@ public class DomainExceptionMapper {
             case CONFLICT -> Response.Status.CONFLICT;
             case BAD_REQUEST -> Response.Status.BAD_REQUEST;
         };
-        LOG.warn("BusinessException: " + e.getDetail());
+        LOG.warn("BusinessException: " + e.getMessage());
 
-        return Problems.problemResponse(status, e.getTitle(), e.getDetail());
+        return Problems.problemResponse(status, e.getTitle(), e.getMessage());
     }
 
     @ServerExceptionMapper
     public Response mapTechnicalException(TechnicalException e) {
-        LOG.error("TechnicalException: " + e.getDetail(), e);
+        LOG.error("TechnicalException: " + e.getMessage(), e);
 
-        return Problems.problemResponse(Response.Status.INTERNAL_SERVER_ERROR, e.getTitle(), e.getDetail());
+        return Problems.problemResponse(Response.Status.INTERNAL_SERVER_ERROR, e.getTitle(), e.getMessage());
     }
 
     @ServerExceptionMapper
     public Response mapAuthorizationException(AuthorizationException e) {
-        LOG.warn("AuthorizationException: " + e.getDetail());
+        LOG.warn("AuthorizationException: " + e.getMessage());
 
-        return Problems.problemResponse(Response.Status.FORBIDDEN, e.getTitle(), e.getDetail());
+        return Problems.problemResponse(Response.Status.FORBIDDEN, e.getTitle(), e.getMessage());
     }
 
     @ServerExceptionMapper

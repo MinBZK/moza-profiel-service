@@ -9,15 +9,11 @@ import java.util.Objects;
  */
 public class AuthorizationException extends RuntimeException {
 
-    public AuthorizationException(@NotNull String detail) {
-        super(Objects.requireNonNull(detail, "detail"));
+    public AuthorizationException(@NotNull String message) {
+        super(Objects.requireNonNull(message, "message"));
     }
 
     public String getTitle() {
         return "Forbidden";
-    }
-
-    public String getDetail() {
-        return getMessage();
     }
 }

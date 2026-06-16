@@ -52,7 +52,7 @@ class DomainExceptionMapperTest {
 
     @Test
     void mapTechnicalException_Returns500() {
-        TechnicalException exception = new TechnicalException("Interne fout bij verwerken");
+        TechnicalException exception = new TechnicalException("Interne fout bij verwerken", new RuntimeException());
 
         Response response = mapper.mapTechnicalException(exception);
 
