@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
@@ -138,7 +139,7 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", endsWith("/dienstverlener/Test"));
+                .header("Location", containsString("/dienstverlener/Test/diensten/"));
     }
 
     @Test

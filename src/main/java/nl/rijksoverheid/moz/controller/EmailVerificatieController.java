@@ -14,6 +14,7 @@ import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.filter.RequireBody;
+import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -75,7 +76,9 @@ public class EmailVerificatieController {
         }
         else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
             LOG.warn("Partij of Contactgegeven niet gevonden");
-            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Partij of Contactgegeven niet gevonden");
+            throw Problems.notFound(
+                    "Partij of contactgegeven niet gevonden",
+                    "Geen partij of contactgegeven gevonden voor de opgegeven gegevens.");
         } else {
             LOG.warn("NotifyNL API onbereikbaar");
             throw HttpProblem.builder()
