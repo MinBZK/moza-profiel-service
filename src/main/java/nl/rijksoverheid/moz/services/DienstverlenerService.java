@@ -4,6 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Dienst;

@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.services;
 
+import nl.rijksoverheid.moz.exception.BusinessException;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -593,10 +594,10 @@ public class PartijServiceTest {
         request.scope = new ScopeRequest();
         request.scope.dienstNaam = "TestDienst";
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.getStatusCode());
+        Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
     }
 
     @Test
@@ -629,10 +630,10 @@ public class PartijServiceTest {
         request.scope.dienstverlenerNaam = "DV-A";
         request.scope.dienstNaam = "B-Vergunning";
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(404, ex.getStatusCode());
+        Assertions.assertEquals(BusinessException.Kind.NOT_FOUND, ex.getKind());
     }
 
     @Test
@@ -807,10 +808,10 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "a@test.com";
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(409, ex.getStatusCode());
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 
     @Test
@@ -862,10 +863,10 @@ public class PartijServiceTest {
         request.waarde = "nl";
         request.teVerwijderenOp = Instant.now().minus(Duration.ofDays(1));
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
                 () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.toResponse().getStatus());
+        Assertions.assertEquals(400, ex.getResponse().getStatus());
     }
 
     @Test
@@ -877,10 +878,10 @@ public class PartijServiceTest {
         request.waarde = "nl";
         request.teVerwijderenOp = beyondMax;
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
                 () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(400, ex.toResponse().getStatus());
+        Assertions.assertEquals(400, ex.getResponse().getStatus());
     }
 
     @Test
@@ -1035,10 +1036,10 @@ public class PartijServiceTest {
         request.dienstverlenerNaam = "OnbekendeDV";
         request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
                 () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
-        Assertions.assertEquals(403, ex.toResponse().getStatus());
+        Assertions.assertEquals(403, ex.getResponse().getStatus());
     }
 
     @Test
@@ -1097,10 +1098,10 @@ public class PartijServiceTest {
         request.dienstNaam = "AndereDienst";
         request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        io.quarkiverse.httpproblem.HttpProblem ex = Assertions.assertThrows(
-                io.quarkiverse.httpproblem.HttpProblem.class,
+        jakarta.ws.rs.WebApplicationException ex = Assertions.assertThrows(
+                jakarta.ws.rs.WebApplicationException.class,
                 () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
-        Assertions.assertEquals(403, ex.toResponse().getStatus());
+        Assertions.assertEquals(403, ex.getResponse().getStatus());
     }
 
     @Test

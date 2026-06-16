@@ -27,6 +27,10 @@ import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import nl.rijksoverheid.moz.helper.Problems;
+import nl.rijksoverheid.moz.services.DienstverlenerService;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -71,12 +75,11 @@ public class DienstverlenerController {
             )
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
-
         Dienstverlener dv = dienstverlenerService.getDienstverlener(naam);
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
-            throw HttpProblem.valueOf(Response.Status.NOT_FOUND, "Dienstverlener niet gevonden");
+            throw Problems.notFound("Dienstverlener niet gevonden", "Geen dienstverlener gevonden met de opgegeven naam.");
         }
 
         DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
@@ -109,8 +112,13 @@ public class DienstverlenerController {
                     content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
-    public Response addDienstverlener(@Valid DienstverlenerRequest dienstverlenerRequest) {
-        Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
+    public Response addDienstverlener(
+            @Valid DienstverlenerRequest dienstverlenerRequest) {
+        if (dienstverlenerRequest == null) {
+            LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
+            throw Problems.missingBody();
+        }
+        dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
@@ -149,7 +157,11 @@ public class DienstverlenerController {
             @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
             @Valid DienstRequest request
     ) {
-        Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
+        if (request == null) {
+            LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
+            throw Problems.missingBody();
+        }
+        dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
                 .path("dienstverlener").path("{dienstverlenerNaam}").path("diensten").path("{id}")

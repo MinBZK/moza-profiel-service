@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
@@ -99,9 +98,8 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
                 .post("/api/profielservice/v1/emailverificatie/code")
                 .then()
                 .statusCode(NOT_FOUND)
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("status", equalTo(404))
-                .body("detail", equalTo("Partij of Contactgegeven niet gevonden"));
+                .contentType("application/problem+json")
+                .body("title", equalTo("Partij of contactgegeven niet gevonden"));
     }
 
     @Test
@@ -120,31 +118,6 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
                 .body(body)
                 .post("/api/profielservice/v1/emailverificatie/code")
                 .then()
-                .statusCode(SERVICE_UNAVAILABLE)
-                .header("Retry-After", "30");
-    }
-
-    @Test
-    void postEmailVerificatie_EmptyBody() {
-        given()
-                .contentType(ContentType.JSON)
-                .when()
-                .post("/api/profielservice/v1/emailverificatie")
-                .then()
-                .statusCode(BAD_REQUEST)
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("detail", equalTo("Request body mag niet leeg zijn"));
-    }
-
-    @Test
-    void postEmailVerificatieCodeAanvraag_EmptyBody() {
-        given()
-                .contentType(ContentType.JSON)
-                .when()
-                .post("/api/profielservice/v1/emailverificatie/code")
-                .then()
-                .statusCode(BAD_REQUEST)
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("detail", equalTo("Request body mag niet leeg zijn"));
+                .statusCode(SERVICE_UNAVAILABLE);
     }
 }

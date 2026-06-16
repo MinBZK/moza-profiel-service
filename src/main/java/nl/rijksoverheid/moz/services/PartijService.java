@@ -6,6 +6,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;

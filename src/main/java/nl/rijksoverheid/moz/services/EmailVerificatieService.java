@@ -6,6 +6,7 @@ import jakarta.transaction.Transactional;
 import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;

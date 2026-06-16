@@ -12,6 +12,7 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
+import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -38,12 +39,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 @QuarkusTest
@@ -220,9 +221,11 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/partij")
                 .then()
                 .statusCode(NOT_FOUND)
-                .header("Content-Type", containsString("application/problem+json"))
+                .contentType("application/problem+json")
+                .body("title", equalTo("Partij niet gevonden"))
                 .body("status", equalTo(404))
-                .body("detail", equalTo("Partij niet gevonden"));
+                .body("detail", equalTo("Geen partij gevonden voor het opgegeven identificatienummer."))
+                .body("instance", equalTo("/api/profielservice/v1/partij"));
     }
 
     @Test
@@ -300,9 +303,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
                 .statusCode(NOT_FOUND)  // none found → 404
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("status", equalTo(404))
-                .body("detail", equalTo("Geen enkel profiel gevonden"));
+                .contentType("application/problem+json")
+                .body("title", equalTo("Partijen niet gevonden"));
     }
 
     @Test
@@ -312,10 +314,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .when()
                 .post("/api/profielservice/v1/partij")
                 .then()
-                .statusCode(BAD_REQUEST)
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("status", equalTo(400))
-                .body("detail", equalTo("Request body mag niet leeg zijn"));
+                .statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -343,7 +342,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", containsString("/api/profielservice/v1/contactgegeven/"))
+                .header("Location", endsWith("/contactgegeven"))
                 .body("waarde", equalTo("test@example.com"));
     }
 
@@ -365,6 +364,46 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void addContactgegeven_UnknownDienstverlenerInScope_Returns404() {
+        var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
+        body.type = ContactType.Email;
+        body.waarde = "test@example.com";
+        body.scope = new ScopeRequest();
+        body.scope.dienstverlenerNaam = "BestaatNiet";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Not Found"));
+    }
+
+    @Test
+    void addContactgegeven_DienstNaamWithoutDienstverlenerNaam_Returns400() {
+        var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
+        body.type = ContactType.Email;
+        body.waarde = "test@example.com";
+        body.scope = new ScopeRequest();
+        body.scope.dienstNaam = "SomeDienst";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Bad Request"));
     }
 
     @Test
@@ -442,7 +481,9 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Contactgegeven niet gevonden"));
     }
 
     @Test
@@ -485,7 +526,9 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(body)
                 .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Contactgegeven niet gevonden"));
     }
 
     @Test
@@ -503,7 +546,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", containsString("/api/profielservice/v1/voorkeur/"));
+                .header("Location", endsWith("/voorkeur"));
     }
 
     @Test
@@ -592,7 +635,9 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Voorkeur niet gevonden"));
     }
 
     @Test
@@ -653,6 +698,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(body)
                 .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Voorkeur niet gevonden"));
     }
 }

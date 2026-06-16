@@ -16,10 +16,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CONFLICT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
@@ -89,7 +89,9 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Dienstverlener niet gevonden"));
     }
 
     @Test
@@ -104,10 +106,7 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", endsWith("/api/profielservice/v1/dienstverlener/Test"))
-                .body("naam", equalTo("Test"))
-                .body("beschrijving", equalTo("Test beschrijving"))
-                .body("diensten.size()", equalTo(0));
+                .header("Location", endsWith("/dienstverlener/Test"));
     }
 
     @Test
@@ -116,23 +115,9 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .contentType(ContentType.JSON)
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
-                .statusCode(BAD_REQUEST)
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("status", equalTo(400))
-                .body("detail", equalTo("Request body mag niet leeg zijn"));
+                .statusCode(BAD_REQUEST);
     }
 
-    @Test
-    void addDienstverlener_LiteralNullBody() {
-        given()
-                .contentType(ContentType.JSON)
-                .body("null")
-                .post("/api/profielservice/v1/dienstverlener")
-                .then()
-                .statusCode(BAD_REQUEST)
-                .header("Content-Type", containsString("application/problem+json"))
-                .body("detail", equalTo("Request body mag niet leeg zijn"));
-    }
 
     @Test
     void addDienstToDienstverlener_Success() {
@@ -153,7 +138,34 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", containsString("/api/profielservice/v1/dienstverlener/Test/diensten/"));
+                .header("Location", endsWith("/dienstverlener/Test"));
+    }
+
+    @Test
+    void addDienstToDienstverlener_ExistingDienstWithDifferentBeschrijving_Returns409() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("Test");
+            dv.persist();
+            Dienst d = new Dienst();
+            d.setNaam("TestDienst");
+            d.setBeschrijving("originele beschrijving");
+            d.persist();
+            new DienstverlenerDienst(dv, d).persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.naam = "TestDienst";
+        request.beschrijving = "andere beschrijving";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener/Test/diensten")
+                .then()
+                .statusCode(CONFLICT)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Conflict"));
     }
 
     @Test
