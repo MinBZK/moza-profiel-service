@@ -12,9 +12,18 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
+import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.entity.*;
+import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
+import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
+import nl.rijksoverheid.moz.entity.Identificatie;
+import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
+import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -23,7 +32,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,10 +39,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 @QuarkusTest
-public class ProfielControllerTest {
+public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;
@@ -60,10 +74,10 @@ public class ProfielControllerTest {
     }
 
     private void assertSecondPostReturns200(String path, Object body, String expectedWaarde) {
-        given().contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
-        given().contentType(ContentType.JSON).body(body).post(path).then()
+        given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
+        given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then()
                 .statusCode(OK)
-                .body("waarde", org.hamcrest.Matchers.equalTo(expectedWaarde));
+                .body("waarde", equalTo(expectedWaarde));
     }
 
     @Test
@@ -85,16 +99,17 @@ public class ProfielControllerTest {
         request.identificatieNummer = "111111111";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .when()
                 .post("/api/profielservice/v1/partij")
                 .then()
                 .statusCode(OK)
-                .body("identificaties[0].identificatieType", org.hamcrest.Matchers.equalTo("KVK"))
-                .body("identificaties[0].identificatieNummer", org.hamcrest.Matchers.equalTo("111111111"))
-                .body("contactgegevens[0].type", org.hamcrest.Matchers.equalTo("Email"))
-                .body("contactgegevens[0].waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
+                .body("identificaties[0].identificatieType", equalTo("KVK"))
+                .body("identificaties[0].identificatieNummer", equalTo("111111111"))
+                .body("contactgegevens[0].type", equalTo("Email"))
+                .body("contactgegevens[0].waarde", equalTo("test@example.com"));
     }
 
     @Test
@@ -128,7 +143,7 @@ public class ProfielControllerTest {
         request.identificatieType = KVK;
         request.identificatieNummer = "222222222";
 
-        given().contentType(ContentType.JSON)
+        given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
                 .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
@@ -144,7 +159,7 @@ public class ProfielControllerTest {
             voorkeurFirstTouch.set(vTs);
         });
 
-        given().contentType(ContentType.JSON)
+        given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
                 .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
@@ -181,7 +196,7 @@ public class ProfielControllerTest {
         request.identificatieType = KVK;
         request.identificatieNummer = "333333333";
 
-        given().contentType(ContentType.JSON)
+        given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
                 .when().post("/api/profielservice/v1/partij")
                 .then().statusCode(OK);
@@ -199,12 +214,18 @@ public class ProfielControllerTest {
         request.identificatieNummer = "999999999";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .when()
                 .post("/api/profielservice/v1/partij")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Partij niet gevonden"))
+                .body("status", equalTo(404))
+                .body("detail", equalTo("Geen partij gevonden voor het opgegeven identificatienummer."))
+                .body("instance", equalTo("/api/profielservice/v1/partij"));
     }
 
     @Test
@@ -229,12 +250,13 @@ public class ProfielControllerTest {
         request.identificaties = List.of(id1, id2);
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
                 .statusCode(OK)
-                .body("size()", org.hamcrest.Matchers.equalTo(2));  // all found → 200
+                .body("size()", equalTo(2));  // all found → 200
     }
 
     @Test
@@ -256,12 +278,13 @@ public class ProfielControllerTest {
         request.identificaties = List.of(id1, id2);
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
                 .statusCode(206)  // partial found → 206
-                .body("size()", org.hamcrest.Matchers.equalTo(1));
+                .body("size()", equalTo(1));
     }
 
     @Test
@@ -274,11 +297,14 @@ public class ProfielControllerTest {
         request.identificaties = List.of(id);
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
-                .statusCode(NOT_FOUND);  // none found → 404
+                .statusCode(NOT_FOUND)  // none found → 404
+                .contentType("application/problem+json")
+                .body("title", equalTo("Partijen niet gevonden"));
     }
 
     @Test
@@ -310,13 +336,14 @@ public class ProfielControllerTest {
         body.waarde = "test@example.com";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/contactgegeven"))
-                .body("waarde", org.hamcrest.Matchers.equalTo("test@example.com"));
+                .header("Location", containsString("/contactgegeven/"))
+                .body("waarde", equalTo("test@example.com"));
     }
 
     @Test
@@ -337,6 +364,46 @@ public class ProfielControllerTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(BAD_REQUEST);
+    }
+
+    @Test
+    void addContactgegeven_UnknownDienstverlenerInScope_Returns404() {
+        var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
+        body.type = ContactType.Email;
+        body.waarde = "test@example.com";
+        body.scope = new ScopeRequest();
+        body.scope.dienstverlenerNaam = "BestaatNiet";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Not Found"));
+    }
+
+    @Test
+    void addContactgegeven_DienstNaamWithoutDienstverlenerNaam_Returns400() {
+        var body = new ContactgegevenRequest();
+        body.identificatieType = BSN;
+        body.identificatieNummer = "123456789";
+        body.type = ContactType.Email;
+        body.waarde = "test@example.com";
+        body.scope = new ScopeRequest();
+        body.scope.dienstNaam = "SomeDienst";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Bad Request"));
     }
 
     @Test
@@ -362,6 +429,7 @@ public class ProfielControllerTest {
         body.waarde = "test2@example.com";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
@@ -408,11 +476,14 @@ public class ProfielControllerTest {
         body.waarde = "test2@example.com";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Contactgegeven niet gevonden"));
     }
 
     @Test
@@ -435,6 +506,7 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111114";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/contactgegeven/" + contactGegevenId.get())
@@ -449,11 +521,14 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111114";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Contactgegeven niet gevonden"));
     }
 
     @Test
@@ -465,12 +540,13 @@ public class ProfielControllerTest {
         body.waarde = "nl";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/voorkeur"));
+                .header("Location", containsString("/voorkeur/"));
     }
 
     @Test
@@ -516,6 +592,7 @@ public class ProfielControllerTest {
         body.waarde = "en";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
@@ -553,11 +630,14 @@ public class ProfielControllerTest {
         body.waarde = "en";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Voorkeur niet gevonden"));
     }
 
     @Test
@@ -598,6 +678,7 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111118";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
@@ -612,10 +693,13 @@ public class ProfielControllerTest {
         body.identificatieNummer = "111111119";
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
                 .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Voorkeur niet gevonden"));
     }
 }

@@ -16,11 +16,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CONFLICT;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 
 @QuarkusTest
-public class DienstverlenerControllerTest {
+public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTest {
 
     @AfterEach
     @Transactional
@@ -43,12 +50,13 @@ public class DienstverlenerControllerTest {
         });
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
                 .statusCode(OK)
-                .body("naam", org.hamcrest.Matchers.equalTo("Test"))
-                .body("beschrijving", org.hamcrest.Matchers.equalTo("Een test dienstverlener"));
+                .body("naam", equalTo("Test"))
+                .body("beschrijving", equalTo("Een test dienstverlener"));
     }
 
     @Test
@@ -66,21 +74,25 @@ public class DienstverlenerControllerTest {
         });
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
                 .statusCode(OK)
-                .body("diensten.size()", org.hamcrest.Matchers.equalTo(1))
-                .body("diensten[0].naam", org.hamcrest.Matchers.equalTo("TestDienst"));
+                .body("diensten.size()", equalTo(1))
+                .body("diensten[0].naam", equalTo("TestDienst"));
     }
 
     @Test
     void getDienstverlener_NotFound() {
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .get("/api/profielservice/v1/dienstverlener/Test")
                 .then()
-                .statusCode(NOT_FOUND);
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Dienstverlener niet gevonden"));
     }
 
     @Test
@@ -89,12 +101,13 @@ public class DienstverlenerControllerTest {
         request.naam = "Test";
         request.beschrijving = "Test beschrijving";
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/dienstverlener")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", endsWith("/dienstverlener/Test"));
     }
 
     @Test
@@ -105,6 +118,7 @@ public class DienstverlenerControllerTest {
                 .then()
                 .statusCode(BAD_REQUEST);
     }
+
 
     @Test
     void addDienstToDienstverlener_Success() {
@@ -119,12 +133,40 @@ public class DienstverlenerControllerTest {
         });
 
         given()
+                .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
                 .post("/api/profielservice/v1/dienstverlener/Test/diensten")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", org.hamcrest.Matchers.endsWith("/dienstverlener/Test"));
+                .header("Location", containsString("/dienstverlener/Test/diensten/"));
+    }
+
+    @Test
+    void addDienstToDienstverlener_ExistingDienstWithDifferentBeschrijving_Returns409() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("Test");
+            dv.persist();
+            Dienst d = new Dienst();
+            d.setNaam("TestDienst");
+            d.setBeschrijving("originele beschrijving");
+            d.persist();
+            new DienstverlenerDienst(dv, d).persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.naam = "TestDienst";
+        request.beschrijving = "andere beschrijving";
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener/Test/diensten")
+                .then()
+                .statusCode(CONFLICT)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Conflict"));
     }
 
     @Test

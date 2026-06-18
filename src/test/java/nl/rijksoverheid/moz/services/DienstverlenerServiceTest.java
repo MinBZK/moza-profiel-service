@@ -4,7 +4,7 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.WebApplicationException;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -138,10 +138,10 @@ public class DienstverlenerServiceTest {
         request.naam = "Vergunning";
         request.beschrijving = "andere beschrijving";
 
-        WebApplicationException ex = Assertions.assertThrows(
-                WebApplicationException.class,
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
                 () -> dienstverlenerService.addDienstToDienstverlener("DV-B", request));
-        Assertions.assertEquals(409, ex.getResponse().getStatus());
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 
     @Test
