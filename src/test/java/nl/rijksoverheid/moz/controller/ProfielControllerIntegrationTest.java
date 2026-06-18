@@ -75,7 +75,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
     private void assertSecondPostReturns200(String path, Object body, String expectedWaarde) {
         given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
-        given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then()
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post(path)
+                .then()
                 .statusCode(OK)
                 .body("waarde", equalTo(expectedWaarde));
     }
@@ -143,10 +148,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         request.identificatieType = KVK;
         request.identificatieNummer = "222222222";
 
-        given().filter(validationFilter).contentType(ContentType.JSON)
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
                 .body(request)
-                .when().post("/api/profielservice/v1/partij")
-                .then().statusCode(OK);
+                .when()
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK);
 
         AtomicReference<Instant> contactFirstTouch = new AtomicReference<>();
         AtomicReference<Instant> voorkeurFirstTouch = new AtomicReference<>();
@@ -159,16 +168,24 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
             voorkeurFirstTouch.set(vTs);
         });
 
-        given().filter(validationFilter).contentType(ContentType.JSON)
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
                 .body(request)
-                .when().post("/api/profielservice/v1/partij")
-                .then().statusCode(OK);
+                .when()
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
-            Assertions.assertEquals(contactFirstTouch.get(),
-                    Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt());
-            Assertions.assertEquals(voorkeurFirstTouch.get(),
-                    Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt());
+            Assertions
+                    .assertEquals(
+                            contactFirstTouch.get(),
+                            Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt());
+            Assertions
+                    .assertEquals(
+                            voorkeurFirstTouch.get(),
+                            Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt());
         });
     }
 
@@ -196,14 +213,20 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         request.identificatieType = KVK;
         request.identificatieNummer = "333333333";
 
-        given().filter(validationFilter).contentType(ContentType.JSON)
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
                 .body(request)
-                .when().post("/api/profielservice/v1/partij")
-                .then().statusCode(OK);
+                .when()
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
-            Assertions.assertEquals(before.get(),
-                    Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUpdated());
+            Assertions
+                    .assertEquals(
+                            before.get(),
+                            Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUpdated());
         });
     }
 
@@ -439,10 +462,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven updated = Contactgegeven.findById(id.get());
             Assertions.assertEquals("test2@example.com", updated.getWaarde());
-            Assertions.assertFalse(updated.isIsGeverifieerd(),
-                    "Geverifieerd-status moet resetten zodra de email-waarde verandert");
-            Assertions.assertNull(updated.getGeverifieerdAt(),
-                    "GeverifieerdAt moet leeg zijn na waarde-wijziging");
+            Assertions
+                    .assertFalse(
+                            updated.isIsGeverifieerd(),
+                            "Geverifieerd-status moet resetten zodra de email-waarde verandert");
+            Assertions
+                    .assertNull(
+                            updated.getGeverifieerdAt(),
+                            "GeverifieerdAt moet leeg zijn na waarde-wijziging");
         });
     }
 

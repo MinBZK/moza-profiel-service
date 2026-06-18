@@ -29,6 +29,16 @@
     <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
     <setting id="org.eclipse.jdt.core.formatter.join_lines_in_comments" value="false"/>
 
+    <!-- Wrapping policies (value 48 = one element per line, but only when the line exceeds
+         lineSplit; short constructs stay inline). Without these the formatter collapses
+         long method calls/annotations onto a single over-long line. -->
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_annotation" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_expressions_in_array_initializer" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_method_invocation" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_method_declaration" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_explicit_constructor_call" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_selector_in_method_invocation" value="48"/>
+
     <!-- Blank lines: keep at most 1 consecutive blank line (RegexpMultiline). -->
     <setting id="org.eclipse.jdt.core.formatter.number_of_empty_lines_to_preserve" value="1"/>
 

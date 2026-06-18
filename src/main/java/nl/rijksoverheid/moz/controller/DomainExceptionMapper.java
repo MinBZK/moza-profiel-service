@@ -42,9 +42,10 @@ public class DomainExceptionMapper {
     public Response mapUnhandledException(Exception e) {
         LOG.error("Onverwachte fout opgetreden", e);
 
-        return Problems.problemResponse(
-                Response.Status.INTERNAL_SERVER_ERROR,
-                "Internal Server Error",
-                "Er is een onverwachte fout opgetreden");
+        return Problems
+                .problemResponse(
+                        Response.Status.INTERNAL_SERVER_ERROR,
+                        "Internal Server Error",
+                        "Er is een onverwachte fout opgetreden");
     }
 }

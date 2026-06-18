@@ -75,8 +75,11 @@ public class RetentieSchedulerTest {
 
     /** Backdoor to set createdAt (normally immutable via @PrePersist) to a past date. */
     private void setCreatedAt(UUID voorkeurId, Instant createdAt) {
-        QuarkusTransaction.requiringNew().run(
-                () -> Voorkeur.update("createdAt = :ts WHERE id = :id", Map.of("ts", createdAt, "id", voorkeurId)));
+        QuarkusTransaction
+                .requiringNew()
+                .run(
+                        () -> Voorkeur
+                                .update("createdAt = :ts WHERE id = :id", Map.of("ts", createdAt, "id", voorkeurId)));
     }
 
     private static Instant ouderDanGrens() {
@@ -92,14 +95,20 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
-            Assertions.assertNotNull(voorkeur.getTeVerwijderenOp(),
-                    "teVerwijderenOp must be set for a record unused for more than 6.5 years");
-            Assertions.assertTrue(voorkeur.isTeVerwijderenOpAutomatisch(),
-                    "teVerwijderenOpAutomatisch must be true when set by the scheduler");
+            Assertions
+                    .assertNotNull(
+                            voorkeur.getTeVerwijderenOp(),
+                            "teVerwijderenOp must be set for a record unused for more than 6.5 years");
+            Assertions
+                    .assertTrue(
+                            voorkeur.isTeVerwijderenOpAutomatisch(),
+                            "teVerwijderenOpAutomatisch must be true when set by the scheduler");
             // Should be approximately now + 6 months
             Instant verwacht = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(6)).toInstant();
-            Assertions.assertTrue(voorkeur.getTeVerwijderenOp().isBefore(verwacht.plusSeconds(5)),
-                    "teVerwijderenOp moet circa nu+6 maanden zijn");
+            Assertions
+                    .assertTrue(
+                            voorkeur.getTeVerwijderenOp().isBefore(verwacht.plusSeconds(5)),
+                            "teVerwijderenOp moet circa nu+6 maanden zijn");
         });
     }
 
@@ -114,8 +123,10 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
-            Assertions.assertNotNull(voorkeur.getTeVerwijderenOp(),
-                    "teVerwijderenOp must be set when lastUsedAt is null and createdAt is old (COALESCE fallback)");
+            Assertions
+                    .assertNotNull(
+                            voorkeur.getTeVerwijderenOp(),
+                            "teVerwijderenOp must be set when lastUsedAt is null and createdAt is old (COALESCE fallback)");
         });
     }
 
@@ -130,15 +141,21 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
-            Assertions.assertNull(voorkeur.getTeVerwijderenOp(),
-                    "teVerwijderenOp must remain null for a recently used record");
+            Assertions
+                    .assertNull(
+                            voorkeur.getTeVerwijderenOp(),
+                            "teVerwijderenOp must remain null for a recently used record");
         });
     }
 
     @Test
     void voorkeur_teVerwijderenOpAlGezet_WordtNietOverschreven() {
         UUID partijId = createPartij();
-        Instant bestaandeWaarde = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(3)).toInstant()
+        Instant bestaandeWaarde = Instant
+                .now()
+                .atZone(ZoneOffset.UTC)
+                .plus(Period.ofMonths(3))
+                .toInstant()
                 .truncatedTo(ChronoUnit.MICROS);
         UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), bestaandeWaarde);
 
@@ -146,8 +163,11 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
-            Assertions.assertEquals(bestaandeWaarde, voorkeur.getTeVerwijderenOp(),
-                    "An already-set teVerwijderenOp must not be overwritten by the scheduler");
+            Assertions
+                    .assertEquals(
+                            bestaandeWaarde,
+                            voorkeur.getTeVerwijderenOp(),
+                            "An already-set teVerwijderenOp must not be overwritten by the scheduler");
         });
     }
 
@@ -167,10 +187,14 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
-            Assertions.assertNull(voorkeur.getTeVerwijderenOp(),
-                    "teVerwijderenOp must be cleared when a scheduler-flagged record is used again");
-            Assertions.assertFalse(voorkeur.isTeVerwijderenOpAutomatisch(),
-                    "teVerwijderenOpAutomatisch must be reset after the record is used again");
+            Assertions
+                    .assertNull(
+                            voorkeur.getTeVerwijderenOp(),
+                            "teVerwijderenOp must be cleared when a scheduler-flagged record is used again");
+            Assertions
+                    .assertFalse(
+                            voorkeur.isTeVerwijderenOpAutomatisch(),
+                            "teVerwijderenOpAutomatisch must be reset after the record is used again");
         });
     }
 
@@ -178,7 +202,11 @@ public class RetentieSchedulerTest {
     void voorkeur_manueleTeVerwijderenOp_BlijftBijGebruik() {
         // teVerwijderenOp was set manually (flag = false) → mapper must not clear it on use.
         UUID partijId = createPartij();
-        Instant manueleWaarde = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(6)).toInstant()
+        Instant manueleWaarde = Instant
+                .now()
+                .atZone(ZoneOffset.UTC)
+                .plus(Period.ofMonths(6))
+                .toInstant()
                 .truncatedTo(ChronoUnit.MICROS);
         UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), manueleWaarde);
         // teVerwijderenOpAutomatisch stays false (default)
@@ -190,8 +218,11 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
-            Assertions.assertEquals(manueleWaarde, voorkeur.getTeVerwijderenOp(),
-                    "A manually-set teVerwijderenOp must survive record usage");
+            Assertions
+                    .assertEquals(
+                            manueleWaarde,
+                            voorkeur.getTeVerwijderenOp(),
+                            "A manually-set teVerwijderenOp must survive record usage");
         });
     }
 
@@ -217,10 +248,14 @@ public class RetentieSchedulerTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(contactId.get());
-            Assertions.assertNotNull(contact.getTeVerwijderenOp(),
-                    "teVerwijderenOp must be set on Contactgegeven when unused for more than 6.5 years");
-            Assertions.assertTrue(contact.isTeVerwijderenOpAutomatisch(),
-                    "teVerwijderenOpAutomatisch must be true when set by the scheduler");
+            Assertions
+                    .assertNotNull(
+                            contact.getTeVerwijderenOp(),
+                            "teVerwijderenOp must be set on Contactgegeven when unused for more than 6.5 years");
+            Assertions
+                    .assertTrue(
+                            contact.isTeVerwijderenOpAutomatisch(),
+                            "teVerwijderenOpAutomatisch must be true when set by the scheduler");
         });
     }
 }

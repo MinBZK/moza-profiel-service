@@ -38,7 +38,8 @@ public class VerificatieServiceGuard {
     }
 
     private Guard buildGuard() {
-        return Guard.create()
+        return Guard
+                .create()
                 .withCircuitBreaker()
                 .requestVolumeThreshold(requestVolumeThreshold)
                 .failureRatio(failureRatio)

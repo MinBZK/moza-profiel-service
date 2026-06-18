@@ -33,15 +33,19 @@ public class PartijMapper {
         PartijResponse response = new PartijResponse();
         response.partijId = partij.id;
 
-        response.identificaties = partij.getIdentificaties().stream()
+        response.identificaties = partij
+                .getIdentificaties()
+                .stream()
                 .map(this::toIdentificatieResponse)
                 .toList();
 
-        response.contactgegevens = contactgegevens.stream()
+        response.contactgegevens = contactgegevens
+                .stream()
                 .map(this::toContactgegevensResponse)
                 .toList();
 
-        response.voorkeuren = voorkeuren.stream()
+        response.voorkeuren = voorkeuren
+                .stream()
                 .map(this::toVoorkeurResponse)
                 .toList();
 
@@ -60,9 +64,11 @@ public class PartijMapper {
         if (isStale(cg.getLastUsedAt())) {
             if (cg.isTeVerwijderenOpAutomatisch()) {
                 clearedAt = Instant.now();
-                Contactgegeven.update(
-                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
-                        clearedAt, cg.id);
+                Contactgegeven
+                        .update(
+                                "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
+                                clearedAt,
+                                cg.id);
             } else {
                 Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
             }
@@ -85,9 +91,11 @@ public class PartijMapper {
         if (isStale(voorkeur.getLastUsedAt())) {
             if (voorkeur.isTeVerwijderenOpAutomatisch()) {
                 clearedAt = Instant.now();
-                Voorkeur.update(
-                        "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
-                        clearedAt, voorkeur.id);
+                Voorkeur
+                        .update(
+                                "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
+                                clearedAt,
+                                voorkeur.id);
             } else {
                 Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
             }

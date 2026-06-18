@@ -42,17 +42,22 @@ public class EmailVerificatieService {
 
     @Transactional
     public boolean verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
-        Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.identificatieType,
-                emailVerificatieRequest.identificatieNummer);
+        Partij partij = Partij
+                .findByIdentificatie(
+                        emailVerificatieRequest.identificatieType,
+                        emailVerificatieRequest.identificatieNummer);
 
         if (partij == null) {
             LOG.warn("Verificatie mislukt: Partij niet gevonden");
             return false;
         }
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getType() == ContactType.Email
-                        && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
+        Contactgegeven contact = partij
+                .getContactgegevens()
+                .stream()
+                .filter(
+                        c -> c.getType() == ContactType.Email
+                                && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
                 .findFirst()
                 .orElse(null);
 
@@ -66,8 +71,11 @@ public class EmailVerificatieService {
         request.setCode(emailVerificatieRequest.verificatieCode);
 
         try {
-            var response = verificatieServiceGuard.get().call(() -> emailVerificatieApi.verifyPost(request),
-                    VerificationResponse.class);
+            var response = verificatieServiceGuard
+                    .get()
+                    .call(
+                            () -> emailVerificatieApi.verifyPost(request),
+                            VerificationResponse.class);
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
                 contact.setGeverifieerdAt(Instant.now());
@@ -85,8 +93,11 @@ public class EmailVerificatieService {
             return false;
         } catch (WebApplicationException e) {
             String errorBody = e.getResponse().readEntity(String.class);
-            LOG.errorf("NotifyNL Verificatie API Error (%d): %s",
-                    e.getResponse().getStatus(), errorBody);
+            LOG
+                    .errorf(
+                            "NotifyNL Verificatie API Error (%d): %s",
+                            e.getResponse().getStatus(),
+                            errorBody);
             return false;
         } catch (Exception e) {
             LOG.error("Onverwachte fout tijdens verifiëren van email code: " + e.getMessage(), e);
@@ -103,7 +114,9 @@ public class EmailVerificatieService {
             return Response.Status.NOT_FOUND.getStatusCode();
         }
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
+        Contactgegeven contact = partij
+                .getContactgegevens()
+                .stream()
                 .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(aanvraag.email))
                 .findFirst()
                 .orElse(null);
@@ -131,7 +144,8 @@ public class EmailVerificatieService {
         verificationApplicationRequest.setEmail(email);
 
         try {
-            String referenceId = verificatieServiceGuard.get()
+            String referenceId = verificatieServiceGuard
+                    .get()
                     .call(() -> emailVerificatieApi.requestPost(verificationApplicationRequest), String.class);
             if (referenceId != null) {
                 return referenceId;

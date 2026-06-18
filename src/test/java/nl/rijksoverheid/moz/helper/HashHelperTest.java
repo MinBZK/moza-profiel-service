@@ -36,10 +36,12 @@ public class HashHelperTest {
 
         // When & Then
         try (MockedStatic<MessageDigest> mockedMessageDigest = mockStatic(MessageDigest.class)) {
-            mockedMessageDigest.when(() -> MessageDigest.getInstance(anyString()))
+            mockedMessageDigest
+                    .when(() -> MessageDigest.getInstance(anyString()))
                     .thenThrow(new NoSuchAlgorithmException("SHA-256 not available"));
 
-            RuntimeException exception = assertThrows(RuntimeException.class,
+            RuntimeException exception = assertThrows(
+                    RuntimeException.class,
                     () -> hashHelper.hashIdentifier(identifier),
                     "Should throw RuntimeException when algorithm is not available");
 

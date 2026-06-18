@@ -81,13 +81,18 @@ public class DienstverlenerService {
         // constraint geen NULLs dedupliceert.
         DienstverlenerDienst link;
         if (dienst == null) {
-            link = DienstverlenerDienst.find(
-                    "dienstverlener = ?1 AND dienst IS NULL",
-                    dienstverlener).firstResult();
+            link = DienstverlenerDienst
+                    .find(
+                            "dienstverlener = ?1 AND dienst IS NULL",
+                            dienstverlener)
+                    .firstResult();
         } else {
-            link = DienstverlenerDienst.find(
-                    "dienstverlener = ?1 AND dienst = ?2",
-                    dienstverlener, dienst).firstResult();
+            link = DienstverlenerDienst
+                    .find(
+                            "dienstverlener = ?1 AND dienst = ?2",
+                            dienstverlener,
+                            dienst)
+                    .firstResult();
         }
 
         if (link != null) {

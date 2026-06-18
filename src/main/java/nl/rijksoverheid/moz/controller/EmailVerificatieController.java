@@ -28,7 +28,10 @@ import org.jboss.logging.Logger;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "EmailVerificatie", description = "Endpoints voor het verifiëren van emails")
-@APIResponse(responseCode = "500", description = ApiResponseDescriptions.INTERNAL_SERVER_ERROR, content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
+@APIResponse(
+        responseCode = "500",
+        description = ApiResponseDescriptions.INTERNAL_SERVER_ERROR,
+        content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
 public class EmailVerificatieController {
 
     private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
@@ -39,15 +42,32 @@ public class EmailVerificatieController {
     @POST
     @Path("/emailverificatie/code")
     @RequireBody
-    @Operation(summary = "(Opnieuw) aanvragen voor een code van een (al geverifieerde) mail adres", description = "Vraagt een email verificatie code aan. "
-            +
-            "Let op, bij het aanmaken van een profiel wordt al een email verificatie code aangevraagd. " +
-            "Dit is voor het opnieuw aanvragen van een code.")
+    @Operation(
+            summary = "(Opnieuw) aanvragen voor een code van een (al geverifieerde) mail adres",
+            description = "Vraagt een email verificatie code aan. "
+                    +
+                    "Let op, bij het aanmaken van een profiel wordt al een email verificatie code aangevraagd. " +
+                    "Dit is voor het opnieuw aanvragen van een code.")
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Email verificatie code aanvraag succesvol"),
-            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY, content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))),
-            @APIResponse(responseCode = "404", description = "Partij of Contactgegeven niet gevonden", content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))),
-            @APIResponse(responseCode = "503", description = "Service tijdelijk niet beschikbaar", content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
+            @APIResponse(
+                    responseCode = "400",
+                    description = ApiResponseDescriptions.BAD_REQUEST_BODY,
+                    content = @Content(
+                            mediaType = MediaTypes.PROBLEM_JSON,
+                            schema = @Schema(implementation = HttpProblem.class))),
+            @APIResponse(
+                    responseCode = "404",
+                    description = "Partij of Contactgegeven niet gevonden",
+                    content = @Content(
+                            mediaType = MediaTypes.PROBLEM_JSON,
+                            schema = @Schema(implementation = HttpProblem.class))),
+            @APIResponse(
+                    responseCode = "503",
+                    description = "Service tijdelijk niet beschikbaar",
+                    content = @Content(
+                            mediaType = MediaTypes.PROBLEM_JSON,
+                            schema = @Schema(implementation = HttpProblem.class)))
     })
     public Response postEmailVerificatieCodeAanvraag(EmailVerificatieCodeAanvraagRequest aanvraag) {
         int result = emailVerificatieService.vraagEmailVerificatieCodeAan(aanvraag);
@@ -57,12 +77,14 @@ public class EmailVerificatieController {
             return Response.ok().build();
         } else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
             LOG.warn("Partij of Contactgegeven niet gevonden");
-            throw Problems.notFound(
-                    "Partij of contactgegeven niet gevonden",
-                    "Geen partij of contactgegeven gevonden voor de opgegeven gegevens.");
+            throw Problems
+                    .notFound(
+                            "Partij of contactgegeven niet gevonden",
+                            "Geen partij of contactgegeven gevonden voor de opgegeven gegevens.");
         } else {
             LOG.warn("NotifyNL API onbereikbaar");
-            throw HttpProblem.builder()
+            throw HttpProblem
+                    .builder()
                     .withStatus(Response.Status.SERVICE_UNAVAILABLE)
                     .withDetail("Service tijdelijk niet beschikbaar. Probeer het later opnieuw.")
                     .withHeader("Retry-After", "30")
@@ -73,10 +95,17 @@ public class EmailVerificatieController {
     @POST
     @Path("/emailverificatie")
     @RequireBody
-    @Operation(summary = "Verifieer een email met een verificatie code", description = "Verifieert een email adres aan de hand van de eerder aangevraagde verificatie code.")
+    @Operation(
+            summary = "Verifieer een email met een verificatie code",
+            description = "Verifieert een email adres aan de hand van de eerder aangevraagde verificatie code.")
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Email verificatie succesvol"),
-            @APIResponse(responseCode = "400", description = "Email verificatie mislukt", content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
+            @APIResponse(
+                    responseCode = "400",
+                    description = "Email verificatie mislukt",
+                    content = @Content(
+                            mediaType = MediaTypes.PROBLEM_JSON,
+                            schema = @Schema(implementation = HttpProblem.class)))
     })
     public Response postEmailVerificatie(EmailVerificatieRequest emailVerificatieRequest) {
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);

@@ -138,9 +138,10 @@ public class DienstverlenerServiceTest {
         request.naam = "Vergunning";
         request.beschrijving = "andere beschrijving";
 
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> dienstverlenerService.addDienstToDienstverlener("DV-B", request));
+        BusinessException ex = Assertions
+                .assertThrows(
+                        BusinessException.class,
+                        () -> dienstverlenerService.addDienstToDienstverlener("DV-B", request));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 

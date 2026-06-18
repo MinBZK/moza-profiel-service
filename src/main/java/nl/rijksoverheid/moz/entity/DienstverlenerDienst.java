@@ -17,8 +17,13 @@ import java.util.UUID;
 
 @Entity
 @Audited
-@Table(name = "dienstverlener_dienst", uniqueConstraints = @UniqueConstraint(name = "uk_dienstverlener_dienst", columnNames = {
-        "dienstverlener_id", "dienst_id"}))
+@Table(
+        name = "dienstverlener_dienst",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_dienstverlener_dienst",
+                columnNames = {
+                        "dienstverlener_id",
+                        "dienst_id"}))
 public class DienstverlenerDienst extends PanacheEntityBase {
 
     @Id

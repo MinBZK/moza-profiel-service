@@ -123,7 +123,9 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = partij
+                    .getContactgegevens()
+                    .stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElse(null);
@@ -185,7 +187,9 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = partij
+                    .getContactgegevens()
+                    .stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();
@@ -265,8 +269,10 @@ public class EmailVerificatieServiceTest {
     @Test
     void verifieerEmail_WebApplicationException() {
         seedPartijWithUnverifiedContact("111111103");
-        Mockito.doThrow(new WebApplicationException(mockErrorResponse(400, "Error")))
-                .when(emailVerificatieApi).verifyPost(Mockito.any());
+        Mockito
+                .doThrow(new WebApplicationException(mockErrorResponse(400, "Error")))
+                .when(emailVerificatieApi)
+                .verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = makeVerifyRequest("111111103");
         Assertions.assertFalse(service.verifieerEmail(request));
@@ -278,8 +284,10 @@ public class EmailVerificatieServiceTest {
         Mockito.doThrow(new RuntimeException("boom")).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = makeVerifyRequest("111111104");
-        Assertions.assertThrows(TechnicalException.class,
-                () -> service.verifieerEmail(request));
+        Assertions
+                .assertThrows(
+                        TechnicalException.class,
+                        () -> service.verifieerEmail(request));
     }
 
     @Test
@@ -326,7 +334,9 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "111111106");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = partij
+                    .getContactgegevens()
+                    .stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();
