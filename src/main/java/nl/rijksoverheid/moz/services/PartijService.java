@@ -4,9 +4,9 @@ import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.exception.AuthorizationException;
 import nl.rijksoverheid.moz.exception.BusinessException;
+import nl.rijksoverheid.moz.exception.BusinessException.Kind;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
@@ -183,14 +183,14 @@ public class PartijService {
         if (requested == null) return;
 
         if (!requested.isAfter(Instant.now())) {
-            throw new WebApplicationException("teVerwijderenOp moet in de toekomst liggen", Response.Status.BAD_REQUEST);
+            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp moet in de toekomst liggen");
         }
 
         Instant referenceDate = lastUsedAt != null ? lastUsedAt : createdAt;
         Instant maxDate = referenceDate.atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).toInstant();
 
         if (requested.isAfter(maxDate)) {
-            throw new WebApplicationException("teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen", Response.Status.BAD_REQUEST);
+            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen");
         }
 
         setter.accept(requested);
@@ -203,8 +203,7 @@ public class PartijService {
 
         if (scope.dienstverlenerNaam == null) {
             if (scope.dienstNaam != null) {
-                throw new BusinessException(
-                        BusinessException.Kind.BAD_REQUEST,
+                throw new BusinessException(Kind.BAD_REQUEST,
                         "dienstNaam zonder dienstverlenerNaam is ongeldig");
             }
             return null;
@@ -212,8 +211,7 @@ public class PartijService {
 
         Dienstverlener dienstverlener = dienstverlenerService.getDienstverlener(scope.dienstverlenerNaam);
         if (dienstverlener == null) {
-            throw new BusinessException(
-                    BusinessException.Kind.NOT_FOUND,
+            throw new BusinessException(Kind.NOT_FOUND,
                     "Dienstverlener bestaat niet");
         }
 
@@ -227,9 +225,8 @@ public class PartijService {
         ).firstResult();
 
         if (link == null) {
-            throw new BusinessException(
-                    BusinessException.Kind.NOT_FOUND,
-                    "Dienst bestaat niet voor de opgegeven dienstverlener");
+            throw new BusinessException(Kind.NOT_FOUND,
+                    "Dienst bestaat niet voor deze dienstverlener");
         }
 
         return link;
@@ -278,8 +275,7 @@ public class PartijService {
                 || !Objects.equals(oldWaarde, newWaarde);
 
         if (valueChanged && newWaarde != null && existingDuplicateExists(partij, request.type, newWaarde, contact.id)) {
-            throw new BusinessException(
-                    BusinessException.Kind.CONFLICT,
+            throw new BusinessException(Kind.CONFLICT,
                     "Combinatie (type, waarde) bestaat al voor deze partij");
         }
 
@@ -358,8 +354,7 @@ public class PartijService {
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
         Voorkeur collision = findExistingVoorkeur(partij, request.voorkeurType, targetLink);
         if (collision != null && !collision.id.equals(voorkeur.id)) {
-            throw new BusinessException(
-                    BusinessException.Kind.CONFLICT,
+            throw new BusinessException(Kind.CONFLICT,
                     "Andere voorkeur bestaat al voor deze partij + type + scope");
         }
 
@@ -470,7 +465,7 @@ public class PartijService {
         });
 
         if (!authorized) {
-            throw new WebApplicationException(message, Response.Status.FORBIDDEN);
+            throw new AuthorizationException(message);
         }
     }
 

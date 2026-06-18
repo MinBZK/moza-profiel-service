@@ -1,1 +1,0 @@
-- flyway vs liquibase voor database migrations

@@ -5,6 +5,7 @@ import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
 import io.restassured.RestAssured;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.BeforeEach;
 
 import java.net.HttpURLConnection;
@@ -35,7 +36,10 @@ abstract class OpenApiValidationTest {
     @BeforeEach
     void setupValidationFilter() throws Exception {
         if (validationFilter != null) return;
-        URL url = new URL("http://localhost:" + RestAssured.port + "/q/openapi");
+        String openApiPath = ConfigProvider.getConfig()
+                .getOptionalValue("quarkus.smallrye-openapi.path", String.class)
+                .orElse("/q/openapi");
+        URL url = new URL("http://localhost:" + RestAssured.port + openApiPath);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
         conn.setRequestProperty("Accept", "application/json");
         String specJson = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);

@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
-import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
@@ -342,7 +342,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/contactgegeven")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", endsWith("/contactgegeven"))
+                .header("Location", containsString("/contactgegeven/"))
                 .body("waarde", equalTo("test@example.com"));
     }
 
@@ -546,7 +546,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/voorkeur")
                 .then()
                 .statusCode(CREATED)
-                .header("Location", endsWith("/voorkeur"));
+                .header("Location", containsString("/voorkeur/"));
     }
 
     @Test

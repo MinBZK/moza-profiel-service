@@ -10,8 +10,9 @@ import org.jboss.logging.Logger;
 /**
  * Maps Hibernate's DB-level constraint violations (UNIQUE, partial unique indexes, foreign keys)
  * to HTTP 409. Application pre-checks try to avoid these, but concurrent writes can still race
- * past the pre-check and land here at flush time. Mapping to 409 keeps the error semantically
- * meaningful instead of bubbling as a 500.
+ * past the pre-check and land here at flush time. quarkus-http-problem's default mapper would
+ * treat this Hibernate exception as a 500, so this mapper keeps the 409 semantics and emits the
+ * standard RFC 9457 application/problem+json body via {@link Problems#problemResponse}.
  */
 @Provider
 public class DatabaseConstraintViolationMapper implements ExceptionMapper<ConstraintViolationException> {
