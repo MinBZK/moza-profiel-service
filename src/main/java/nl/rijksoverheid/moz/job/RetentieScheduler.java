@@ -30,16 +30,17 @@ public class RetentieScheduler {
 
         long voorkeurCount = Voorkeur.update(
                 "teVerwijderenOp = :tvop, teVerwijderenOpAutomatisch = true, lastUpdated = :nu " +
-                "WHERE teVerwijderenOp IS NULL " +
-                "AND COALESCE(lastUsedAt, createdAt) <= :grens",
+                        "WHERE teVerwijderenOp IS NULL " +
+                        "AND COALESCE(lastUsedAt, createdAt) <= :grens",
                 Map.of("tvop", teVerwijderenOp, "nu", nu, "grens", grens));
 
         long contactCount = Contactgegeven.update(
                 "teVerwijderenOp = :tvop, teVerwijderenOpAutomatisch = true, lastUpdated = :nu " +
-                "WHERE teVerwijderenOp IS NULL " +
-                "AND COALESCE(lastUsedAt, createdAt) <= :grens",
+                        "WHERE teVerwijderenOp IS NULL " +
+                        "AND COALESCE(lastUsedAt, createdAt) <= :grens",
                 Map.of("tvop", teVerwijderenOp, "nu", nu, "grens", grens));
 
-        LOG.info("Retentiescheduler: " + voorkeurCount + " voorkeuren, " + contactCount + " contactgegevens bijgewerkt");
+        LOG.info(
+                "Retentiescheduler: " + voorkeurCount + " voorkeuren, " + contactCount + " contactgegevens bijgewerkt");
     }
 }

@@ -15,6 +15,12 @@
         <quarkus.platform.version>3.36.0</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
+        <!-- sonar.host.url and sonar.token are supplied at run time
+             (-Dsonar.host.url / -Dsonar.token or SONAR_HOST_URL / SONAR_TOKEN). -->
+        <sonar.projectKey>nl.rijksoverheid.moz:profiel-service</sonar.projectKey>
+        <sonar.projectName>profiel-service</sonar.projectName>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/jacoco-report/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.exclusions>**/generated-sources/**,**/nl/rijksoverheid/moz/external/**</sonar.exclusions>
     </properties>
 
     <dependencyManagement>
@@ -329,6 +335,47 @@
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>5.1.0.4751</version>
+            </plugin>
+
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.43.0</version>
+                <configuration>
+                    <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include>
+                            <include>src/test/java/**/*.java</include>
+                        </includes>
+                        <!-- Import order: third-party first, then java/javax, then static.
+                             Reproduces the checkstyle CustomImportOrder grouping. -->
+                        <importOrder>
+                            <order>,java|javax,\#</order>
+                        </importOrder>
+                        <removeUnusedImports/>
+                        <!-- Formatting rules live in the Eclipse profile XML. -->
+                        <eclipse>
+                            <file>${project.basedir}/config/spotless/eclipse-formatter.xml</file>
+                        </eclipse>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -2,13 +2,13 @@ package nl.rijksoverheid.moz.services;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.exception.BusinessException;
-import nl.rijksoverheid.moz.exception.BusinessException.Kind;
 import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
+import nl.rijksoverheid.moz.exception.BusinessException;
+import nl.rijksoverheid.moz.exception.BusinessException.Kind;
 import org.jboss.logging.Logger;
 
 import java.util.List;
@@ -83,13 +83,11 @@ public class DienstverlenerService {
         if (dienst == null) {
             link = DienstverlenerDienst.find(
                     "dienstverlener = ?1 AND dienst IS NULL",
-                    dienstverlener
-            ).firstResult();
+                    dienstverlener).firstResult();
         } else {
             link = DienstverlenerDienst.find(
                     "dienstverlener = ?1 AND dienst = ?2",
-                    dienstverlener, dienst
-            ).firstResult();
+                    dienstverlener, dienst).firstResult();
         }
 
         if (link != null) {

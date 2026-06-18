@@ -44,8 +44,7 @@ public final class Problems {
                         "type", "about:blank",
                         "title", title,
                         "status", status.getStatusCode(),
-                        "detail", detail
-                ))
+                        "detail", detail))
                 .build();
     }
 }

@@ -1,7 +1,5 @@
 package nl.rijksoverheid.moz.services;
 
-import nl.rijksoverheid.moz.exception.AuthorizationException;
-import nl.rijksoverheid.moz.exception.BusinessException;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -27,6 +25,8 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.exception.AuthorizationException;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -365,7 +365,8 @@ public class PartijServiceTest {
         scoped.scope.dienstverlenerNaam = "TestDV";
         scoped.scope.dienstNaam = "TestDienst";
 
-        PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", scoped);
 
         Assertions.assertFalse(result.wasCreated(), "no new contactgegeven row was created");
         Assertions.assertTrue(result.scopeAdded(), "a new scope was attached to the existing row");
@@ -391,10 +392,10 @@ public class PartijServiceTest {
         scoped.scope.dienstverlenerNaam = "TestDV";
         scoped.scope.dienstNaam = "TestDienst";
 
-        PartijService.AddContactgegevenResult first =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
-        PartijService.AddContactgegevenResult second =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", scoped);
+        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", scoped);
 
         Assertions.assertTrue(first.wasCreated());
         Assertions.assertFalse(second.wasCreated());
@@ -414,12 +415,14 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "unverified@test.com";
 
-        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", request);
         Assertions.assertTrue(first.wasCreated());
 
         Mockito.doReturn("second-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", request);
         Assertions.assertFalse(second.wasCreated());
         Mockito.verify(emailVerificatieService, Mockito.times(2)).requestEmailVerificationCode("unverified@test.com");
 
@@ -449,7 +452,8 @@ public class PartijServiceTest {
             contact.setIsGeverifieerd(true);
         });
 
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", request);
         Assertions.assertFalse(second.wasCreated());
         Mockito.verify(emailVerificatieService, Mockito.times(1)).requestEmailVerificationCode(Mockito.anyString());
     }
@@ -460,10 +464,8 @@ public class PartijServiceTest {
         request.voorkeurType = VoorkeurType.WebsiteTaal;
         request.waarde = "nl";
 
-        PartijService.AddVoorkeurResult first =
-                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-        PartijService.AddVoorkeurResult second =
-                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddVoorkeurResult first = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddVoorkeurResult second = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
         Assertions.assertTrue(first.wasCreated());
         Assertions.assertFalse(second.wasCreated());
@@ -828,8 +830,8 @@ public class PartijServiceTest {
         ContactgegevenRequest second = new ContactgegevenRequest();
         second.type = ContactType.Email;
         second.waarde = "USER@TEST.COM";
-        PartijService.AddContactgegevenResult result =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", second);
+        PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", second);
         Assertions.assertFalse(result.wasCreated());
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -962,8 +964,8 @@ public class PartijServiceTest {
         request.waarde = "0612345678";
         request.teVerwijderenOp = teVerwijderenOp;
 
-        PartijService.AddContactgegevenResult result =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN,
+                "123456789", request);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(result.contactgegeven().id);

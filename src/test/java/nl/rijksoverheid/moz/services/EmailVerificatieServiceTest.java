@@ -5,7 +5,6 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.exception.TechnicalException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
@@ -21,6 +20,7 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
@@ -254,8 +254,7 @@ public class EmailVerificatieServiceTest {
     @Test
     void verifieerEmail_ApiResponseSuccessFalse() {
         seedPartijWithUnverifiedContact("111111102");
-        nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse response =
-                new nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse();
+        nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse response = new nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse();
         response.setSuccess(false);
         Mockito.doReturn(response).when(emailVerificatieApi).verifyPost(Mockito.any());
 

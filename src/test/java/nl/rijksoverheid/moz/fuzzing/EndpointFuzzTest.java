@@ -37,7 +37,7 @@ public class EndpointFuzzTest {
                 .get("/api/profielservice/v1/{identificatieType}/{identificatieNummer}")
                 .then()
                 .extract().response();
-        
+
         // We don't necessarily assert success, we just want to see if it crashes the JVM
     }
 
@@ -45,7 +45,7 @@ public class EndpointFuzzTest {
     public void fuzzAddContactgegeven(FuzzedDataProvider data) {
         String identificatieType = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String identificatieNummer = data.consumeString(20);
-        
+
         String type = data.consumeString(10);
         String waarde = data.consumeString(50);
 

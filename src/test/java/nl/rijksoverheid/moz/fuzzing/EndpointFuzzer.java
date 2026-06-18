@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.fuzzing;
 
 import com.code_intelligence.jazzer.api.BugDetectors;
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
+
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -58,30 +59,30 @@ public class EndpointFuzzer {
 
     private static void get(String path) throws Exception {
         client.send(
-            HttpRequest.newBuilder().uri(URI.create(BASE + path)).GET().build(),
-            HttpResponse.BodyHandlers.discarding());
+                HttpRequest.newBuilder().uri(URI.create(BASE + path)).GET().build(),
+                HttpResponse.BodyHandlers.discarding());
     }
 
     private static void post(String path, String body) throws Exception {
         client.send(
-            HttpRequest.newBuilder().uri(URI.create(BASE + path))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
-            HttpResponse.BodyHandlers.discarding());
+                HttpRequest.newBuilder().uri(URI.create(BASE + path))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.discarding());
     }
 
     private static void put(String path, String body) throws Exception {
         client.send(
-            HttpRequest.newBuilder().uri(URI.create(BASE + path))
-                .header("Content-Type", "application/json")
-                .PUT(HttpRequest.BodyPublishers.ofString(body)).build(),
-            HttpResponse.BodyHandlers.discarding());
+                HttpRequest.newBuilder().uri(URI.create(BASE + path))
+                        .header("Content-Type", "application/json")
+                        .PUT(HttpRequest.BodyPublishers.ofString(body)).build(),
+                HttpResponse.BodyHandlers.discarding());
     }
 
     private static void delete(String path) throws Exception {
         client.send(
-            HttpRequest.newBuilder().uri(URI.create(BASE + path)).DELETE().build(),
-            HttpResponse.BodyHandlers.discarding());
+                HttpRequest.newBuilder().uri(URI.create(BASE + path)).DELETE().build(),
+                HttpResponse.BodyHandlers.discarding());
     }
 
     private static void fuzzGetPartij(FuzzedDataProvider data) throws Exception {

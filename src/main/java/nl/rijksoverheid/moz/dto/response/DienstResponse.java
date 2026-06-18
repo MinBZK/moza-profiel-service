@@ -9,8 +9,7 @@ public class DienstResponse {
     public String naam;
     public String beschrijving;
 
-    public DienstResponse() {
-    }
+    public DienstResponse() {}
 
     public DienstResponse(Dienst dienst) {
         this.id = dienst.id;

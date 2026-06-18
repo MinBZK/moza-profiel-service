@@ -36,16 +36,11 @@ import org.jboss.logging.Logger;
 import java.net.URI;
 import java.util.List;
 
-
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Dienstverlener", description = "Endpoints voor het beheren van dienstverleners en diensten")
-@APIResponse(
-        responseCode = "500",
-        description = ApiResponseDescriptions.INTERNAL_SERVER_ERROR,
-        content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-)
+@APIResponse(responseCode = "500", description = ApiResponseDescriptions.INTERNAL_SERVER_ERROR, content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
 public class DienstverlenerController {
 
     private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
@@ -55,31 +50,22 @@ public class DienstverlenerController {
 
     @GET
     @Path("/dienstverlener/{naam}")
-    @Operation(
-            summary = "Vraagt gegevens van dienstverlener",
-            description = "Geeft gegevens van gevraagde dienstverlener terug, inclusief de aangesloten diensten."
-    )
+    @Operation(summary = "Vraagt gegevens van dienstverlener", description = "Geeft gegevens van gevraagde dienstverlener terug, inclusief de aangesloten diensten.")
     @APIResponses({
-            @APIResponse(
-                    responseCode = "200",
-                    description = "Dienstverlener succesvol opgehaald",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstverlenerResponse.class))
-            ),
-            @APIResponse(
-                    responseCode = "404",
-                    description = "Dienstverlener niet gevonden",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            )
+            @APIResponse(responseCode = "200", description = "Dienstverlener succesvol opgehaald", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstverlenerResponse.class))),
+            @APIResponse(responseCode = "404", description = "Dienstverlener niet gevonden", content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
     })
     public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
         Dienstverlener dv = dienstverlenerService.getDienstverlener(naam);
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
-            throw Problems.notFound("Dienstverlener niet gevonden", "Geen dienstverlener gevonden met de opgegeven naam.");
+            throw Problems.notFound("Dienstverlener niet gevonden",
+                    "Geen dienstverlener gevonden met de opgegeven naam.");
         }
 
-        DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
+        DienstverlenerResponse response = new DienstverlenerResponse(dv,
+                dienstverlenerService.getDienstenVoorDienstverlener(dv));
         LOG.info("Dienstverlener opgehaald");
         return Response.ok(response).build();
     }
@@ -88,26 +74,11 @@ public class DienstverlenerController {
     @Path("/dienstverlener/")
     @Transactional
     @RequireBody
-    @Operation(
-            summary = "Voegt een dienstverlener toe",
-            description = "Voegt een nieuwe dienstverlener toe met optionele beschrijving."
-    )
+    @Operation(summary = "Voegt een dienstverlener toe", description = "Voegt een nieuwe dienstverlener toe met optionele beschrijving.")
     @APIResponses({
-            @APIResponse(
-                    responseCode = "201",
-                    description = "Dienstverlener succesvol toegevoegd",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstverlenerResponse.class))
-            ),
-            @APIResponse(
-                    responseCode = "400",
-                    description = ApiResponseDescriptions.BAD_REQUEST_BODY,
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            ),
-            @APIResponse(
-                    responseCode = "409",
-                    description = "Dienstverlener bestaat al met conflicterende waarden",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            )
+            @APIResponse(responseCode = "201", description = "Dienstverlener succesvol toegevoegd", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstverlenerResponse.class))),
+            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY, content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))),
+            @APIResponse(responseCode = "409", description = "Dienstverlener bestaat al met conflicterende waarden", content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
     })
     public Response addDienstverlener(
             @Valid DienstverlenerRequest dienstverlenerRequest) {
@@ -129,31 +100,15 @@ public class DienstverlenerController {
     @Path("/dienstverlener/{dienstverlenerNaam}/diensten")
     @Transactional
     @RequireBody
-    @Operation(
-            summary = "Voegt een dienst toe aan een dienstverlener",
-            description = "Voegt een nieuwe dienst toe met beschrijving aan een bestaande dienstverlener."
-    )
+    @Operation(summary = "Voegt een dienst toe aan een dienstverlener", description = "Voegt een nieuwe dienst toe met beschrijving aan een bestaande dienstverlener.")
     @APIResponses({
-            @APIResponse(
-                    responseCode = "201",
-                    description = "Dienst succesvol toegevoegd",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstResponse.class))
-            ),
-            @APIResponse(
-                    responseCode = "400",
-                    description = ApiResponseDescriptions.BAD_REQUEST_BODY,
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            ),
-            @APIResponse(
-                    responseCode = "409",
-                    description = "Dienst bestaat al met een andere beschrijving",
-                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
-            )
+            @APIResponse(responseCode = "201", description = "Dienst succesvol toegevoegd", content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = DienstResponse.class))),
+            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY, content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))),
+            @APIResponse(responseCode = "409", description = "Dienst bestaat al met een andere beschrijving", content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class)))
     })
     public Response addDienstToDienstverlener(
             @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
-            @Valid DienstRequest request
-    ) {
+            @Valid DienstRequest request) {
         if (request == null) {
             LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
             throw Problems.missingBody();

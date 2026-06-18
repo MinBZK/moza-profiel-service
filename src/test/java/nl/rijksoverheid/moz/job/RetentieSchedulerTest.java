@@ -75,9 +75,8 @@ public class RetentieSchedulerTest {
 
     /** Backdoor to set createdAt (normally immutable via @PrePersist) to a past date. */
     private void setCreatedAt(UUID voorkeurId, Instant createdAt) {
-        QuarkusTransaction.requiringNew().run(() ->
-            Voorkeur.update("createdAt = :ts WHERE id = :id", Map.of("ts", createdAt, "id", voorkeurId))
-        );
+        QuarkusTransaction.requiringNew().run(
+                () -> Voorkeur.update("createdAt = :ts WHERE id = :id", Map.of("ts", createdAt, "id", voorkeurId)));
     }
 
     private static Instant ouderDanGrens() {
@@ -139,7 +138,8 @@ public class RetentieSchedulerTest {
     @Test
     void voorkeur_teVerwijderenOpAlGezet_WordtNietOverschreven() {
         UUID partijId = createPartij();
-        Instant bestaandeWaarde = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(3)).toInstant().truncatedTo(ChronoUnit.MICROS);
+        Instant bestaandeWaarde = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(3)).toInstant()
+                .truncatedTo(ChronoUnit.MICROS);
         UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), bestaandeWaarde);
 
         retentieScheduler.stelTeVerwijderenOpIn();
@@ -178,7 +178,8 @@ public class RetentieSchedulerTest {
     void voorkeur_manueleTeVerwijderenOp_BlijftBijGebruik() {
         // teVerwijderenOp was set manually (flag = false) → mapper must not clear it on use.
         UUID partijId = createPartij();
-        Instant manueleWaarde = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(6)).toInstant().truncatedTo(ChronoUnit.MICROS);
+        Instant manueleWaarde = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofMonths(6)).toInstant()
+                .truncatedTo(ChronoUnit.MICROS);
         UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), manueleWaarde);
         // teVerwijderenOpAutomatisch stays false (default)
 

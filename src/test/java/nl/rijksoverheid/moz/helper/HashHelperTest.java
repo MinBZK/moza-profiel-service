@@ -1,6 +1,5 @@
 package nl.rijksoverheid.moz.helper;
 
-import jakarta.inject.Inject;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mockStatic;
 
 public class HashHelperTest {
-
 
     private HashHelper hashHelper;
 

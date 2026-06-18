@@ -2,9 +2,9 @@ package nl.rijksoverheid.moz.fuzzing;
 
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.dto.request.DienstRequest;
 import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
@@ -19,13 +19,13 @@ public class JsonDeserializationFuzzer {
     private static final ObjectMapper mapper = new ObjectMapper();
 
     private static final Class<?>[] REQUEST_TYPES = {
-        ContactgegevenRequest.class,
-        ContactgegevenUpdateRequest.class,
-        VoorkeurRequest.class,
-        VoorkeurUpdateRequest.class,
-        DienstverlenerRequest.class,
-        DienstRequest.class,
-        EmailVerificatieRequest.class,
+            ContactgegevenRequest.class,
+            ContactgegevenUpdateRequest.class,
+            VoorkeurRequest.class,
+            VoorkeurUpdateRequest.class,
+            DienstverlenerRequest.class,
+            DienstRequest.class,
+            EmailVerificatieRequest.class,
     };
 
     public static void fuzzerTestOneInput(FuzzedDataProvider data) {

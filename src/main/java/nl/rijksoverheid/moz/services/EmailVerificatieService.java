@@ -5,12 +5,12 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
-import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationApplicationRequest;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationRequest;
@@ -42,7 +42,8 @@ public class EmailVerificatieService {
 
     @Transactional
     public boolean verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
-        Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.identificatieType, emailVerificatieRequest.identificatieNummer);
+        Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.identificatieType,
+                emailVerificatieRequest.identificatieNummer);
 
         if (partij == null) {
             LOG.warn("Verificatie mislukt: Partij niet gevonden");
@@ -50,7 +51,8 @@ public class EmailVerificatieService {
         }
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
+                .filter(c -> c.getType() == ContactType.Email
+                        && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
                 .findFirst()
                 .orElse(null);
 
@@ -64,7 +66,8 @@ public class EmailVerificatieService {
         request.setCode(emailVerificatieRequest.verificatieCode);
 
         try {
-            var response = verificatieServiceGuard.get().call(() -> emailVerificatieApi.verifyPost(request), VerificationResponse.class);
+            var response = verificatieServiceGuard.get().call(() -> emailVerificatieApi.verifyPost(request),
+                    VerificationResponse.class);
 
             if (response != null && Boolean.TRUE.equals(response.getSuccess())) {
                 contact.setGeverifieerdAt(Instant.now());
@@ -128,7 +131,8 @@ public class EmailVerificatieService {
         verificationApplicationRequest.setEmail(email);
 
         try {
-            String referenceId = verificatieServiceGuard.get().call(() -> emailVerificatieApi.requestPost(verificationApplicationRequest), String.class);
+            String referenceId = verificatieServiceGuard.get()
+                    .call(() -> emailVerificatieApi.requestPost(verificationApplicationRequest), String.class);
             if (referenceId != null) {
                 return referenceId;
             }

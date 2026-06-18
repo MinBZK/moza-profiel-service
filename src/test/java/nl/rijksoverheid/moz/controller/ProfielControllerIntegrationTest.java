@@ -43,8 +43,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
-import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 @QuarkusTest
@@ -256,7 +256,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
                 .statusCode(OK)
-                .body("size()", equalTo(2));  // all found → 200
+                .body("size()", equalTo(2)); // all found → 200
     }
 
     @Test
@@ -283,7 +283,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
-                .statusCode(206)  // partial found → 206
+                .statusCode(206) // partial found → 206
                 .body("size()", equalTo(1));
     }
 
@@ -302,7 +302,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(request)
                 .post("/api/profielservice/v1/partijen/bulk")
                 .then()
-                .statusCode(NOT_FOUND)  // none found → 404
+                .statusCode(NOT_FOUND) // none found → 404
                 .contentType("application/problem+json")
                 .body("title", equalTo("Partijen niet gevonden"));
     }

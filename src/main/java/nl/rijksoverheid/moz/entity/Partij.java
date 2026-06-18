@@ -1,10 +1,5 @@
 package nl.rijksoverheid.moz.entity;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
@@ -13,6 +8,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Audited
@@ -42,11 +42,11 @@ public class Partij extends PanacheEntityBase {
 
     public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
         return find("""
-        SELECT p FROM Partij p
-        JOIN p.identificaties i
-        WHERE i.identificatieType = ?1
-          AND i.identificatieNummer = ?2
-    """, type, nummer).firstResult();
+                    SELECT p FROM Partij p
+                    JOIN p.identificaties i
+                    WHERE i.identificatieType = ?1
+                      AND i.identificatieNummer = ?2
+                """, type, nummer).firstResult();
     }
 
     public void addIdentificatie(Identificatie identificatie) {

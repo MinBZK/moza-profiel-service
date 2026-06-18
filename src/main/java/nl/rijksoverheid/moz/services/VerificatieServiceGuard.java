@@ -40,11 +40,11 @@ public class VerificatieServiceGuard {
     private Guard buildGuard() {
         return Guard.create()
                 .withCircuitBreaker()
-                    .requestVolumeThreshold(requestVolumeThreshold)
-                    .failureRatio(failureRatio)
-                    .delay(delay, ChronoUnit.SECONDS)
-                    .successThreshold(successThreshold)
-                    .done()
+                .requestVolumeThreshold(requestVolumeThreshold)
+                .failureRatio(failureRatio)
+                .delay(delay, ChronoUnit.SECONDS)
+                .successThreshold(successThreshold)
+                .done()
                 .build();
     }
 }

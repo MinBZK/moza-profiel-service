@@ -18,12 +18,8 @@ import org.hibernate.envers.Audited;
 import java.util.UUID;
 
 @Entity
-@Table(
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_identificatie",
-                columnNames = {"identificatie_type", "identificatie_nummer"}
-        )
-)
+@Table(uniqueConstraints = @UniqueConstraint(name = "uk_identificatie", columnNames = {"identificatie_type",
+        "identificatie_nummer"}))
 @Audited
 public class Identificatie extends PanacheEntityBase {
 
@@ -48,8 +44,7 @@ public class Identificatie extends PanacheEntityBase {
         this.identificatieNummer = identificatieNummer;
     }
 
-    public Identificatie() {
-    }
+    public Identificatie() {}
 
     public IdentificatieType getIdentificatieType() {
         return identificatieType;

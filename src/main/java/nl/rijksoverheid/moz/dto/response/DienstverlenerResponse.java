@@ -10,8 +10,7 @@ public class DienstverlenerResponse {
     public String beschrijving;
     public List<DienstResponse> diensten;
 
-    public DienstverlenerResponse() {
-    }
+    public DienstverlenerResponse() {}
 
     public DienstverlenerResponse(Dienstverlener dv, List<Dienst> diensten) {
         this.naam = dv.getNaam();

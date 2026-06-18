@@ -35,7 +35,8 @@ abstract class OpenApiValidationTest {
 
     @BeforeEach
     void setupValidationFilter() throws Exception {
-        if (validationFilter != null) return;
+        if (validationFilter != null)
+            return;
         String openApiPath = ConfigProvider.getConfig()
                 .getOptionalValue("quarkus.smallrye-openapi.path", String.class)
                 .orElse("/q/openapi");
