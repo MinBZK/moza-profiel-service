@@ -1,7 +1,7 @@
 package nl.rijksoverheid.moz.mapper;
 
-import nl.rijksoverheid.moz.dto.response.DienstResponse;
-import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
+import nl.rijksoverheid.moz.api.generated.model.DienstResponse;
+import nl.rijksoverheid.moz.api.generated.model.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import org.mapstruct.Mapper;

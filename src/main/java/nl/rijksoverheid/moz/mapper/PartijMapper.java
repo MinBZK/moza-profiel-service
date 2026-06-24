@@ -1,10 +1,10 @@
 package nl.rijksoverheid.moz.mapper;
 
-import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
-import nl.rijksoverheid.moz.dto.response.IdentificatieResponse;
-import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.dto.response.ScopeResponse;
-import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
+import nl.rijksoverheid.moz.api.generated.model.IdentificatieResponse;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
+import nl.rijksoverheid.moz.api.generated.model.ScopeResponse;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -56,8 +56,8 @@ public abstract class PartijMapper {
         ContactgegevenResponse cr = mapContactgegeven(cg);
 
         if (clearedAt != null) {
-            cr.lastUpdated = clearedAt;
-            cr.teVerwijderenOp = null;
+            cr.setLastUpdated(clearedAt);
+            cr.setTeVerwijderenOp(null);
         }
 
         return cr;
@@ -69,8 +69,8 @@ public abstract class PartijMapper {
         VoorkeurResponse vr = mapVoorkeur(voorkeur);
 
         if (clearedAt != null) {
-            vr.lastUpdated = clearedAt;
-            vr.teVerwijderenOp = null;
+            vr.setLastUpdated(clearedAt);
+            vr.setTeVerwijderenOp(null);
         }
 
         return vr;

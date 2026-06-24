@@ -22,7 +22,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         type:
           $ref: "#/components/schemas/ContactType"
         waarde:
@@ -66,7 +66,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         type:
           $ref: "#/components/schemas/ContactType"
         waarde:
@@ -87,7 +87,7 @@ components:
       properties:
         naam:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         beschrijving:
           type: string
     DienstResponse:
@@ -129,10 +129,10 @@ components:
       properties:
         email:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
     EmailVerificatieRequest:
@@ -265,7 +265,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
     PartijRequest:
       description: Request object voor het ophalen van een Partij
       type: object
@@ -277,7 +277,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         dienstverlener:
           type: string
         dienstNaam:
@@ -328,10 +328,10 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         dienstverlenerNaam:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         dienstNaam:
           type: string
         teVerwijderenOp:
@@ -376,7 +376,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         voorkeurType:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
@@ -424,7 +424,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: \S
+          pattern: ".*\\S.*"
         voorkeurType:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
@@ -446,6 +446,7 @@ paths:
   /api/profielservice/v1/contactgegeven:
     put:
       summary: Update contactgegeven van een partij
+      operationId: updateContactgegeven
       description: "Werk type, waarde en scope van een contactgegeven bij. Identificatie\
         \ kan niet aangepast worden."
       tags:
@@ -482,6 +483,7 @@ paths:
                 $ref: "#/components/schemas/HttpProblem"
     post:
       summary: Toevoegen nieuwe contactgegeven voor een partij
+      operationId: addContactgegeven
       description: Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende
         partijen.
       tags:
@@ -520,6 +522,7 @@ paths:
   /api/profielservice/v1/contactgegeven/te-verwijderen-op:
     patch:
       summary: Stel te-verwijderen-op in voor een contactgegeven (Dienstverlener)
+      operationId: updateContactgegevenTeVerwijderenOp
       description: Stelt of overschrijft de te-verwijderen-op datum voor een contactgegeven.
         Alleen toegestaan voor een Dienstverlener met een bestaande scope op het contactgegeven.
       tags:
@@ -563,6 +566,7 @@ paths:
   /api/profielservice/v1/contactgegeven/{contactgegevenId}:
     delete:
       summary: Verwijder contactgegeven van een partij
+      operationId: deleteContactgegeven
       description: Verwijdert een contactgegeven volledig
       tags:
       - Profiel
@@ -596,6 +600,7 @@ paths:
   /api/profielservice/v1/dienstverlener:
     post:
       summary: Voegt een dienstverlener toe
+      operationId: addDienstverlener
       description: Voegt een nieuwe dienstverlener toe met optionele beschrijving.
       tags:
       - Dienstverlener
@@ -633,6 +638,7 @@ paths:
   /api/profielservice/v1/dienstverlener/{dienstverlenerNaam}/diensten:
     post:
       summary: Voegt een dienst toe aan een dienstverlener
+      operationId: addDienstToDienstverlener
       description: Voegt een nieuwe dienst toe met beschrijving aan een bestaande
         dienstverlener.
       tags:
@@ -677,6 +683,7 @@ paths:
   /api/profielservice/v1/dienstverlener/{naam}:
     get:
       summary: Vraagt gegevens van dienstverlener
+      operationId: getDienstverlener
       description: "Geeft gegevens van gevraagde dienstverlener terug, inclusief de\
         \ aangesloten diensten."
       tags:
@@ -709,6 +716,7 @@ paths:
   /api/profielservice/v1/emailverificatie:
     post:
       summary: Verifieer een email met een verificatie code
+      operationId: verifieerEmail
       description: Verifieert een email adres aan de hand van de eerder aangevraagde
         verificatie code.
       tags:
@@ -740,6 +748,7 @@ paths:
   /api/profielservice/v1/emailverificatie/code:
     post:
       summary: (Opnieuw) aanvragen voor een code van een (al geverifieerde) mail adres
+      operationId: vraagEmailVerificatieCodeAan
       description: "Vraagt een email verificatie code aan. Let op, bij het aanmaken\
         \ van een profiel wordt al een email verificatie code aangevraagd. Dit is\
         \ voor het opnieuw aanvragen van een code."
@@ -784,6 +793,7 @@ paths:
   /api/profielservice/v1/partij:
     post:
       summary: Ophalen profiel van een partij
+      operationId: getPartij
       description: Haalt het profiel op van een partij
       tags:
       - Profiel
@@ -817,6 +827,7 @@ paths:
   /api/profielservice/v1/partijen/bulk:
     post:
       summary: Ophalen profielen van meerdere partijen
+      operationId: getPartijBulk
       description: Haalt profielen op van meerdere partijen. Niet-gevonden partijen
         worden stilzwijgend weggelaten.
       tags:
@@ -865,6 +876,7 @@ paths:
   /api/profielservice/v1/voorkeur:
     put:
       summary: Update voorkeur van een partij
+      operationId: updateVoorkeur
       description: "Werk type, waarde en scope van een voorkeur bij. Identificatie\
         \ kan niet aangepast worden."
       tags:
@@ -901,6 +913,7 @@ paths:
                 $ref: "#/components/schemas/HttpProblem"
     post:
       summary: Toevoegen nieuwe voorkeur voor een partij
+      operationId: addVoorkeur
       description: Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende
         partijen.
       tags:
@@ -939,6 +952,7 @@ paths:
   /api/profielservice/v1/voorkeur/te-verwijderen-op:
     patch:
       summary: Stel te-verwijderen-op in voor een voorkeur (Dienstverlener)
+      operationId: updateVoorkeurTeVerwijderenOp
       description: Stelt of overschrijft de te-verwijderen-op datum voor een voorkeur.
         Alleen toegestaan voor een Dienstverlener met een bestaande scope op de voorkeur.
       tags:
@@ -982,6 +996,7 @@ paths:
   /api/profielservice/v1/voorkeur/{voorkeurId}:
     delete:
       summary: Verwijder voorkeur van een partij
+      operationId: deleteVoorkeur
       description: Verwijdert een voorkeur volledig
       tags:
       - Profiel

@@ -211,9 +211,12 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-orm-panache</artifactId>
         </dependency>
+        <!-- Quarkus-extensie i.p.v. de kale hibernate-validator: vereist door de
+             server-codegen (bean-validation) en de juiste manier om JSR-303 op
+             JAX-RS te activeren. Versie wordt door de quarkus-bom beheerd. -->
         <dependency>
-            <groupId>org.hibernate.validator</groupId>
-            <artifactId>hibernate-validator</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-validator</artifactId>
         </dependency>
 
         <dependency>
@@ -258,6 +261,53 @@
 
     <build>
         <plugins>
+            <!-- Contract-first server-stub generatie (#651): JAX-RS interfaces (één per tag)
+                 + DTOs uit src/main/openapi-server/profiel-service.yaml. schemaMappings hergebruiken
+                 de bestaande domeintypes (common enums, java.time.Instant, java.util.UUID) zodat de
+                 gegenereerde DTOs naadloos aansluiten op entities/services zonder conversielaag. -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>7.10.0</version>
+                <executions>
+                    <execution>
+                        <id>profiel-service-server</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Eén bron: dit contract wordt door smallrye-openapi ook statisch geserveerd op /openapi.json. -->
+                            <inputSpec>${project.basedir}/src/main/resources/META-INF/openapi.yaml</inputSpec>
+                            <generatorName>jaxrs-spec</generatorName>
+                            <output>${project.build.directory}/generated-sources/server</output>
+                            <apiPackage>nl.rijksoverheid.moz.api.generated.api</apiPackage>
+                            <modelPackage>nl.rijksoverheid.moz.api.generated.model</modelPackage>
+                            <!-- Alleen DTO's genereren. Quarkus REST (RESTEasy Reactive) ondersteunt
+                                 geen server-resources via gegenereerde JAX-RS interfaces (parameter-binding
+                                 gaat verloren), dus de interfaces zijn niet bruikbaar; de controllers zijn
+                                 concrete resources die het contract implementeren. Zie #651. -->
+                            <generateApis>false</generateApis>
+                            <generateApiTests>false</generateApiTests>
+                            <generateModelTests>false</generateModelTests>
+                            <generateApiDocumentation>false</generateApiDocumentation>
+                            <generateModelDocumentation>false</generateModelDocumentation>
+                            <generateSupportingFiles>false</generateSupportingFiles>
+                            <configOptions>
+                                <interfaceOnly>true</interfaceOnly>
+                                <returnResponse>true</returnResponse>
+                                <useTags>true</useTags>
+                                <useJakartaEe>true</useJakartaEe>
+                                <useSwaggerAnnotations>false</useSwaggerAnnotations>
+                                <useBeanValidation>true</useBeanValidation>
+                                <sourceFolder>src/main/java</sourceFolder>
+                            </configOptions>
+                            <schemaMappings>
+                                Instant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType
+                            </schemaMappings>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>quarkus-maven-plugin</artifactId>

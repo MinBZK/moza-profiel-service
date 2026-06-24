@@ -4,8 +4,8 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.dto.request.DienstRequest;
-import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -98,8 +98,8 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
     @Test
     void addDienstverlener_Success() {
         DienstverlenerRequest request = new DienstverlenerRequest();
-        request.naam = "Test";
-        request.beschrijving = "Test beschrijving";
+        request.setNaam("Test");
+        request.setBeschrijving("Test beschrijving");
         given()
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)
@@ -123,8 +123,8 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
     @Test
     void addDienstToDienstverlener_Success() {
         DienstRequest request = new DienstRequest();
-        request.naam = "TestDienst";
-        request.beschrijving = "Optionele toelichting";
+        request.setNaam("TestDienst");
+        request.setBeschrijving("Optionele toelichting");
 
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener d = new Dienstverlener();
@@ -156,8 +156,8 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
         });
 
         DienstRequest request = new DienstRequest();
-        request.naam = "TestDienst";
-        request.beschrijving = "andere beschrijving";
+        request.setNaam("TestDienst");
+        request.setBeschrijving("andere beschrijving");
 
         given()
                 .contentType(ContentType.JSON)

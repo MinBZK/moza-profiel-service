@@ -2,8 +2,8 @@ package nl.rijksoverheid.moz.mapper;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import nl.rijksoverheid.moz.dto.response.DienstResponse;
-import nl.rijksoverheid.moz.dto.response.DienstverlenerResponse;
+import nl.rijksoverheid.moz.api.generated.model.DienstResponse;
+import nl.rijksoverheid.moz.api.generated.model.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import org.junit.jupiter.api.Assertions;
@@ -40,16 +40,16 @@ class DienstMapperTest {
 
         DienstResponse response = dienstMapper.toDienstResponse(dienst);
 
-        Assertions.assertEquals(dienst.id, response.id);
-        Assertions.assertEquals("Aanvraag vergunning", response.naam);
-        Assertions.assertEquals("Beschrijving", response.beschrijving);
+        Assertions.assertEquals(dienst.id, response.getId());
+        Assertions.assertEquals("Aanvraag vergunning", response.getNaam());
+        Assertions.assertEquals("Beschrijving", response.getBeschrijving());
     }
 
     @Test
     void toDienstResponse_beschrijvingMagNullZijn() {
         DienstResponse response = dienstMapper.toDienstResponse(dienst("Dienst zonder beschrijving", null));
 
-        Assertions.assertNull(response.beschrijving);
+        Assertions.assertNull(response.getBeschrijving());
     }
 
     @Test
@@ -65,13 +65,13 @@ class DienstMapperTest {
 
         DienstverlenerResponse response = dienstMapper.toDienstverlenerResponse(dv, List.of(dienstA, dienstB));
 
-        Assertions.assertEquals("Gemeente Amsterdam", response.naam);
-        Assertions.assertEquals("Beschrijving DV", response.beschrijving);
-        Assertions.assertEquals(2, response.diensten.size());
-        Assertions.assertEquals(dienstA.id, response.diensten.get(0).id);
-        Assertions.assertEquals("Dienst A", response.diensten.get(0).naam);
-        Assertions.assertEquals("Dienst B", response.diensten.get(1).naam);
-        Assertions.assertNull(response.diensten.get(1).beschrijving);
+        Assertions.assertEquals("Gemeente Amsterdam", response.getNaam());
+        Assertions.assertEquals("Beschrijving DV", response.getBeschrijving());
+        Assertions.assertEquals(2, response.getDiensten().size());
+        Assertions.assertEquals(dienstA.id, response.getDiensten().get(0).getId());
+        Assertions.assertEquals("Dienst A", response.getDiensten().get(0).getNaam());
+        Assertions.assertEquals("Dienst B", response.getDiensten().get(1).getNaam());
+        Assertions.assertNull(response.getDiensten().get(1).getBeschrijving());
     }
 
     @Test
@@ -79,8 +79,8 @@ class DienstMapperTest {
         DienstverlenerResponse response =
                 dienstMapper.toDienstverlenerResponse(dienstverlener("Dienstverlener zonder diensten", null), List.of());
 
-        Assertions.assertEquals("Dienstverlener zonder diensten", response.naam);
-        Assertions.assertNotNull(response.diensten);
-        Assertions.assertTrue(response.diensten.isEmpty());
+        Assertions.assertEquals("Dienstverlener zonder diensten", response.getNaam());
+        Assertions.assertNotNull(response.getDiensten());
+        Assertions.assertTrue(response.getDiensten().isEmpty());
     }
 }

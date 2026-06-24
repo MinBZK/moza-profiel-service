@@ -7,14 +7,14 @@ import io.restassured.http.ContentType;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
-import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
-import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
-import nl.rijksoverheid.moz.dto.request.PartijRequest;
-import nl.rijksoverheid.moz.dto.request.ScopeRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijBulkRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijIdentificatieRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
+import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -95,8 +95,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var request = new PartijRequest();
-        request.identificatieType = KVK;
-        request.identificatieNummer = "111111111";
+        request.setIdentificatieType(KVK);
+        request.setIdentificatieNummer("111111111");
 
         given()
                 .filter(validationFilter)
@@ -140,8 +140,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var request = new PartijRequest();
-        request.identificatieType = KVK;
-        request.identificatieNummer = "222222222";
+        request.setIdentificatieType(KVK);
+        request.setIdentificatieNummer("222222222");
 
         given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
@@ -193,8 +193,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var request = new PartijRequest();
-        request.identificatieType = KVK;
-        request.identificatieNummer = "333333333";
+        request.setIdentificatieType(KVK);
+        request.setIdentificatieNummer("333333333");
 
         given().filter(validationFilter).contentType(ContentType.JSON)
                 .body(request)
@@ -210,8 +210,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void getPartij_NotFound() {
         var request = new PartijRequest();
-        request.identificatieType = BSN;
-        request.identificatieNummer = "999999999";
+        request.setIdentificatieType(BSN);
+        request.setIdentificatieNummer("999999999");
 
         given()
                 .filter(validationFilter)
@@ -240,14 +240,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var id1 = new PartijIdentificatieRequest();
-        id1.identificatieType = BSN;
-        id1.identificatieNummer = "111111120";
+        id1.setIdentificatieType(BSN);
+        id1.setIdentificatieNummer("111111120");
         var id2 = new PartijIdentificatieRequest();
-        id2.identificatieType = KVK;
-        id2.identificatieNummer = "111111121";
+        id2.setIdentificatieType(KVK);
+        id2.setIdentificatieNummer("111111121");
 
         var request = new PartijBulkRequest();
-        request.identificaties = List.of(id1, id2);
+        request.setIdentificaties(List.of(id1, id2));
 
         given()
                 .filter(validationFilter)
@@ -268,14 +268,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var id1 = new PartijIdentificatieRequest();
-        id1.identificatieType = BSN;
-        id1.identificatieNummer = "111111122";
+        id1.setIdentificatieType(BSN);
+        id1.setIdentificatieNummer("111111122");
         var id2 = new PartijIdentificatieRequest();
-        id2.identificatieType = BSN;
-        id2.identificatieNummer = "999999999";
+        id2.setIdentificatieType(BSN);
+        id2.setIdentificatieNummer("999999999");
 
         var request = new PartijBulkRequest();
-        request.identificaties = List.of(id1, id2);
+        request.setIdentificaties(List.of(id1, id2));
 
         given()
                 .filter(validationFilter)
@@ -290,11 +290,11 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void getPartijBulk_NoneFound() {
         var id = new PartijIdentificatieRequest();
-        id.identificatieType = BSN;
-        id.identificatieNummer = "000000000";
+        id.setIdentificatieType(BSN);
+        id.setIdentificatieNummer("000000000");
 
         var request = new PartijBulkRequest();
-        request.identificaties = List.of(id);
+        request.setIdentificaties(List.of(id));
 
         given()
                 .filter(validationFilter)
@@ -330,10 +330,10 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void addContactgegeven_Success() {
         var body = new ContactgegevenRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.type = ContactType.Email;
-        body.waarde = "test@example.com";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setType(ContactType.Email);
+        body.setWaarde("test@example.com");
 
         given()
                 .filter(validationFilter)
@@ -349,10 +349,10 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void addContactgegeven_Duplicate_Returns200() {
         var body = new ContactgegevenRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.type = ContactType.Email;
-        body.waarde = "dup@example.com";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setType(ContactType.Email);
+        body.setWaarde("dup@example.com");
 
         assertSecondPostReturns200("/api/profielservice/v1/contactgegeven", body, "dup@example.com");
     }
@@ -369,12 +369,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void addContactgegeven_UnknownDienstverlenerInScope_Returns404() {
         var body = new ContactgegevenRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.type = ContactType.Email;
-        body.waarde = "test@example.com";
-        body.scope = new ScopeRequest();
-        body.scope.dienstverlenerNaam = "BestaatNiet";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setType(ContactType.Email);
+        body.setWaarde("test@example.com");
+        body.setScope(new ScopeRequest());
+        body.getScope().setDienstverlenerNaam("BestaatNiet");
 
         given()
                 .contentType(ContentType.JSON)
@@ -389,12 +389,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void addContactgegeven_DienstNaamWithoutDienstverlenerNaam_Returns400() {
         var body = new ContactgegevenRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.type = ContactType.Email;
-        body.waarde = "test@example.com";
-        body.scope = new ScopeRequest();
-        body.scope.dienstNaam = "SomeDienst";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setType(ContactType.Email);
+        body.setWaarde("test@example.com");
+        body.setScope(new ScopeRequest());
+        body.getScope().setDienstNaam("SomeDienst");
 
         given()
                 .contentType(ContentType.JSON)
@@ -422,11 +422,11 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var body = new ContactgegevenUpdateRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111111";
-        body.id = id.get();
-        body.type = ContactType.Email;
-        body.waarde = "test2@example.com";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111111");
+        body.setId(id.get());
+        body.setType(ContactType.Email);
+        body.setWaarde("test2@example.com");
 
         given()
                 .filter(validationFilter)
@@ -469,11 +469,11 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void updateContactgegeven_NotFound() {
         var body = new ContactgegevenUpdateRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.id = UUID.randomUUID();
-        body.type = ContactType.Email;
-        body.waarde = "test2@example.com";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setId(UUID.randomUUID());
+        body.setType(ContactType.Email);
+        body.setWaarde("test2@example.com");
 
         given()
                 .filter(validationFilter)
@@ -502,8 +502,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var body = new PartijIdentificatieRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111114";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111114");
 
         given()
                 .filter(validationFilter)
@@ -517,8 +517,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void deleteContactgegeven_NotFound() {
         var body = new PartijIdentificatieRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111114";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111114");
 
         given()
                 .filter(validationFilter)
@@ -534,10 +534,10 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void addVoorkeur_Success() {
         var body = new VoorkeurRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.voorkeurType = VoorkeurType.WebsiteTaal;
-        body.waarde = "nl";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        body.setWaarde("nl");
 
         given()
                 .filter(validationFilter)
@@ -552,10 +552,10 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void addVoorkeur_Duplicate_Returns200() {
         var body = new VoorkeurRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.voorkeurType = VoorkeurType.WebsiteTaal;
-        body.waarde = "nl";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        body.setWaarde("nl");
 
         assertSecondPostReturns200("/api/profielservice/v1/voorkeur", body, "nl");
     }
@@ -585,11 +585,11 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var body = new VoorkeurUpdateRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111115";
-        body.id = id.get();
-        body.voorkeurType = VoorkeurType.WebsiteTaal;
-        body.waarde = "en";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111115");
+        body.setId(id.get());
+        body.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        body.setWaarde("en");
 
         given()
                 .filter(validationFilter)
@@ -623,11 +623,11 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void updateVoorkeur_NotFound() {
         var body = new VoorkeurUpdateRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "123456789";
-        body.id = UUID.randomUUID();
-        body.voorkeurType = VoorkeurType.WebsiteTaal;
-        body.waarde = "en";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("123456789");
+        body.setId(UUID.randomUUID());
+        body.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        body.setWaarde("en");
 
         given()
                 .filter(validationFilter)
@@ -674,8 +674,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         });
 
         var body = new PartijIdentificatieRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111118";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111118");
 
         given()
                 .filter(validationFilter)
@@ -689,8 +689,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     @Test
     void deleteVoorkeur_NotFound() {
         var body = new PartijIdentificatieRequest();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111119";
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111119");
 
         given()
                 .filter(validationFilter)
