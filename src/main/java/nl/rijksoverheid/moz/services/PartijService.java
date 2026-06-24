@@ -2,7 +2,6 @@ package nl.rijksoverheid.moz.services;
 
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.exception.AuthorizationException;
 import nl.rijksoverheid.moz.exception.BusinessException;
@@ -47,14 +46,18 @@ public class PartijService {
 
     private static final Logger LOG = Logger.getLogger(PartijService.class);
 
-    @Inject
-    PartijMapper partijMapper;
+    private final PartijMapper partijMapper;
+    private final EmailVerificatieService emailVerificatieService;
+    private final DienstverlenerService dienstverlenerService;
 
-    @Inject
-    EmailVerificatieService emailVerificatieService;
-
-    @Inject
-    DienstverlenerService dienstverlenerService;
+    public PartijService(
+            PartijMapper partijMapper,
+            EmailVerificatieService emailVerificatieService,
+            DienstverlenerService dienstverlenerService) {
+        this.partijMapper = partijMapper;
+        this.emailVerificatieService = emailVerificatieService;
+        this.dienstverlenerService = dienstverlenerService;
+    }
 
     public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean scopeAdded) {}
 

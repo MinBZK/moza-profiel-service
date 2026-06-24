@@ -2,7 +2,6 @@
 package nl.rijksoverheid.moz.controller;
 
 import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -37,8 +36,11 @@ public class EmailVerificatieController {
 
     private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
 
-    @Inject
-    EmailVerificatieService emailVerificatieService;
+    private final EmailVerificatieService emailVerificatieService;
+
+    public EmailVerificatieController(EmailVerificatieService emailVerificatieService) {
+        this.emailVerificatieService = emailVerificatieService;
+    }
 
     @POST
     @Path("/emailverificatie/code")
