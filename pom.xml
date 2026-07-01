@@ -12,13 +12,31 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.36.0</quarkus.platform.version>
+        <quarkus.platform.version>3.37.0</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Security-override: quarkus-bom 3.37.0 pint OpenTelemetry nog op 1.60.1 (Dependabot-alert).
+                 De BOM MOET vóór de quarkus-bom import staan: import-scope is first-wins, dus een override
+                 ná quarkus-bom heeft geen effect. Netty (4.1.135.Final) wordt sinds 3.36.3 al door de
+                 quarkus-bom beheerd en heeft daarom geen eigen pins meer nodig. -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>1.62.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom-alpha</artifactId>
+                <version>1.62.0-alpha</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>${quarkus.platform.artifact-id}</artifactId>
@@ -33,151 +51,12 @@
                 <artifactId>swagger-parser</artifactId>
                 <version>2.1.40</version>
             </dependency>
-            <!-- Security patches for transitive dependencies that Dependabot cannot auto-update -->
+            <!-- Security-pins voor test-scope transitives (via Pact) die niet door de quarkus-bom
+                 beheerd worden en die Dependabot niet zelf kan updaten. -->
             <dependency>
                 <groupId>org.apache.tika</groupId>
                 <artifactId>tika-core</artifactId>
                 <version>3.2.2</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-common</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-buffer</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-transport</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-transport-native-unix-common</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-codec</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-codec-socks</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-codec-dns</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-codec-http</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-codec-http2</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-codec-haproxy</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-resolver</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-resolver-dns</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-handler</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-handler-proxy</artifactId>
-                <version>4.1.135.Final</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-api</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-context</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-common</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-sdk</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-sdk-common</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-sdk-trace</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-sdk-metrics</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-sdk-logs</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-sdk-extension-autoconfigure-spi</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-exporter-otlp</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-exporter-otlp-common</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-exporter-common</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-exporter-sender-okhttp</artifactId>
-                <version>1.62.0</version>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-api-incubator</artifactId>
-                <version>1.62.0-alpha</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
