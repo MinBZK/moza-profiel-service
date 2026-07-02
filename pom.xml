@@ -12,13 +12,31 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.36.0</quarkus.platform.version>
+        <quarkus.platform.version>3.37.0</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.5</surefire-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Security-override: quarkus-bom 3.37.0 pint OpenTelemetry nog op 1.60.1 (Dependabot-alert).
+                 De BOM MOET vóór de quarkus-bom import staan: import-scope is first-wins, dus een override
+                 ná quarkus-bom heeft geen effect. Netty (4.1.135.Final) wordt sinds 3.36.3 al door de
+                 quarkus-bom beheerd en heeft daarom geen eigen pins meer nodig. -->
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>1.62.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom-alpha</artifactId>
+                <version>1.62.0-alpha</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>${quarkus.platform.artifact-id}</artifactId>
@@ -26,12 +44,29 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Pin swagger-parser to the version required by quarkus-openapi-generator (2.16.0-lts needs 2.1.40).
+            <!-- Pin swagger-parser to 2.1.40 as required by quarkus-openapi-generator.
                  The Atlassian swagger-request-validator brings in 2.1.22 which is too old and lacks setResolveResponses. -->
             <dependency>
                 <groupId>io.swagger.parser.v3</groupId>
                 <artifactId>swagger-parser</artifactId>
                 <version>2.1.40</version>
+            </dependency>
+            <!-- Security-pins voor test-scope transitives (via Pact) die niet door de quarkus-bom
+                 beheerd worden en die Dependabot niet zelf kan updaten. -->
+            <dependency>
+                <groupId>org.apache.tika</groupId>
+                <artifactId>tika-core</artifactId>
+                <version>3.2.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-configuration2</artifactId>
+                <version>2.15.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mozilla</groupId>
+                <artifactId>rhino</artifactId>
+                <version>1.7.14.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -54,7 +89,7 @@
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator</artifactId>
-            <version>2.16.0-lts</version>
+            <version>2.17.0</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
