@@ -24,6 +24,7 @@ import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.Problems;
+import nl.rijksoverheid.moz.mapper.DienstMapper;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -53,6 +54,9 @@ public class DienstverlenerController {
     @Inject
     DienstverlenerService dienstverlenerService;
 
+    @Inject
+    DienstMapper dienstMapper;
+
     @GET
     @Path("/dienstverlener/{naam}")
     @Operation(
@@ -79,7 +83,7 @@ public class DienstverlenerController {
             throw Problems.notFound("Dienstverlener niet gevonden", "Geen dienstverlener gevonden met de opgegeven naam.");
         }
 
-        DienstverlenerResponse response = new DienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
+        DienstverlenerResponse response = dienstMapper.toDienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
         LOG.info("Dienstverlener opgehaald");
         return Response.ok(response).build();
     }
@@ -121,7 +125,7 @@ public class DienstverlenerController {
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
                 .path("dienstverlener").path("{naam}")
                 .build(created.getNaam());
-        DienstverlenerResponse body = new DienstverlenerResponse(created, List.of());
+        DienstverlenerResponse body = dienstMapper.toDienstverlenerResponse(created, List.of());
         return Response.created(uri).entity(body).build();
     }
 
@@ -163,6 +167,6 @@ public class DienstverlenerController {
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
                 .path("dienstverlener").path("{dienstverlenerNaam}").path("diensten").path("{id}")
                 .build(dienstverlenerNaam, created.id);
-        return Response.created(uri).entity(new DienstResponse(created)).build();
+        return Response.created(uri).entity(dienstMapper.toDienstResponse(created)).build();
     }
 }
