@@ -25,7 +25,8 @@ reproduceren en beoordelen:
 
 ## Wat je van ons mag verwachten
 
-- We bevestigen de ontvangst van je melding zo snel mogelijk.
+- We bevestigen de ontvangst van je melding binnen **5 werkdagen**.
+- We streven ernaar je binnen **30 dagen** te informeren over onze beoordeling en het te nemen vervolgtraject.
 - We houden je op de hoogte van de voortgang van de afhandeling.
 - We behandelen je melding vertrouwelijk en delen je gegevens niet met derden
   zonder je toestemming.
