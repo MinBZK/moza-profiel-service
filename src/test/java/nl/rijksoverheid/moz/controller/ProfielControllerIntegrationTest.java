@@ -13,7 +13,6 @@ import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
-import nl.rijksoverheid.moz.dto.request.VerwijderdOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -597,52 +596,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
 
     @Test
-    void verwijderVoorkeur_WithDienstverlenerScope_Success() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dv = new Dienstverlener();
-            dv.setNaam("TestDV");
-            dv.persist();
-
-            Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111120"));
-            p.persist();
-
-            Voorkeur v = new Voorkeur();
-            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            v.setWaarde("nl");
-            v.setPartij(p);
-            v.persist();
-            voorkeurId.set(v.id);
-
-            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
-            link.persist();
-            new ScopeVoorkeur(v, link).persist();
-        });
-
-        var body = new VerwijderdOpRequest();
-        body.id = voorkeurId.get();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111120";
-        body.dienstverlenerNaam = "TestDV";
-
-        given()
-                .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen")
-                .then()
-                .statusCode(OK);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur v = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertNotNull(v, "the voorkeur must still exist (soft delete, not hard delete)");
-            Assertions.assertNotNull(v.getVerwijderdOp(), "verwijderdOp must be set by the delete endpoint");
-        });
-    }
-
-    @Test
-    void verwijderVoorkeur_SelfService_WithoutDienstverlenerNaam_Success() {
+    void verwijderVoorkeur_Success() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -657,72 +611,21 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
             voorkeurId.set(v.id);
         });
 
-        var body = new VerwijderdOpRequest();
-        body.id = voorkeurId.get();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111122";
-
         given()
                 .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen")
+                .delete("/api/profielservice/v1/voorkeur/verwijderen/" + voorkeurId.get())
                 .then()
                 .statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur v = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertNotNull(v.getVerwijderdOp());
+            Assertions.assertNotNull(v, "the voorkeur must still exist (soft delete, not hard delete)");
+            Assertions.assertNotNull(v.getVerwijderdOp(), "verwijderdOp must be set by the delete endpoint");
         });
     }
 
     @Test
-    void verwijderContactgegeven_WithDienstverlenerScope_Success() {
-        AtomicReference<UUID> contactId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dv = new Dienstverlener();
-            dv.setNaam("TestDV2");
-            dv.persist();
-
-            Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111121"));
-            p.persist();
-
-            Contactgegeven c = new Contactgegeven();
-            c.setType(ContactType.Telefoonnummer);
-            c.setWaarde("0612345678");
-            c.setPartij(p);
-            c.persist();
-            contactId.set(c.id);
-
-            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
-            link.persist();
-            new ScopeContactgegeven(c, link).persist();
-        });
-
-        var body = new VerwijderdOpRequest();
-        body.id = contactId.get();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111121";
-        body.dienstverlenerNaam = "TestDV2";
-
-        given()
-                .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/contactgegeven/verwijderen")
-                .then()
-                .statusCode(OK);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven c = Contactgegeven.findById(contactId.get());
-            Assertions.assertNotNull(c, "the contactgegeven must still exist (soft delete, not hard delete)");
-            Assertions.assertNotNull(c.getVerwijderdOp(), "verwijderdOp must be set by the delete endpoint");
-        });
-    }
-
-    @Test
-    void verwijderContactgegeven_SelfService_WithoutDienstverlenerNaam_Success() {
+    void verwijderContactgegeven_Success() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -737,37 +640,24 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
             contactId.set(c.id);
         });
 
-        var body = new VerwijderdOpRequest();
-        body.id = contactId.get();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111123";
-
         given()
                 .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/contactgegeven/verwijderen")
+                .delete("/api/profielservice/v1/contactgegeven/verwijderen/" + contactId.get())
                 .then()
                 .statusCode(OK);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven c = Contactgegeven.findById(contactId.get());
-            Assertions.assertNotNull(c.getVerwijderdOp());
+            Assertions.assertNotNull(c, "the contactgegeven must still exist (soft delete, not hard delete)");
+            Assertions.assertNotNull(c.getVerwijderdOp(), "verwijderdOp must be set by the delete endpoint");
         });
     }
 
     @Test
     void verwijderVoorkeur_NotFound() {
-        var body = new VerwijderdOpRequest();
-        body.id = UUID.randomUUID();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111124";
-
         given()
                 .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen")
+                .delete("/api/profielservice/v1/voorkeur/verwijderen/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
@@ -776,71 +666,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
     @Test
     void verwijderContactgegeven_NotFound() {
-        var body = new VerwijderdOpRequest();
-        body.id = UUID.randomUUID();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111125";
-
         given()
                 .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/contactgegeven/verwijderen")
+                .delete("/api/profielservice/v1/contactgegeven/verwijderen/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
                 .body("title", equalTo("Contactgegeven niet gevonden"));
-    }
-
-    @Test
-    void verwijderVoorkeur_WithoutScope_ThrowsForbidden() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111126"));
-            p.persist();
-
-            Voorkeur v = new Voorkeur();
-            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            v.setWaarde("nl");
-            v.setPartij(p);
-            v.persist();
-            voorkeurId.set(v.id);
-        });
-
-        var body = new VerwijderdOpRequest();
-        body.id = voorkeurId.get();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111126";
-        body.dienstverlenerNaam = "OnbekendeDV";
-
-        given()
-                .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen")
-                .then()
-                .statusCode(403)
-                .contentType("application/problem+json")
-                .body("title", equalTo("Forbidden"));
-    }
-
-    @Test
-    void verwijderVoorkeur_DienstNaamWithoutDienstverlenerNaam_Returns400() {
-        var body = new VerwijderdOpRequest();
-        body.id = UUID.randomUUID();
-        body.identificatieType = BSN;
-        body.identificatieNummer = "111111127";
-        body.dienstNaam = "SomeDienst";
-
-        given()
-                .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen")
-                .then()
-                .statusCode(BAD_REQUEST)
-                .contentType("application/problem+json")
-                .body("title", equalTo("Bad Request"));
     }
 }
