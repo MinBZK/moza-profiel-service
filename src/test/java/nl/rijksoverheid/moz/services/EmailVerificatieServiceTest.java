@@ -265,6 +265,79 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
+    void verifieerEmail_ContactMetZelfdeWaardeMaarAnderType_WordtNietGeverifieerd() {
+        // Het contactgegeven wordt gezocht op type én waarde. Als alleen op waarde zou worden
+        // gematcht, kon een Telefoonnummer-rij met een e-mailachtige waarde als geverifieerd
+        // e-mailadres eindigen.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111102"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("ref");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Assertions.assertFalse(service.verifieerEmail(makeVerifyRequest("111111102")));
+        Mockito.verify(emailVerificatieApi, Mockito.never()).verifyPost(Mockito.any());
+    }
+
+    @Test
+    void verifieerEmail_AnderEmailadresVanZelfdePartij_WordtNietGeverifieerd() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111103"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("iemand.anders@test.com");
+            contact.setVerificatieReferentieId("ref");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Assertions.assertFalse(service.verifieerEmail(makeVerifyRequest("111111103")));
+        Mockito.verify(emailVerificatieApi, Mockito.never()).verifyPost(Mockito.any());
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_ContactMetAnderType_Geeft404() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111104"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("test@test.com");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        EmailVerificatieCodeAanvraagRequest aanvraag = new EmailVerificatieCodeAanvraagRequest();
+        aanvraag.identificatieType = IdentificatieType.BSN;
+        aanvraag.identificatieNummer = "111111104";
+        aanvraag.email = "test@test.com";
+
+        Assertions.assertEquals(404, service.vraagEmailVerificatieCodeAan(aanvraag));
+    }
+
+    @Test
+    void verifieerEmail_HoofdletterongevoeligOpEmailadres() {
+        seedPartijWithUnverifiedContact("111111105");
+        VerificationResponse ok = new VerificationResponse();
+        ok.setSuccess(true);
+        Mockito.doReturn(ok).when(emailVerificatieApi).verifyPost(Mockito.any());
+
+        EmailVerificatieRequest request = makeVerifyRequest("111111105");
+        request.email = "TEST@TEST.COM";
+
+        Assertions.assertTrue(service.verifieerEmail(request));
+    }
+
+    @Test
     void verifieerEmail_ApiResponseNull() {
         seedPartijWithUnverifiedContact("111111101");
         Mockito.doReturn(null).when(emailVerificatieApi).verifyPost(Mockito.any());

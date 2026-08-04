@@ -30,9 +30,16 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * De mapper is niet alleen een vertaallaag: bij het uitlezen van een stale rij schrijft hij
+ * terug naar de database (lastUsedAt bijwerken en, als teVerwijderenOpAutomatisch aanstaat,
+ * de automatisch gezette bewaartermijn opruimen). Dat neveneffect raakt bewaartermijnen en
+ * werd nog nergens afgedekt.
+ */
 @QuarkusTest
 class PartijMapperTest {
 
+    private static final Duration OUDER_DAN_DREMPEL = Duration.ofHours(25);
     @Inject
     PartijMapper partijMapper;
 
@@ -137,51 +144,6 @@ class PartijMapperTest {
     }
 
     // ---------------------------------------------------------------------
-    // Retentie-logica ("touch on read") die in de map-methodes de response overschrijft
-    // ---------------------------------------------------------------------
-
-    @Test
-    void toContactgegevensResponse_staleEnAutomatisch_responseHeeftVerwijderdatumTeruggedraaid() {
-        UUID cgId = persistContactgegeven(ouder(), Instant.now().plus(Duration.ofDays(30)), true);
-        Instant voorMapping = Instant.now();
-
-        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() ->
-                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
-
-        Assertions.assertNull(response.get().teVerwijderenOp,
-                "Een automatisch gezette verwijderdatum moet in de response zijn teruggedraaid");
-        Assertions.assertNotNull(response.get().lastUpdated);
-        Assertions.assertFalse(response.get().lastUpdated.isBefore(voorMapping),
-                "lastUpdated moet het moment van teruggedraaien weerspiegelen");
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven cg = Contactgegeven.findById(cgId);
-            Assertions.assertNull(cg.getTeVerwijderenOp());
-            Assertions.assertFalse(cg.isTeVerwijderenOpAutomatisch());
-        });
-    }
-
-    @Test
-    void toContactgegevensResponse_staleEnHandmatig_behoudtVerwijderdatum() {
-        Instant handmatig = Instant.now().plus(Duration.ofDays(30)).truncatedTo(ChronoUnit.MICROS);
-        UUID cgId = persistContactgegeven(ouder(), handmatig, false);
-
-        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() ->
-                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
-
-        Assertions.assertEquals(handmatig, response.get().teVerwijderenOp,
-                "Een handmatig gezette verwijderdatum mag niet worden teruggedraaid");
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven cg = Contactgegeven.findById(cgId);
-            Assertions.assertEquals(handmatig, cg.getTeVerwijderenOp());
-            Assertions.assertNotNull(cg.getLastUsedAt());
-        });
-    }
-
-    // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
 
@@ -223,15 +185,18 @@ class PartijMapperTest {
         return voorkeur;
     }
 
-    private UUID persistContactgegeven(Instant lastUsedAt, Instant teVerwijderenOp, boolean automatisch) {
+    private Partij nieuwePartij() {
+        Partij partij = new Partij();
+        partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+        partij.persist();
+        return partij;
+    }
+
+    private UUID contactgegevenMetBewaartermijn(Instant lastUsedAt, Instant teVerwijderenOp, boolean automatisch) {
         AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
             Contactgegeven cg = new Contactgegeven();
-            cg.setPartij(partij);
+            cg.setPartij(nieuwePartij());
             cg.setType(ContactType.Email);
             cg.setWaarde("touch@example.com");
             cg.setLastUsedAt(lastUsedAt);
@@ -241,5 +206,173 @@ class PartijMapperTest {
             id.set(cg.id);
         });
         return id.get();
+    }
+
+    @Test
+    void staleContactgegevenMetAutomatischeBewaartermijn_WordtOpgeruimd() {
+        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(30));
+        UUID id = contactgegevenMetBewaartermijn(
+                Instant.now().minus(OUDER_DAN_DREMPEL), teVerwijderenOp, true);
+
+        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(id))));
+
+        // Het antwoord toont de opgeruimde stand, niet de stand van vóór de mapping.
+        Assertions.assertNull(response.get().teVerwijderenOp,
+                "Automatisch gezette bewaartermijn hoort bij hergebruik te vervallen");
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven herladen = Contactgegeven.findById(id);
+            Assertions.assertNull(herladen.getTeVerwijderenOp(), "Opruiming moet ook zijn weggeschreven");
+            Assertions.assertFalse(herladen.isTeVerwijderenOpAutomatisch(),
+                    "De automatisch-vlag moet uit zodat de termijn niet opnieuw wordt opgeruimd");
+            Assertions.assertTrue(herladen.getLastUsedAt().isAfter(Instant.now().minus(Duration.ofMinutes(1))),
+                    "lastUsedAt moet zijn bijgewerkt naar nu");
+        });
+    }
+
+    @Test
+    void staleContactgegevenMetHandmatigeBewaartermijn_BehoudtDeTermijn() {
+        // Een door een dienstverlener gezette termijn is een bewuste keuze en mag niet
+        // sneuvelen doordat de partij toevallig wordt opgehaald.
+        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(30));
+        UUID id = contactgegevenMetBewaartermijn(
+                Instant.now().minus(OUDER_DAN_DREMPEL), teVerwijderenOp, false);
+
+        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(id))));
+
+        Assertions.assertNotNull(response.get().teVerwijderenOp);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven herladen = Contactgegeven.findById(id);
+            Assertions.assertNotNull(herladen.getTeVerwijderenOp());
+            Assertions.assertTrue(herladen.getLastUsedAt().isAfter(Instant.now().minus(Duration.ofMinutes(1))));
+        });
+    }
+
+    @Test
+    void versContactgegeven_WordtNietAangeraakt() {
+        // Binnen de drempel van 24 uur mag een GET geen schrijfactie veroorzaken.
+        Instant lastUsedAt = Instant.now().minus(Duration.ofHours(1));
+        UUID id = contactgegevenMetBewaartermijn(lastUsedAt, Instant.now().plus(Duration.ofDays(30)), true);
+
+        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(id))));
+
+        Assertions.assertNotNull(response.get().teVerwijderenOp,
+                "Binnen de drempel blijft de bewaartermijn staan");
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven herladen = Contactgegeven.findById(id);
+            Assertions.assertTrue(herladen.isTeVerwijderenOpAutomatisch());
+            Assertions.assertEquals(lastUsedAt.toEpochMilli(), herladen.getLastUsedAt().toEpochMilli(),
+                    "lastUsedAt mag niet zijn aangeraakt");
+        });
+    }
+
+    @Test
+    void staleVoorkeurMetAutomatischeBewaartermijn_WordtOpgeruimd() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(nieuwePartij());
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setLastUsedAt(Instant.now().minus(OUDER_DAN_DREMPEL));
+            voorkeur.setTeVerwijderenOp(Instant.now().plus(Duration.ofDays(30)));
+            voorkeur.setTeVerwijderenOpAutomatisch(true);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        AtomicReference<VoorkeurResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toVoorkeurResponse(Voorkeur.findById(voorkeurId.get()))));
+
+        Assertions.assertNull(response.get().teVerwijderenOp);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur herladen = Voorkeur.findById(voorkeurId.get());
+            Assertions.assertNull(herladen.getTeVerwijderenOp());
+            Assertions.assertFalse(herladen.isTeVerwijderenOpAutomatisch());
+        });
+    }
+
+    @Test
+    void scopesVanVoorkeurEnContactgegeven_WordenVolledigGemapt() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("TestDV");
+            dv.persist();
+            Dienst dienst = new Dienst();
+            dienst.setNaam("TestDienst");
+            dienst.persist();
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, dienst);
+            link.persist();
+
+            Partij partij = nieuwePartij();
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Telefoonnummer);
+            cg.setWaarde("0612345678");
+            cg.addScope(new ScopeContactgegeven(cg, link));
+            cg.persist();
+            contactId.set(cg.id);
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(partij);
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.addScope(new ScopeVoorkeur(voorkeur, link));
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            ContactgegevenResponse cr = partijMapper.toContactgegevensResponse(Contactgegeven.findById(contactId.get()));
+            Assertions.assertEquals(1, cr.scopes.size());
+            Assertions.assertEquals("TestDV", cr.scopes.getFirst().dienstverlenerNaam);
+            Assertions.assertEquals("TestDienst", cr.scopes.getFirst().dienstNaam);
+
+            VoorkeurResponse vr = partijMapper.toVoorkeurResponse(Voorkeur.findById(voorkeurId.get()));
+            Assertions.assertEquals(1, vr.scopes.size());
+            Assertions.assertEquals("TestDV", vr.scopes.getFirst().dienstverlenerNaam);
+            Assertions.assertEquals("TestDienst", vr.scopes.getFirst().dienstNaam);
+        });
+    }
+
+    @Test
+    void dienstverlenerBredeScope_LevertDienstNaamNull() {
+        // Een DienstverlenerDienst zonder dienst betekent "alle diensten van deze dienstverlener".
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("TestDV");
+            dv.persist();
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
+            link.persist();
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(nieuwePartij());
+            cg.setType(ContactType.Telefoonnummer);
+            cg.setWaarde("0612345678");
+            cg.addScope(new ScopeContactgegeven(cg, link));
+            cg.persist();
+            contactId.set(cg.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            ContactgegevenResponse cr = partijMapper.toContactgegevensResponse(Contactgegeven.findById(contactId.get()));
+            Assertions.assertEquals(1, cr.scopes.size());
+            Assertions.assertEquals("TestDV", cr.scopes.getFirst().dienstverlenerNaam);
+            Assertions.assertNull(cr.scopes.getFirst().dienstNaam);
+        });
     }
 }
