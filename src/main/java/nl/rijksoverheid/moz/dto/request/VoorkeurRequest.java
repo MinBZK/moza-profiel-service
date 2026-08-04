@@ -5,8 +5,6 @@ import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 
-import java.time.Instant;
-
 public class VoorkeurRequest {
 
     @NotNull
@@ -22,6 +20,4 @@ public class VoorkeurRequest {
     public String waarde;
 
     public ScopeRequest scope;
-
-    public Instant teVerwijderenOp;
 }

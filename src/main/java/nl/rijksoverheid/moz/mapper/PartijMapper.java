@@ -36,7 +36,9 @@ public abstract class PartijMapper {
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
     public PartijResponse toResponse(Partij partij) {
-        return toResponse(partij, partij.getContactgegevens(), partij.getVoorkeuren());
+        java.util.List<Contactgegeven> contactgegevens = Contactgegeven.find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+        java.util.List<Voorkeur> voorkeuren = Voorkeur.find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+        return toResponse(partij, contactgegevens, voorkeuren);
     }
 
     @Mapping(target = "partijId", source = "partij.id")

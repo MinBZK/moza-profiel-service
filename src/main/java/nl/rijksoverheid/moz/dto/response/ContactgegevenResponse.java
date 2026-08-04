@@ -14,6 +14,5 @@ public class ContactgegevenResponse {
     public boolean isDefault;
     public Instant createdAt;
     public Instant lastUpdated;
-    public Instant teVerwijderenOp;
     public List<ScopeResponse> scopes;
 }

@@ -59,10 +59,6 @@ public class Partij extends PanacheEntityBase {
         voorkeur.setPartij(this);
     }
 
-    public void removeVoorkeur(Voorkeur voorkeur) {
-        voorkeuren.remove(voorkeur);
-    }
-
     public List<Identificatie> getIdentificaties() {
         return Collections.unmodifiableList(identificaties);
     }
@@ -79,9 +75,5 @@ public class Partij extends PanacheEntityBase {
     public void setContactgegevens(List<Contactgegeven> contactgegevens) {
         this.contactgegevens.clear();
         this.contactgegevens.addAll(contactgegevens);
-    }
-
-    public void removeContactgegeven(Contactgegeven contact) {
-        contactgegevens.remove(contact);
     }
 }

@@ -4,10 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 
-import java.time.Instant;
 import java.util.UUID;
 
-public class TeVerwijderenOpRequest {
+public class VerwijderdOpRequest {
 
     @NotNull
     public UUID id;
@@ -18,11 +17,7 @@ public class TeVerwijderenOpRequest {
     @NotBlank
     public String identificatieNummer;
 
-    @NotBlank
     public String dienstverlenerNaam;
 
     public String dienstNaam;
-
-    @NotNull
-    public Instant teVerwijderenOp;
 }

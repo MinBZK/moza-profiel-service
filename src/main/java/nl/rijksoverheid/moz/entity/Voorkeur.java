@@ -59,9 +59,7 @@ public class Voorkeur extends PanacheEntityBase {
     private Instant lastUsedAt;
 
     @Nullable
-    private Instant teVerwijderenOp;
-
-    private boolean teVerwijderenOpAutomatisch = false;
+    private Instant verwijderdOp;
 
     @PrePersist
     private void onCreate() {
@@ -130,19 +128,11 @@ public class Voorkeur extends PanacheEntityBase {
     }
 
     @Nullable
-    public Instant getTeVerwijderenOp() {
-        return teVerwijderenOp;
+    public Instant getVerwijderdOp() {
+        return verwijderdOp;
     }
 
-    public void setTeVerwijderenOp(@Nullable Instant teVerwijderenOp) {
-        this.teVerwijderenOp = teVerwijderenOp;
-    }
-
-    public boolean isTeVerwijderenOpAutomatisch() {
-        return teVerwijderenOpAutomatisch;
-    }
-
-    public void setTeVerwijderenOpAutomatisch(boolean teVerwijderenOpAutomatisch) {
-        this.teVerwijderenOpAutomatisch = teVerwijderenOpAutomatisch;
+    public void setVerwijderdOp(@Nullable Instant verwijderdOp) {
+        this.verwijderdOp = verwijderdOp;
     }
 }

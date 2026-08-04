@@ -12,6 +12,5 @@ public class VoorkeurResponse {
     public String waarde;
     public Instant createdAt;
     public Instant lastUpdated;
-    public Instant teVerwijderenOp;
     public List<ScopeResponse> scopes;
 }

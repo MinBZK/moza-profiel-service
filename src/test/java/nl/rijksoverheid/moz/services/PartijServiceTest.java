@@ -14,7 +14,7 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
-import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
+import nl.rijksoverheid.moz.dto.request.VerwijderdOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
@@ -32,11 +32,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.time.Duration;
 import java.time.Instant;
-import java.time.Period;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -278,62 +274,6 @@ public class PartijServiceTest {
     }
 
     @Test
-    void deleteContactgegeven_Success() {
-        AtomicReference<UUID> contactId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Contactgegeven contact = new Contactgegeven();
-            contact.setType(ContactType.Email);
-            contact.setWaarde("test@test.com");
-            contact.setPartij(partij);
-            contact.persist();
-            contactId.set(contact.id);
-        });
-
-        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "123456789", contactId.get());
-
-        Assertions.assertTrue(result);
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven contact = Contactgegeven.findById(contactId.get());
-            Assertions.assertNull(contact);
-        });
-    }
-
-    @Test
-    void deleteContactgegeven_PartijNotFound() {
-        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "999999999", UUID.randomUUID());
-        Assertions.assertFalse(result);
-    }
-
-    @Test
-    void deleteVoorkeur_Success() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Voorkeur voorkeur = new Voorkeur();
-            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            voorkeur.setWaarde("nl");
-            voorkeur.setPartij(partij);
-            voorkeur.persist();
-            voorkeurId.set(voorkeur.id);
-        });
-
-        boolean result = partijService.deleteVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
-
-        Assertions.assertTrue(result);
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertNull(voorkeur);
-        });
-    }
-
-    @Test
     void getPartijResponse_Found() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -506,30 +446,6 @@ public class PartijServiceTest {
         request.waarde = "en";
 
         boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
-        Assertions.assertFalse(result);
-    }
-
-    @Test
-    void deleteContactgegeven_ContactNotFound() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-        });
-
-        boolean result = partijService.deleteContactgegeven(IdentificatieType.BSN, "123456789", UUID.randomUUID());
-        Assertions.assertFalse(result);
-    }
-
-    @Test
-    void deleteVoorkeur_VoorkeurNotFound() {
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-        });
-
-        boolean result = partijService.deleteVoorkeur(IdentificatieType.BSN, "123456789", UUID.randomUUID());
         Assertions.assertFalse(result);
     }
 
@@ -840,139 +756,7 @@ public class PartijServiceTest {
     }
 
     @Test
-    void addVoorkeur_WithValidTeVerwijderenOp_SetsField() {
-        // A date in the future, within the 7-year window.
-        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
-
-        VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = teVerwijderenOp;
-
-        PartijService.AddVoorkeurResult result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur voorkeur = Voorkeur.findById(result.voorkeur().id);
-            Assertions.assertEquals(teVerwijderenOp, voorkeur.getTeVerwijderenOp());
-        });
-    }
-
-    @Test
-    void addVoorkeur_WithPastTeVerwijderenOp_ThrowsBadRequest() {
-        VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = Instant.now().minus(Duration.ofDays(1));
-
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
-    }
-
-    @Test
-    void addVoorkeur_WithTeVerwijderenOpBeyond7Years_ThrowsBadRequest() {
-        Instant beyondMax = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).plusDays(1).toInstant();
-
-        VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = beyondMax;
-
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
-        Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
-    }
-
-    @Test
-    void updateVoorkeur_WithValidTeVerwijderenOp_SetsField() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Voorkeur voorkeur = new Voorkeur();
-            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            voorkeur.setWaarde("nl");
-            voorkeur.setPartij(partij);
-            voorkeur.persist();
-            voorkeurId.set(voorkeur.id);
-        });
-
-        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
-
-        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = voorkeurId.get();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = teVerwijderenOp;
-
-        partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertEquals(teVerwijderenOp, voorkeur.getTeVerwijderenOp());
-        });
-    }
-
-    @Test
-    void updateVoorkeur_WithNullTeVerwijderenOp_LeavesExistingValueUnchanged() {
-        // teVerwijderenOp already set on the entity; a PUT without the field must not clear it.
-        Instant existing = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Voorkeur voorkeur = new Voorkeur();
-            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            voorkeur.setWaarde("nl");
-            voorkeur.setTeVerwijderenOp(existing);
-            voorkeur.setPartij(partij);
-            voorkeur.persist();
-            voorkeurId.set(voorkeur.id);
-        });
-
-        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = voorkeurId.get();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        // teVerwijderenOp intentionally omitted
-
-        partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertEquals(existing, voorkeur.getTeVerwijderenOp());
-        });
-    }
-
-    @Test
-    void addContactgegeven_WithValidTeVerwijderenOp_SetsField() {
-        // Wiring check: confirms applyTeVerwijderenOp is also called for Contactgegeven.
-        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
-
-        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
-
-        ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
-        request.teVerwijderenOp = teVerwijderenOp;
-
-        PartijService.AddContactgegevenResult result =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven contact = Contactgegeven.findById(result.contactgegeven().id);
-            Assertions.assertEquals(teVerwijderenOp, contact.getTeVerwijderenOp());
-        });
-    }
-
-    @Test
-    void updateVoorkeurTeVerwijderenOpByDienstverlener_WithMatchingScope_SetsField() {
+    void verwijderVoorkeur_WithMatchingScope_SetsVerwijderdOp() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dv = new Dienstverlener();
@@ -996,26 +780,25 @@ public class PartijServiceTest {
             scope.persist();
         });
 
-        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
-
-        TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
         request.id = voorkeurId.get();
         request.identificatieType = IdentificatieType.BSN;
         request.identificatieNummer = "123456789";
         request.dienstverlenerNaam = "TestDV";
-        request.teVerwijderenOp = teVerwijderenOp;
 
-        boolean result = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
+        boolean result = partijService.verwijderVoorkeur(request);
 
         Assertions.assertTrue(result);
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertEquals(teVerwijderenOp, voorkeur.getTeVerwijderenOp());
+            Assertions.assertNotNull(voorkeur.getVerwijderdOp());
+            Assertions.assertTrue(voorkeur.getVerwijderdOp().isBefore(Instant.now().plusSeconds(5)));
         });
     }
 
     @Test
-    void updateVoorkeurTeVerwijderenOpByDienstverlener_WithoutScope_ThrowsForbidden() {
+    void verwijderVoorkeur_WithoutDienstverlenerNaam_SkipsAuthorization() {
+        // Self-service path: no dienstverlenerNaam means no scope check, even for an unscoped voorkeur.
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -1030,40 +813,69 @@ public class PartijServiceTest {
             voorkeurId.set(voorkeur.id);
         });
 
-        TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = voorkeurId.get();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        // dienstverlenerNaam intentionally omitted
+
+        boolean result = partijService.verwijderVoorkeur(request);
+
+        Assertions.assertTrue(result);
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
+            Assertions.assertNotNull(voorkeur.getVerwijderdOp());
+        });
+    }
+
+    @Test
+    void verwijderVoorkeur_WithoutScope_ThrowsForbidden() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
         request.id = voorkeurId.get();
         request.identificatieType = IdentificatieType.BSN;
         request.identificatieNummer = "123456789";
         request.dienstverlenerNaam = "OnbekendeDV";
-        request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
         AuthorizationException ex = Assertions.assertThrows(
                 AuthorizationException.class,
-                () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
+                () -> partijService.verwijderVoorkeur(request));
         Assertions.assertEquals("Forbidden", ex.getTitle());
     }
 
     @Test
-    void updateVoorkeurTeVerwijderenOpByDienstverlener_VoorkeurNotFound_ReturnsFalse() {
+    void verwijderVoorkeur_VoorkeurNotFound_ReturnsFalse() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
             partij.persist();
         });
 
-        TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
         request.id = UUID.randomUUID();
         request.identificatieType = IdentificatieType.BSN;
         request.identificatieNummer = "123456789";
         request.dienstverlenerNaam = "TestDV";
-        request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        boolean result = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
+        boolean result = partijService.verwijderVoorkeur(request);
         Assertions.assertFalse(result);
     }
 
     @Test
-    void updateVoorkeurTeVerwijderenOpByDienstverlener_WithWrongDienstNaam_ThrowsForbidden() {
+    void verwijderVoorkeur_WithWrongDienstNaam_ThrowsForbidden() {
         // DV has a scope for "TestDienst", but the request asks for "AndereDienst" → 403.
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
@@ -1091,22 +903,71 @@ public class PartijServiceTest {
             new ScopeVoorkeur(voorkeur, link).persist();
         });
 
-        TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
         request.id = voorkeurId.get();
         request.identificatieType = IdentificatieType.BSN;
         request.identificatieNummer = "123456789";
         request.dienstverlenerNaam = "TestDV";
         request.dienstNaam = "AndereDienst";
-        request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
         AuthorizationException ex = Assertions.assertThrows(
                 AuthorizationException.class,
-                () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
+                () -> partijService.verwijderVoorkeur(request));
         Assertions.assertEquals("Forbidden", ex.getTitle());
     }
 
     @Test
-    void updateContactgegevenTeVerwijderenOpByDienstverlener_WithMatchingScope_SetsField() {
+    void verwijderVoorkeur_DienstNaamWithoutDienstverlenerNaam_ThrowsBadRequest() {
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = UUID.randomUUID();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.dienstNaam = "SomeDienst";
+        // dienstverlenerNaam intentionally omitted
+
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.verwijderVoorkeur(request));
+        Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
+    }
+
+    @Test
+    void verwijderVoorkeur_AlreadyVerwijderd_ReturnsFalse() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("TestDV");
+            dv.persist();
+
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
+            link.persist();
+            new ScopeVoorkeur(voorkeur, link).persist();
+        });
+
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = voorkeurId.get();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.dienstverlenerNaam = "TestDV";
+
+        boolean result = partijService.verwijderVoorkeur(request);
+        Assertions.assertFalse(result, "an already soft-deleted voorkeur must be treated as not found");
+    }
+
+    @Test
+    void verwijderContactgegeven_WithMatchingScope_SetsVerwijderdOp() {
         // Wiring check: confirms scope authorization also works for Contactgegeven.
         AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
@@ -1131,21 +992,334 @@ public class PartijServiceTest {
             scope.persist();
         });
 
-        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
-
-        TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
         request.id = contactId.get();
         request.identificatieType = IdentificatieType.BSN;
         request.identificatieNummer = "123456789";
         request.dienstverlenerNaam = "TestDV";
-        request.teVerwijderenOp = teVerwijderenOp;
 
-        boolean result = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(request);
+        boolean result = partijService.verwijderContactgegeven(request);
 
         Assertions.assertTrue(result);
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(contactId.get());
-            Assertions.assertEquals(teVerwijderenOp, contact.getTeVerwijderenOp());
+            Assertions.assertNotNull(contact.getVerwijderdOp());
+            Assertions.assertTrue(contact.getVerwijderdOp().isBefore(Instant.now().plusSeconds(5)));
+        });
+    }
+
+    @Test
+    void verwijderContactgegeven_DienstNaamWithoutDienstverlenerNaam_ThrowsBadRequest() {
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = UUID.randomUUID();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.dienstNaam = "SomeDienst";
+        // dienstverlenerNaam intentionally omitted
+
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.verwijderContactgegeven(request));
+        Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
+    }
+
+    @Test
+    void verwijderContactgegeven_WithoutDienstverlenerNaam_SkipsAuthorization() {
+        // Self-service path: no dienstverlenerNaam means no scope check, even for an unscoped contactgegeven.
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = contactId.get();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        // dienstverlenerNaam intentionally omitted
+
+        boolean result = partijService.verwijderContactgegeven(request);
+
+        Assertions.assertTrue(result);
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven contact = Contactgegeven.findById(contactId.get());
+            Assertions.assertNotNull(contact.getVerwijderdOp());
+        });
+    }
+
+    @Test
+    void verwijderContactgegeven_WithoutScope_ThrowsForbidden() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = contactId.get();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+        request.dienstverlenerNaam = "OnbekendeDV";
+
+        AuthorizationException ex = Assertions.assertThrows(
+                AuthorizationException.class,
+                () -> partijService.verwijderContactgegeven(request));
+        Assertions.assertEquals("Forbidden", ex.getTitle());
+    }
+
+    @Test
+    void verwijderContactgegeven_ContactNotFound_ReturnsFalse() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+        });
+
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = UUID.randomUUID();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+
+        boolean result = partijService.verwijderContactgegeven(request);
+        Assertions.assertFalse(result);
+    }
+
+    @Test
+    void verwijderContactgegeven_AlreadyVerwijderd_ReturnsFalse() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.setVerwijderdOp(Instant.now());
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        VerwijderdOpRequest request = new VerwijderdOpRequest();
+        request.id = contactId.get();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "123456789";
+
+        boolean result = partijService.verwijderContactgegeven(request);
+        Assertions.assertFalse(result, "an already soft-deleted contactgegeven must be treated as not found");
+    }
+
+    @Test
+    void getPartijResponse_HidesVerwijderdeVoorkeurEnContactgegeven() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.setVerwijderdOp(Instant.now());
+            contact.persist();
+        });
+
+        PartijResponse result = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", new PartijRequest());
+
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.voorkeuren.isEmpty());
+        Assertions.assertTrue(result.contactgegevens.isEmpty());
+    }
+
+    @Test
+    void addContactgegeven_ExistingIsVerwijderd_RevivesRecord() {
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.setVerwijderdOp(Instant.now());
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Telefoonnummer;
+        request.waarde = "0612345678";
+
+        PartijService.AddContactgegevenResult result =
+                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        Assertions.assertEquals(contactId.get(), result.contactgegeven().id);
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven contact = Contactgegeven.findById(contactId.get());
+            Assertions.assertNull(contact.getVerwijderdOp(), "re-adding the same value must revive a soft-deleted contactgegeven");
+        });
+    }
+
+    @Test
+    void addVoorkeur_ExistingIsVerwijderd_RevivesRecord() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        VoorkeurRequest request = new VoorkeurRequest();
+        request.voorkeurType = VoorkeurType.WebsiteTaal;
+        request.waarde = "nl";
+
+        PartijService.AddVoorkeurResult result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+
+        Assertions.assertEquals(voorkeurId.get(), result.voorkeur().id);
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
+            Assertions.assertNull(voorkeur.getVerwijderdOp(), "re-adding the same value must revive a soft-deleted voorkeur");
+        });
+    }
+
+    @Test
+    void updateVoorkeur_AlreadyVerwijderd_ReturnsFalse() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
+        request.id = voorkeurId.get();
+        request.voorkeurType = VoorkeurType.WebsiteTaal;
+        request.waarde = "en";
+
+        boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertFalse(result, "an already soft-deleted voorkeur must be treated as not found");
+    }
+
+    @Test
+    void updateVoorkeur_CollisionIsSoftDeleted_DoesNotThrowConflict() {
+        // A soft-deleted voorkeur with the same (type, scope) must not block the update:
+        // it's invisible to the caller, so it shouldn't count as an active collision.
+        AtomicReference<UUID> targetId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur verwijderd = new Voorkeur();
+            verwijderd.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            verwijderd.setWaarde("nl");
+            verwijderd.setPartij(partij);
+            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.persist();
+
+            Voorkeur target = new Voorkeur();
+            target.setVoorkeurType(VoorkeurType.MagGebeldWorden);
+            target.setWaarde("ja");
+            target.setPartij(partij);
+            target.persist();
+            targetId.set(target.id);
+        });
+
+        VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
+        request.id = targetId.get();
+        request.voorkeurType = VoorkeurType.WebsiteTaal;
+        request.waarde = "nl";
+
+        boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertTrue(result);
+    }
+
+    @Test
+    void updateVoorkeurThenAddVoorkeur_DoesNotCreateDuplicateActiveVoorkeur() {
+        // Regression: updateVoorkeur correctly ignores a soft-deleted collision, but if the
+        // soft-deleted row and the newly-updated row now share a key, a later addVoorkeur on
+        // that same key must never revive the soft-deleted one alongside the already-active one.
+        AtomicReference<UUID> targetId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur verwijderd = new Voorkeur();
+            verwijderd.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            verwijderd.setWaarde("nl");
+            verwijderd.setPartij(partij);
+            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.persist();
+
+            Voorkeur target = new Voorkeur();
+            target.setVoorkeurType(VoorkeurType.MagGebeldWorden);
+            target.setWaarde("ja");
+            target.setPartij(partij);
+            target.persist();
+            targetId.set(target.id);
+        });
+
+        VoorkeurUpdateRequest updateRequest = new VoorkeurUpdateRequest();
+        updateRequest.id = targetId.get();
+        updateRequest.voorkeurType = VoorkeurType.WebsiteTaal;
+        updateRequest.waarde = "nl";
+        Assertions.assertTrue(partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", updateRequest));
+
+        VoorkeurRequest addRequest = new VoorkeurRequest();
+        addRequest.voorkeurType = VoorkeurType.WebsiteTaal;
+        addRequest.waarde = "de";
+        partijService.addVoorkeur(IdentificatieType.BSN, "123456789", addRequest);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            long activeCount = Voorkeur.count(
+                    "voorkeurType = ?1 AND verwijderdOp IS NULL", VoorkeurType.WebsiteTaal);
+            Assertions.assertEquals(1, activeCount,
+                    "must never end up with two active voorkeuren on the same (partij, type, scope) key");
         });
     }
 

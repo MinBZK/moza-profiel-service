@@ -14,7 +14,7 @@ import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
-import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
+import nl.rijksoverheid.moz.dto.request.VerwijderdOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.PartijResponse;
@@ -31,10 +31,7 @@ import nl.rijksoverheid.moz.mapper.PartijMapper;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
-import java.time.Period;
-import java.time.ZoneOffset;
 import java.util.HashMap;
-import java.util.function.Consumer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -81,7 +78,10 @@ public class PartijService {
         if (existing != null) {
             LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
 
-            applyTeVerwijderenOp(request.teVerwijderenOp, existing.getLastUsedAt(), existing.getCreatedAt(), existing::setTeVerwijderenOp);
+            if (existing.getVerwijderdOp() != null) {
+                LOG.info("Contactgegeven was verwijderd, wordt hersteld door opnieuw te registreren");
+                existing.setVerwijderdOp(null);
+            }
 
             if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
                 requestAndApplyVerificatieCode(existing);
@@ -105,8 +105,6 @@ public class PartijService {
             requestAndApplyVerificatieCode(contactgegeven);
         }
 
-        applyTeVerwijderenOp(request.teVerwijderenOp, null, Instant.now(), contactgegeven::setTeVerwijderenOp);
-
         if (link != null) {
             contactgegeven.addScope(new ScopeContactgegeven(contactgegeven, link));
         }
@@ -124,8 +122,12 @@ public class PartijService {
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
         DienstverlenerDienst link = resolveDienstverlenerDienst(request.scope);
 
-        // Voorkeur-invariant per 08-data.md: één rij per (partij, voorkeurType, scope).
+        // Voorkeur-invariant per 08-data.md: maximaal één ACTIEVE rij per (partij, voorkeurType, scope).
         // POST is daarmee upsert: zelfde sleutel + nieuwe waarde overschrijft, geen tweede rij.
+        // findExistingVoorkeur matcht alleen actieve rijen, zodat dit nooit dezelfde rij kan zijn
+        // als een eventuele zachtverwijderde match hieronder — anders zou een niet-deterministische
+        // .firstResult() (geen ORDER BY, en Voorkeur heeft geen DB-constraint zoals Contactgegeven)
+        // de verkeerde rij kunnen herstellen en zo twee actieve rijen op dezelfde sleutel opleveren.
         Voorkeur existing = findExistingVoorkeur(partij, request.voorkeurType, link);
 
         if (existing != null) {
@@ -133,17 +135,21 @@ public class PartijService {
                 existing.setWaarde(request.waarde);
             }
 
-            applyTeVerwijderenOp(request.teVerwijderenOp, existing.getLastUsedAt(), existing.getCreatedAt(), existing::setTeVerwijderenOp);
-
             return new AddVoorkeurResult(existing, false, false);
+        }
+
+        Voorkeur verwijderd = findSoftDeletedVoorkeur(partij, request.voorkeurType, link);
+        if (verwijderd != null) {
+            LOG.info("Voorkeur was verwijderd, wordt hersteld door opnieuw te registreren");
+            verwijderd.setVerwijderdOp(null);
+            verwijderd.setWaarde(request.waarde);
+            return new AddVoorkeurResult(verwijderd, false, false);
         }
 
         Voorkeur voorkeur = new Voorkeur();
         voorkeur.setPartij(partij);
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
-
-        applyTeVerwijderenOp(request.teVerwijderenOp, null, Instant.now(), voorkeur::setTeVerwijderenOp);
 
         if (link != null) {
             voorkeur.addScope(new ScopeVoorkeur(voorkeur, link));
@@ -155,16 +161,37 @@ public class PartijService {
 
     private Voorkeur findExistingVoorkeur(Partij partij, nl.rijksoverheid.moz.common.VoorkeurType voorkeurType, DienstverlenerDienst link) {
         if (link == null) {
-            // Scope-loze voorkeur: maximaal één rij per (partij, voorkeurType) zonder ScopeVoorkeur.
+            // Scope-loze voorkeur: maximaal één actieve rij per (partij, voorkeurType) zonder ScopeVoorkeur.
             return Voorkeur.find(
-                    "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0",
+                    "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NULL",
                     partij, voorkeurType
             ).firstResult();
         }
-        // Scoped voorkeur: maximaal één rij per (partij, voorkeurType, dienstverlenerDienst).
+        // Scoped voorkeur: maximaal één actieve rij per (partij, voorkeurType, dienstverlenerDienst).
         return Voorkeur.find(
                 "select distinct v from Voorkeur v join v.scopes s "
-                        + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3",
+                        + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
+                partij, voorkeurType, link
+        ).firstResult();
+    }
+
+    // Losse, op-verwijderd-gerichte lookup: alleen gebruikt om addVoorkeur een zachtverwijderde
+    // rij te laten herstellen wanneer er geen actieve match is. Los van findExistingVoorkeur
+    // gehouden zodat de twee elkaar nooit kunnen overlappen (zie toelichting in addVoorkeur).
+    // ORDER BY maakt de keuze deterministisch als er meerdere zachtverwijderde rijen op dezelfde
+    // sleutel bestaan (bv. na meerdere toevoeg/verwijder-cycli): de meest recent verwijderde wint.
+    private Voorkeur findSoftDeletedVoorkeur(Partij partij, nl.rijksoverheid.moz.common.VoorkeurType voorkeurType, DienstverlenerDienst link) {
+        if (link == null) {
+            return Voorkeur.find(
+                    "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NOT NULL "
+                            + "ORDER BY verwijderdOp DESC",
+                    partij, voorkeurType
+            ).firstResult();
+        }
+        return Voorkeur.find(
+                "select distinct v from Voorkeur v join v.scopes s "
+                        + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 "
+                        + "AND v.verwijderdOp IS NOT NULL ORDER BY v.verwijderdOp DESC",
                 partij, voorkeurType, link
         ).firstResult();
     }
@@ -177,23 +204,6 @@ public class PartijService {
         String referenceId = emailVerificatieService.requestEmailVerificationCode(contact.getWaarde());
         contact.setVerificatieReferentieId(referenceId);
         contact.setIsGeverifieerd(false);
-    }
-
-    private void applyTeVerwijderenOp(Instant requested, Instant lastUsedAt, Instant createdAt, Consumer<Instant> setter) {
-        if (requested == null) return;
-
-        if (!requested.isAfter(Instant.now())) {
-            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp moet in de toekomst liggen");
-        }
-
-        Instant referenceDate = lastUsedAt != null ? lastUsedAt : createdAt;
-        Instant maxDate = referenceDate.atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).toInstant();
-
-        if (requested.isAfter(maxDate)) {
-            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen");
-        }
-
-        setter.accept(requested);
     }
 
     private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
@@ -253,7 +263,7 @@ public class PartijService {
         if (partij == null) return false;
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(request.id))
+                .filter(c -> c.id.equals(request.id) && c.getVerwijderdOp() == null)
                 .findFirst()
                 .orElse(null);
 
@@ -311,7 +321,6 @@ public class PartijService {
         }
 
         contact.setIsDefault(targetDefault);
-        applyTeVerwijderenOp(request.teVerwijderenOp, contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
 
         return true;
     }
@@ -343,7 +352,7 @@ public class PartijService {
         if (partij == null) return false;
 
         Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(request.id))
+                .filter(v -> v.id.equals(request.id) && v.getVerwijderdOp() == null)
                 .findFirst()
                 .orElse(null);
 
@@ -352,6 +361,8 @@ public class PartijService {
         }
 
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
+        // findExistingVoorkeur matcht alleen actieve rijen, dus een zachtverwijderde rij op
+        // dezelfde sleutel blokkeert deze update terecht niet.
         Voorkeur collision = findExistingVoorkeur(partij, request.voorkeurType, targetLink);
         if (collision != null && !collision.id.equals(voorkeur.id)) {
             throw new BusinessException(Kind.CONFLICT,
@@ -361,7 +372,6 @@ public class PartijService {
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
         replaceScopesVoorkeur(voorkeur, targetLink);
-        applyTeVerwijderenOp(request.teVerwijderenOp, voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
 
         return true;
     }
@@ -381,82 +391,58 @@ public class PartijService {
     }
 
     @Transactional
-    public boolean deleteContactgegeven(IdentificatieType identificatieType, String identificatieNummer, UUID contactgegevenId) {
-        Partij partij = getPartij(identificatieType, identificatieNummer);
-        if (partij == null) return false;
+    public boolean verwijderVoorkeur(VerwijderdOpRequest request) {
+        requireValidDienstverlenerCombination(request);
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(contactgegevenId))
-                .findFirst()
-                .orElse(null);
-
-        if (contact == null) {
-            return false;
-        }
-
-        partij.removeContactgegeven(contact);
-        contact.delete();
-        return true;
-    }
-
-    @Transactional
-    public boolean deleteVoorkeur(IdentificatieType identificatieType, String identificatieNummer, UUID voorkeurId) {
-        Partij partij = getPartij(identificatieType, identificatieNummer);
-        if (partij == null) return false;
-
-        Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(voorkeurId))
-                .findFirst()
-                .orElse(null);
-
-        if (voorkeur == null) {
-            return false;
-        }
-
-        partij.removeVoorkeur(voorkeur);
-        voorkeur.delete();
-        return true;
-    }
-
-    @Transactional
-    public boolean updateVoorkeurTeVerwijderenOpByDienstverlener(TeVerwijderenOpRequest request) {
         Partij partij = getPartij(request.identificatieType, request.identificatieNummer);
         if (partij == null) return false;
 
         Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(request.id))
+                .filter(v -> v.id.equals(request.id) && v.getVerwijderdOp() == null)
                 .findFirst()
                 .orElse(null);
         if (voorkeur == null) return false;
 
-        requireDienstverlenerAuthorized(voorkeur.getScopes().stream()
-                .map(ScopeVoorkeur::getDienstverlenerDienst)
-                .toList(), request, "Dienstverlener is niet bevoegd voor deze voorkeur");
+        if (request.dienstverlenerNaam != null) {
+            requireDienstverlenerAuthorized(voorkeur.getScopes().stream()
+                    .map(ScopeVoorkeur::getDienstverlenerDienst)
+                    .toList(), request, "Dienstverlener is niet bevoegd voor deze voorkeur");
+        }
 
-        applyTeVerwijderenOp(request.teVerwijderenOp, voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
+        voorkeur.setVerwijderdOp(Instant.now());
         return true;
     }
 
     @Transactional
-    public boolean updateContactgegevenTeVerwijderenOpByDienstverlener(TeVerwijderenOpRequest request) {
+    public boolean verwijderContactgegeven(VerwijderdOpRequest request) {
+        requireValidDienstverlenerCombination(request);
+
         Partij partij = getPartij(request.identificatieType, request.identificatieNummer);
         if (partij == null) return false;
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(request.id))
+                .filter(c -> c.id.equals(request.id) && c.getVerwijderdOp() == null)
                 .findFirst()
                 .orElse(null);
         if (contact == null) return false;
 
-        requireDienstverlenerAuthorized(contact.getScopes().stream()
-                .map(ScopeContactgegeven::getDienstverlenerDienst)
-                .toList(), request, "Dienstverlener is niet bevoegd voor dit contactgegeven");
+        if (request.dienstverlenerNaam != null) {
+            requireDienstverlenerAuthorized(contact.getScopes().stream()
+                    .map(ScopeContactgegeven::getDienstverlenerDienst)
+                    .toList(), request, "Dienstverlener is niet bevoegd voor dit contactgegeven");
+        }
 
-        applyTeVerwijderenOp(request.teVerwijderenOp, contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
+        contact.setVerwijderdOp(Instant.now());
         return true;
     }
 
-    private void requireDienstverlenerAuthorized(List<DienstverlenerDienst> links, TeVerwijderenOpRequest request, String message) {
+    private void requireValidDienstverlenerCombination(VerwijderdOpRequest request) {
+        if (request.dienstverlenerNaam == null && request.dienstNaam != null) {
+            throw new BusinessException(Kind.BAD_REQUEST, "dienstNaam zonder dienstverlenerNaam is ongeldig");
+        }
+    }
+
+    private void requireDienstverlenerAuthorized(List<DienstverlenerDienst> links, VerwijderdOpRequest request, String message) {
         boolean authorized = links.stream().anyMatch(dd -> {
             if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(request.dienstverlenerNaam)) return false;
             if (request.dienstNaam == null) return true;
@@ -509,7 +495,7 @@ public class PartijService {
                 "left join s.dienstverlenerDienst dd " +
                 "left join dd.dienst d " +
                 "left join dd.dienstverlener dv " +
-                "where c.partij = :partij"
+                "where c.partij = :partij AND c.verwijderdOp IS NULL"
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);
@@ -537,7 +523,7 @@ public class PartijService {
                         + "left join s.dienstverlenerDienst dd "
                         + "left join dd.dienst d "
                         + "left join dd.dienstverlener dv "
-                        + "where v.partij = :partij"
+                        + "where v.partij = :partij AND v.verwijderdOp IS NULL"
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);

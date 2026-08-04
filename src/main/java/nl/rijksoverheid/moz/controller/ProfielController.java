@@ -10,11 +10,9 @@ import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -27,9 +25,8 @@ import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
-import nl.rijksoverheid.moz.dto.request.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
-import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
+import nl.rijksoverheid.moz.dto.request.VerwijderdOpRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
@@ -54,7 +51,6 @@ import org.jboss.logging.Logger;
 import java.net.URI;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -292,42 +288,6 @@ public class ProfielController {
     }
 
     /**
-     * Verwijder een contactgegeven van een partij.
-     */
-    @DELETE
-    @Path("/contactgegeven/{contactgegevenId}")
-    @Transactional
-    @RequireBody
-    @Operation(
-            summary = "Verwijder contactgegeven van een partij",
-            description = "Verwijdert een contactgegeven volledig"
-    )
-    @APIResponses({
-            @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
-            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.CONTACTGEGEVEN_OF_PARTIJ_NIET_GEVONDEN)
-    })
-    @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
-    public Response deleteContactgegeven(
-            @PathParam("contactgegevenId") UUID contactgegevenId,
-            @Valid PartijIdentificatieRequest request) {
-
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
-
-        boolean deleted = partijService.deleteContactgegeven(request.identificatieType, request.identificatieNummer, contactgegevenId);
-
-        if (!deleted) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Contactgegeven niet gevonden voor verwijdering");
-            throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
-        }
-
-        logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Contactgegeven verwijderd");
-        return Response.noContent().build();
-    }
-
-    /**
      * Voegt een nieuwe voorkeur toe voor een partij.
      *
      * @param request Request body met voorkeur gegevens en partij identificatie
@@ -421,32 +381,28 @@ public class ProfielController {
         return Response.ok().build();
     }
 
-    /**
-     * Verwijder een voorkeur van een partij.
-     */
     @DELETE
-    @Path("/voorkeur/{voorkeurId}")
+    @Path("/voorkeur/verwijderen")
     @Transactional
     @RequireBody
     @Operation(
             summary = "Verwijder voorkeur van een partij",
-            description = "Verwijdert een voorkeur volledig"
+            description = "Markeert een voorkeur als verwijderd (soft delete) op het huidige moment. Als dienstverlenerNaam is opgegeven, is dit alleen toegestaan voor een Dienstverlener met een bestaande scope op de voorkeur; zonder dienstverlenerNaam kan de partij zelf de voorkeur verwijderen."
     )
     @APIResponses({
-            @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
+            @APIResponse(responseCode = "200", description = "Voorkeur succesvol verwijderd"),
+            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
+            @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op deze voorkeur"),
             @APIResponse(responseCode = "404", description = ApiResponseDescriptions.VOORKEUR_OF_PARTIJ_NIET_GEVONDEN)
     })
-    @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
-    public Response deleteVoorkeur(
-            @PathParam("voorkeurId") UUID voorkeurId,
-            @Valid PartijIdentificatieRequest request) {
-
+    @Logboek(name = "verwijderVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
+    public Response verwijderVoorkeur(@Valid VerwijderdOpRequest request) {
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        boolean deleted = partijService.deleteVoorkeur(request.identificatieType, request.identificatieNummer, voorkeurId);
+        boolean updated = partijService.verwijderVoorkeur(request);
 
-        if (!deleted) {
+        if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
@@ -454,71 +410,39 @@ public class ProfielController {
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur verwijderd");
-        return Response.noContent().build();
-    }
-
-    @PATCH
-    @Path("/voorkeur/te-verwijderen-op")
-    @Transactional
-    @RequireBody
-    @Operation(
-            summary = "Stel te-verwijderen-op in voor een voorkeur (Dienstverlener)",
-            description = "Stelt of overschrijft de te-verwijderen-op datum voor een voorkeur. Alleen toegestaan voor een Dienstverlener met een bestaande scope op de voorkeur."
-    )
-    @APIResponses({
-            @APIResponse(responseCode = "200", description = "Te-verwijderen-op succesvol bijgewerkt"),
-            @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
-            @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op deze voorkeur"),
-            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.VOORKEUR_OF_PARTIJ_NIET_GEVONDEN)
-    })
-    @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
-    public Response updateVoorkeurTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
-        logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
-
-        boolean updated = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
-
-        if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Voorkeur of partij niet gevonden voor te-verwijderen-op update");
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Te-verwijderen-op bijgewerkt voor voorkeur");
         return Response.ok().build();
     }
 
-    @PATCH
-    @Path("/contactgegeven/te-verwijderen-op")
+    @DELETE
+    @Path("/contactgegeven/verwijderen")
     @Transactional
     @RequireBody
     @Operation(
-            summary = "Stel te-verwijderen-op in voor een contactgegeven (Dienstverlener)",
-            description = "Stelt of overschrijft de te-verwijderen-op datum voor een contactgegeven. Alleen toegestaan voor een Dienstverlener met een bestaande scope op het contactgegeven."
+            summary = "Verwijder contactgegeven van een partij",
+            description = "Markeert een contactgegeven als verwijderd (soft delete) op het huidige moment. Als dienstverlenerNaam is opgegeven, is dit alleen toegestaan voor een Dienstverlener met een bestaande scope op het contactgegeven; zonder dienstverlenerNaam kan de partij zelf het contactgegeven verwijderen."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Te-verwijderen-op succesvol bijgewerkt"),
+            @APIResponse(responseCode = "200", description = "Contactgegeven succesvol verwijderd"),
             @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
             @APIResponse(responseCode = "403", description = "Dienstverlener heeft geen scope op dit contactgegeven"),
             @APIResponse(responseCode = "404", description = ApiResponseDescriptions.CONTACTGEGEVEN_OF_PARTIJ_NIET_GEVONDEN)
     })
-    @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
-    public Response updateContactgegevenTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
+    @Logboek(name = "verwijderContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
+    public Response verwijderContactgegeven(@Valid VerwijderdOpRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        boolean updated = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(request);
+        boolean updated = partijService.verwijderContactgegeven(request);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Contactgegeven of partij niet gevonden voor te-verwijderen-op update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            LOG.warn("Contactgegeven niet gevonden voor verwijdering");
+            throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Te-verwijderen-op bijgewerkt voor contactgegeven");
+        LOG.info("Contactgegeven verwijderd");
         return Response.ok().build();
     }
 

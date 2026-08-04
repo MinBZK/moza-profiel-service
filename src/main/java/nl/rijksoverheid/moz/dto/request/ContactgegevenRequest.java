@@ -6,8 +6,6 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-import java.time.Instant;
-
 @Schema(description = "Request object voor het toevoegen van een contactgegeven aan een partij")
 public class ContactgegevenRequest {
 
@@ -24,6 +22,4 @@ public class ContactgegevenRequest {
     public String waarde;
 
     public ScopeRequest scope;
-
-    public Instant teVerwijderenOp;
 }
