@@ -46,5 +46,5 @@ nb-configuration.xml
 /src/main/resources/application-dev.properties
 
 # Claude Code
-.claude/
+.claude/settings.local.json
 CLAUDE.local.md
