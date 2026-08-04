@@ -51,13 +51,12 @@ public class DienstverlenerController {
     private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
 
     private final DienstverlenerService dienstverlenerService;
+    private final DienstMapper dienstMapper;
 
-    public DienstverlenerController(DienstverlenerService dienstverlenerService) {
+    public DienstverlenerController(DienstverlenerService dienstverlenerService, DienstMapper dienstMapper) {
         this.dienstverlenerService = dienstverlenerService;
+        this.dienstMapper = dienstMapper;
     }
-
-    @Inject
-    DienstMapper dienstMapper;
 
     @GET
     @Path("/dienstverlener/{naam}")
