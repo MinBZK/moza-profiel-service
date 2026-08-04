@@ -1,89 +1,86 @@
 package nl.rijksoverheid.moz.services;
 
 import io.quarkus.test.junit.QuarkusTest;
-import io.smallrye.faulttolerance.api.Guard;
 import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.Callable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Test de circuit-breaker configuratie van {@link VerificatieServiceGuard}.
+ * Test het circuit-breaker gedrag van {@link VerificatieServiceGuard}.
  *
- * <p>De guard wordt hier direct via de constructor opgebouwd met testwaarden, zodat het
- * openen van de circuit breaker getest kan worden zonder de applicatie-configuratie aan te
- * passen. Draait als {@code @QuarkusTest} omdat {@code Guard.create()} de CDI-container
- * nodig heeft.
+ * <p>De guard wordt hier direct via de constructor opgebouwd, met een lagere drempel dan de
+ * geconfigureerde. Daarmee is dit de enige plek die aantoont dat de meegegeven
+ * {@code requestVolumeThreshold} ook echt in het juiste veld terechtkomt — de vier
+ * constructor-parameters zijn positioneel en van vrijwel hetzelfde type. Het openen van de
+ * breaker op zichzelf wordt daarnaast al gedekt door
+ * {@code EmailVerificatieServiceTest.circuitBreaker_OpensAfterThresholdExceeded}, dat via de
+ * CDI-beheerde guard op de geconfigureerde drempel van 5 loopt.
+ *
+ * <p>Draait als {@code @QuarkusTest} omdat de smallrye Guard-API via {@code CDI.current()}
+ * wordt opgelost ({@code CdiSpi}); zonder container faalt {@code Guard.create()} met een
+ * misleidende "Could not find implementation of Spi"-fout.
  */
 @QuarkusTest
 class VerificatieServiceGuardTest {
 
+    private static final int DREMPEL = 2;
+    private static final double ALLE_AANROEPEN_MISLUKT = 1.0;
+    private static final int SUCCESS_THRESHOLD = 2;
+
+    /** Ruim langer dan de testduur, zodat de breaker tijdens de test niet vanzelf half-open gaat. */
     private static final long LANGE_DELAY_SECONDEN = 30;
 
-    private static VerificatieServiceGuard guardMetDrempel(int requestVolumeThreshold) {
-        return new VerificatieServiceGuard(requestVolumeThreshold, 1.0, LANGE_DELAY_SECONDEN, 2);
+    private static final Callable<String> FALENDE_AANROEP = () -> {
+        throw new IllegalStateException("aanroep mislukt");
+    };
+
+    private static VerificatieServiceGuard nieuweGuard() {
+        return new VerificatieServiceGuard(DREMPEL, ALLE_AANROEPEN_MISLUKT, LANGE_DELAY_SECONDEN, SUCCESS_THRESHOLD);
     }
 
-    private static Callable<String> falendeAanroep() {
-        return () -> {
-            throw new IllegalStateException("aanroep mislukt");
-        };
-    }
-
-    @Test
-    void get_NaConstructie_LevertGuardOp() {
-        VerificatieServiceGuard verificatieServiceGuard = guardMetDrempel(5);
-
-        assertNotNull(verificatieServiceGuard.get());
-    }
-
-    @Test
-    void get_MeerdereAanroepen_LevertZelfdeGuardOp() {
-        VerificatieServiceGuard verificatieServiceGuard = guardMetDrempel(5);
-
-        assertSame(verificatieServiceGuard.get(), verificatieServiceGuard.get());
+    /** Maakt de drempel vol met mislukte aanroepen; daarna hoort de breaker open te staan. */
+    private static void vulDrempelMetMislukteAanroepen(VerificatieServiceGuard verificatieServiceGuard) {
+        for (int i = 0; i < DREMPEL; i++) {
+            assertThrows(IllegalStateException.class,
+                    () -> verificatieServiceGuard.get().call(FALENDE_AANROEP, String.class));
+        }
     }
 
     @Test
-    void call_ZonderFouten_LevertResultaatOp() throws Exception {
-        VerificatieServiceGuard verificatieServiceGuard = guardMetDrempel(5);
+    void get_ZonderFouten_LevertWerkendeGuardOp() throws Exception {
+        VerificatieServiceGuard verificatieServiceGuard = nieuweGuard();
 
         assertEquals("ok", verificatieServiceGuard.get().call(() -> "ok", String.class));
     }
 
+    /**
+     * Elke {@code get()} moet dezelfde guard opleveren: bij een nieuwe guard per aanroep zou de
+     * teller telkens opnieuw beginnen en zou de breaker nooit openen.
+     */
     @Test
-    void call_NaBereikenVanDrempel_OpentCircuitBreaker() {
-        VerificatieServiceGuard verificatieServiceGuard = guardMetDrempel(2);
-        Guard guard = verificatieServiceGuard.get();
-        Callable<String> falend = falendeAanroep();
+    void get_NaBereikenVanDrempel_OpentCircuitBreaker() {
+        VerificatieServiceGuard verificatieServiceGuard = nieuweGuard();
 
-        // requestVolumeThreshold = 2 en failureRatio = 1.0: twee mislukte aanroepen openen de breaker.
-        assertThrows(IllegalStateException.class, () -> guard.call(falend, String.class));
-        assertThrows(IllegalStateException.class, () -> guard.call(falend, String.class));
+        vulDrempelMetMislukteAanroepen(verificatieServiceGuard);
 
         // De breaker staat nu open; de aanroep wordt niet meer uitgevoerd.
-        assertThrows(CircuitBreakerOpenException.class, () -> guard.call(falend, String.class));
+        assertThrows(CircuitBreakerOpenException.class,
+                () -> verificatieServiceGuard.get().call(FALENDE_AANROEP, String.class));
     }
 
     @Test
     void reset_NaOpenenVanCircuitBreaker_LevertWerkendeGuardOp() throws Exception {
-        VerificatieServiceGuard verificatieServiceGuard = guardMetDrempel(2);
-        Guard geopendeGuard = verificatieServiceGuard.get();
-        Callable<String> falend = falendeAanroep();
-
-        assertThrows(IllegalStateException.class, () -> geopendeGuard.call(falend, String.class));
-        assertThrows(IllegalStateException.class, () -> geopendeGuard.call(falend, String.class));
-        assertThrows(CircuitBreakerOpenException.class, () -> geopendeGuard.call(falend, String.class));
+        VerificatieServiceGuard verificatieServiceGuard = nieuweGuard();
+        vulDrempelMetMislukteAanroepen(verificatieServiceGuard);
+        assertThrows(CircuitBreakerOpenException.class,
+                () -> verificatieServiceGuard.get().call(FALENDE_AANROEP, String.class));
 
         verificatieServiceGuard.reset();
 
-        assertNotSame(geopendeGuard, verificatieServiceGuard.get());
         assertEquals("ok", verificatieServiceGuard.get().call(() -> "ok", String.class));
     }
 }
