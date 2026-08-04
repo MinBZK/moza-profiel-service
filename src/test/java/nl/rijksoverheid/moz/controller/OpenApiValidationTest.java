@@ -35,8 +35,10 @@ abstract class OpenApiValidationTest {
 
     @BeforeEach
     void setupValidationFilter() throws Exception {
-        if (validationFilter != null) return;
-        String openApiPath = ConfigProvider.getConfig()
+        if (validationFilter != null)
+            return;
+        String openApiPath = ConfigProvider
+                .getConfig()
                 .getOptionalValue("quarkus.smallrye-openapi.path", String.class)
                 .orElse("/q/openapi");
         URL url = new URL("http://localhost:" + RestAssured.port + openApiPath);
@@ -44,11 +46,16 @@ abstract class OpenApiValidationTest {
         conn.setRequestProperty("Accept", "application/json");
         String specJson = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         conn.disconnect();
-        var validator = OpenApiInteractionValidator.createFor(specJson)
-                .withLevelResolver(LevelResolver.create()
-                        .withLevel("validation.request.parameter.schema.invalidJson", ValidationReport.Level.IGNORE)
-                        .withLevel("validation.response.body.missing", ValidationReport.Level.IGNORE)
-                        .build())
+        var validator = OpenApiInteractionValidator
+                .createFor(specJson)
+                .withLevelResolver(
+                        LevelResolver
+                                .create()
+                                .withLevel(
+                                        "validation.request.parameter.schema.invalidJson",
+                                        ValidationReport.Level.IGNORE)
+                                .withLevel("validation.response.body.missing", ValidationReport.Level.IGNORE)
+                                .build())
                 .build();
         validationFilter = new OpenApiValidationFilter(validator);
     }

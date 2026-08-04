@@ -17,7 +17,6 @@ public class PartijRequest {
 
     public String dienstverlener;
 
-
     public String dienstNaam;
 
     @JsonIgnore

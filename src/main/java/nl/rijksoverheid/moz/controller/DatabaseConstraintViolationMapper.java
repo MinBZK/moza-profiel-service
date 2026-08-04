@@ -23,9 +23,10 @@ public class DatabaseConstraintViolationMapper implements ExceptionMapper<Constr
     public Response toResponse(ConstraintViolationException exception) {
         String constraintName = exception.getConstraintName();
         LOG.warnf("Database constraint violation: %s", constraintName != null ? constraintName : "<unknown>");
-        return Problems.problemResponse(
-                Response.Status.CONFLICT,
-                Response.Status.CONFLICT.getReasonPhrase(),
-                "Resource bestaat al of conflicteert met een unique constraint");
+        return Problems
+                .problemResponse(
+                        Response.Status.CONFLICT,
+                        Response.Status.CONFLICT.getReasonPhrase(),
+                        "Resource bestaat al of conflicteert met een unique constraint");
     }
 }

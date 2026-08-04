@@ -1,6 +1,7 @@
 package nl.rijksoverheid.moz.exception;
 
 import jakarta.validation.constraints.NotNull;
+
 import java.util.Objects;
 
 /**

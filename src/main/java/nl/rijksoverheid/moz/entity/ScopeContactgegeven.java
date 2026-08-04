@@ -22,9 +22,9 @@ import java.util.UUID;
         name = "scope_contactgegeven",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_scope_contactgegeven",
-                columnNames = {"contactgegeven_id", "dienstverlener_dienst_id"}
-        )
-)
+                columnNames = {
+                        "contactgegeven_id",
+                        "dienstverlener_dienst_id"}))
 public class ScopeContactgegeven extends PanacheEntityBase {
 
     @Id
@@ -44,8 +44,7 @@ public class ScopeContactgegeven extends PanacheEntityBase {
     @JsonIgnore
     private DienstverlenerDienst dienstverlenerDienst;
 
-    public ScopeContactgegeven() {
-    }
+    public ScopeContactgegeven() {}
 
     public ScopeContactgegeven(Contactgegeven contactgegeven, DienstverlenerDienst dienstverlenerDienst) {
         this.contactgegeven = contactgegeven;

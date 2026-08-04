@@ -5,7 +5,6 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.exception.TechnicalException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
@@ -21,6 +20,7 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
@@ -123,7 +123,9 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = partij
+                    .getContactgegevens()
+                    .stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElse(null);
@@ -185,7 +187,9 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = partij
+                    .getContactgegevens()
+                    .stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();
@@ -254,8 +258,7 @@ public class EmailVerificatieServiceTest {
     @Test
     void verifieerEmail_ApiResponseSuccessFalse() {
         seedPartijWithUnverifiedContact("111111102");
-        nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse response =
-                new nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse();
+        nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse response = new nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse();
         response.setSuccess(false);
         Mockito.doReturn(response).when(emailVerificatieApi).verifyPost(Mockito.any());
 
@@ -266,8 +269,10 @@ public class EmailVerificatieServiceTest {
     @Test
     void verifieerEmail_WebApplicationException() {
         seedPartijWithUnverifiedContact("111111103");
-        Mockito.doThrow(new WebApplicationException(mockErrorResponse(400, "Error")))
-                .when(emailVerificatieApi).verifyPost(Mockito.any());
+        Mockito
+                .doThrow(new WebApplicationException(mockErrorResponse(400, "Error")))
+                .when(emailVerificatieApi)
+                .verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = makeVerifyRequest("111111103");
         Assertions.assertFalse(service.verifieerEmail(request));
@@ -279,8 +284,10 @@ public class EmailVerificatieServiceTest {
         Mockito.doThrow(new RuntimeException("boom")).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = makeVerifyRequest("111111104");
-        Assertions.assertThrows(TechnicalException.class,
-                () -> service.verifieerEmail(request));
+        Assertions
+                .assertThrows(
+                        TechnicalException.class,
+                        () -> service.verifieerEmail(request));
     }
 
     @Test
@@ -327,7 +334,9 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "111111106");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = partij
+                    .getContactgegevens()
+                    .stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();

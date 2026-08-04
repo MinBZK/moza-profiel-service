@@ -4,7 +4,9 @@ import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 
-public class IdentificatieNummerValidator implements ConstraintValidator<ValidIdentificatieNummer, EmailVerificatieRequest> {
+public class IdentificatieNummerValidator
+        implements
+            ConstraintValidator<ValidIdentificatieNummer, EmailVerificatieRequest> {
 
     @Override
     public boolean isValid(EmailVerificatieRequest request, ConstraintValidatorContext context) {

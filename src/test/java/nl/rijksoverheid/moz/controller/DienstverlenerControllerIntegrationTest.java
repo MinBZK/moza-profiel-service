@@ -25,7 +25,6 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
-
 @QuarkusTest
 public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTest {
 
@@ -118,7 +117,6 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .then()
                 .statusCode(BAD_REQUEST);
     }
-
 
     @Test
     void addDienstToDienstverlener_Success() {

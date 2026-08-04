@@ -21,9 +21,9 @@ import java.util.UUID;
         name = "dienstverlener_dienst",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_dienstverlener_dienst",
-                columnNames = {"dienstverlener_id", "dienst_id"}
-        )
-)
+                columnNames = {
+                        "dienstverlener_id",
+                        "dienst_id"}))
 public class DienstverlenerDienst extends PanacheEntityBase {
 
     @Id
@@ -42,8 +42,7 @@ public class DienstverlenerDienst extends PanacheEntityBase {
     @JsonIgnore
     private Dienst dienst;
 
-    public DienstverlenerDienst() {
-    }
+    public DienstverlenerDienst() {}
 
     public DienstverlenerDienst(Dienstverlener dienstverlener, @Nullable Dienst dienst) {
         this.dienstverlener = dienstverlener;

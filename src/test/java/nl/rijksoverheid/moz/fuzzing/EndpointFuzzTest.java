@@ -27,7 +27,8 @@ public class EndpointFuzzTest {
         String oin = data.consumeString(20);
         String dienstBeschrijving = data.consumeString(100);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .queryParam("dienstverlener", dienstverlener)
@@ -36,8 +37,9 @@ public class EndpointFuzzTest {
                 .when()
                 .get("/api/profielservice/v1/{identificatieType}/{identificatieNummer}")
                 .then()
-                .extract().response();
-        
+                .extract()
+                .response();
+
         // We don't necessarily assert success, we just want to see if it crashes the JVM
     }
 
@@ -45,7 +47,7 @@ public class EndpointFuzzTest {
     public void fuzzAddContactgegeven(FuzzedDataProvider data) {
         String identificatieType = data.pickValue(new String[]{"BSN", "KVK", "RSIN"});
         String identificatieNummer = data.consumeString(20);
-        
+
         String type = data.consumeString(10);
         String waarde = data.consumeString(50);
 
@@ -53,7 +55,8 @@ public class EndpointFuzzTest {
         body.put("type", type);
         body.put("waarde", waarde);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
@@ -61,7 +64,8 @@ public class EndpointFuzzTest {
                 .when()
                 .post("/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -77,7 +81,8 @@ public class EndpointFuzzTest {
         body.put("type", type);
         body.put("waarde", waarde);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
@@ -85,7 +90,8 @@ public class EndpointFuzzTest {
                 .when()
                 .put("/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}/")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -94,14 +100,17 @@ public class EndpointFuzzTest {
         String identificatieNummer = data.consumeString(20);
         long contactgegevenId = data.consumeLong();
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .pathParam("contactgegevenId", contactgegevenId)
                 .when()
-                .delete("/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}/{contactgegevenId}")
+                .delete(
+                        "/api/profielservice/v1/contactgegeven/{identificatieType}/{identificatieNummer}/{contactgegevenId}")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -115,7 +124,8 @@ public class EndpointFuzzTest {
         body.put("voorkeurType", voorkeurType);
         body.put("waarde", waarde);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
@@ -123,7 +133,8 @@ public class EndpointFuzzTest {
                 .when()
                 .post("/api/profielservice/v1/voorkeur/{identificatieType}/{identificatieNummer}")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -139,7 +150,8 @@ public class EndpointFuzzTest {
         body.put("voorkeurType", voorkeurType);
         body.put("waarde", waarde);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .pathParam("identificatieType", identificatieType)
@@ -147,7 +159,8 @@ public class EndpointFuzzTest {
                 .when()
                 .put("/api/profielservice/v1/voorkeur/{identificatieType}/{identificatieNummer}/")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -156,26 +169,30 @@ public class EndpointFuzzTest {
         String identificatieNummer = data.consumeString(20);
         long voorkeurId = data.consumeLong();
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .pathParam("identificatieType", identificatieType)
                 .pathParam("identificatieNummer", identificatieNummer)
                 .pathParam("voorkeurId", voorkeurId)
                 .when()
                 .delete("/api/profielservice/v1/voorkeur/{identificatieType}/{identificatieNummer}/{voorkeurId}")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
     public void fuzzGetDienstenDienstverlener(FuzzedDataProvider data) {
         String naam = data.consumeString(50);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .pathParam("naam", naam)
                 .when()
                 .get("/api/profielservice/v1/dienstverlener/{naam}")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -187,13 +204,15 @@ public class EndpointFuzzTest {
         body.put("naam", naam);
         body.put("oin", oin);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .when()
                 .post("/api/profielservice/v1/dienstverlener/")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -204,14 +223,16 @@ public class EndpointFuzzTest {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("beschrijving", beschrijving);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .pathParam("DienstverlenerNaam", dienstverlenerNaam)
                 .when()
                 .post("/api/profielservice/v1/dienstverlener/{DienstverlenerNaam}/diensten")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 
     @FuzzTest
@@ -227,12 +248,14 @@ public class EndpointFuzzTest {
         body.put("identificatieType", identificatieType);
         body.put("verificatieCode", verificatieCode);
 
-        RestAssured.given()
+        RestAssured
+                .given()
                 .contentType(ContentType.JSON)
                 .body(body.toString())
                 .when()
                 .post("/api/profielservice/v1/emailverificatie")
                 .then()
-                .extract().response();
+                .extract()
+                .response();
     }
 }

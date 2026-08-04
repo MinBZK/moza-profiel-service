@@ -10,7 +10,8 @@ public final class Problems {
     private Problems() {}
 
     public static HttpProblem notFound(String title, String detail) {
-        return HttpProblem.builder()
+        return HttpProblem
+                .builder()
                 .withStatus(Response.Status.NOT_FOUND)
                 .withTitle(title)
                 .withDetail(detail)
@@ -22,7 +23,8 @@ public final class Problems {
     }
 
     public static HttpProblem badRequest(String title, String detail) {
-        return HttpProblem.builder()
+        return HttpProblem
+                .builder()
                 .withStatus(Response.Status.BAD_REQUEST)
                 .withTitle(title)
                 .withDetail(detail)
@@ -30,7 +32,8 @@ public final class Problems {
     }
 
     public static HttpProblem serviceUnavailable(String title, String detail) {
-        return HttpProblem.builder()
+        return HttpProblem
+                .builder()
                 .withStatus(Response.Status.SERVICE_UNAVAILABLE)
                 .withTitle(title)
                 .withDetail(detail)
@@ -38,14 +41,20 @@ public final class Problems {
     }
 
     public static Response problemResponse(Response.Status status, String title, String detail) {
-        return Response.status(status)
+        return Response
+                .status(status)
                 .type("application/problem+json")
-                .entity(Map.of(
-                        "type", "about:blank",
-                        "title", title,
-                        "status", status.getStatusCode(),
-                        "detail", detail
-                ))
+                .entity(
+                        Map
+                                .of(
+                                        "type",
+                                        "about:blank",
+                                        "title",
+                                        title,
+                                        "status",
+                                        status.getStatusCode(),
+                                        "detail",
+                                        detail))
                 .build();
     }
 }

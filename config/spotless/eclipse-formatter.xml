@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Eclipse JDT formatter profile used by the Spotless Maven plugin (eclipse() step).
+  Tuned to reproduce the formatting rules previously enforced by checkstyle.xml:
+    - max line length 120 (LineLength)
+    - collapse 2+ consecutive blank lines to 1 (RegexpMultiline)
+    - spaces around operators/braces (WhitespaceAround) -> Eclipse defaults
+    - 4-space indent, 8-space continuation, K&R braces (matches existing code)
+  Import order and unused-import removal are NOT done by the formatter; they are
+  separate Spotless steps in pom.xml. Star imports, one-statement-per-line and the
+  complexity rules are lint checks no formatter can do and stay with SonarLint.
+
+  Settings left unset inherit the Eclipse JDT defaults (which already insert spaces
+  around operators and after commas, satisfying WhitespaceAround).
+-->
+<profiles version="21">
+  <profile kind="CodeFormatterProfile" name="MOZa" version="21">
+    <!-- Indentation: spaces, 4-wide, 8-wide continuation -->
+    <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+    <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+    <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
+    <setting id="org.eclipse.jdt.core.formatter.continuation_indentation" value="2"/>
+    <setting id="org.eclipse.jdt.core.formatter.continuation_indentation_for_array_initializer" value="2"/>
+    <setting id="org.eclipse.jdt.core.formatter.indent_empty_lines" value="false"/>
+
+    <!-- Line length 120 (LineLength). Preserve existing manual wrapping to minimise churn. -->
+    <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="120"/>
+    <setting id="org.eclipse.jdt.core.formatter.comment.line_length" value="120"/>
+    <setting id="org.eclipse.jdt.core.formatter.join_wrapped_lines" value="false"/>
+    <setting id="org.eclipse.jdt.core.formatter.join_lines_in_comments" value="false"/>
+
+    <!-- Wrapping policies (value 48 = one element per line, but only when the line exceeds
+         lineSplit; short constructs stay inline). Without these the formatter collapses
+         long method calls/annotations onto a single over-long line. -->
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_annotation" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_expressions_in_array_initializer" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_method_invocation" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_method_declaration" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_explicit_constructor_call" value="48"/>
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_selector_in_method_invocation" value="48"/>
+
+    <!-- Blank lines: keep at most 1 consecutive blank line (RegexpMultiline). -->
+    <setting id="org.eclipse.jdt.core.formatter.number_of_empty_lines_to_preserve" value="1"/>
+
+    <!-- Keep empty bodies collapsed: private ApiVersion() {} stays as-is. -->
+    <setting id="org.eclipse.jdt.core.formatter.keep_method_body_on_one_line" value="one_line_if_empty"/>
+    <setting id="org.eclipse.jdt.core.formatter.keep_type_declaration_on_one_line" value="one_line_if_empty"/>
+    <setting id="org.eclipse.jdt.core.formatter.keep_anonymous_type_declaration_on_one_line" value="one_line_never"/>
+    <setting id="org.eclipse.jdt.core.formatter.keep_enum_declaration_on_one_line" value="one_line_never"/>
+    <setting id="org.eclipse.jdt.core.formatter.keep_enum_constant_declaration_on_one_line" value="one_line_if_empty"/>
+
+    <!-- One enum constant per line (forced), matching existing enums. -->
+    <setting id="org.eclipse.jdt.core.formatter.alignment_for_enum_constants" value="49"/>
+
+    <!-- Do not reflow comments/javadoc; leave the hand-written Dutch docs untouched. -->
+    <setting id="org.eclipse.jdt.core.formatter.comment.format_javadoc_comments" value="false"/>
+    <setting id="org.eclipse.jdt.core.formatter.comment.format_block_comments" value="false"/>
+    <setting id="org.eclipse.jdt.core.formatter.comment.format_line_comments" value="false"/>
+    <setting id="org.eclipse.jdt.core.formatter.comment.format_header" value="false"/>
+    <setting id="org.eclipse.jdt.core.formatter.comment.clear_blank_lines_in_javadoc_comment" value="false"/>
+    <setting id="org.eclipse.jdt.core.formatter.comment.clear_blank_lines_in_block_comment" value="false"/>
+
+    <!-- K&R brace placement (opening brace on the same line) to match existing code. -->
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_type_declaration" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_method_declaration" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_constructor_declaration" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_anonymous_type_declaration" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_block" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_block_in_case" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_switch" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_array_initializer" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_enum_declaration" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_enum_constant" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_annotation_type_declaration" value="end_of_line"/>
+    <setting id="org.eclipse.jdt.core.formatter.brace_position_for_lambda_body" value="end_of_line"/>
+  </profile>
+</profiles>

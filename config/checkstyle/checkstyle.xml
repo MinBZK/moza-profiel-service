@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!-- Lint-only rules Spotless cannot express (Spotless is a formatter, not a linter).
+     Formatting and import ordering/removal live in config/spotless/. -->
+<module name="Checker">
+    <module name="TreeWalker">
+        <module name="AvoidStarImport"/>
+    </module>
+</module>

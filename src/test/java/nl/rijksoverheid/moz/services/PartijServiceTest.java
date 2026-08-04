@@ -1,7 +1,5 @@
 package nl.rijksoverheid.moz.services;
 
-import nl.rijksoverheid.moz.exception.AuthorizationException;
-import nl.rijksoverheid.moz.exception.BusinessException;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -27,6 +25,8 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.exception.AuthorizationException;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -365,7 +365,11 @@ public class PartijServiceTest {
         scoped.scope.dienstverlenerNaam = "TestDV";
         scoped.scope.dienstNaam = "TestDienst";
 
-        PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        PartijService.AddContactgegevenResult result = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        scoped);
 
         Assertions.assertFalse(result.wasCreated(), "no new contactgegeven row was created");
         Assertions.assertTrue(result.scopeAdded(), "a new scope was attached to the existing row");
@@ -391,10 +395,16 @@ public class PartijServiceTest {
         scoped.scope.dienstverlenerNaam = "TestDV";
         scoped.scope.dienstNaam = "TestDienst";
 
-        PartijService.AddContactgegevenResult first =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
-        PartijService.AddContactgegevenResult second =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        PartijService.AddContactgegevenResult first = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        scoped);
+        PartijService.AddContactgegevenResult second = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        scoped);
 
         Assertions.assertTrue(first.wasCreated());
         Assertions.assertFalse(second.wasCreated());
@@ -414,12 +424,20 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "unverified@test.com";
 
-        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult first = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        request);
         Assertions.assertTrue(first.wasCreated());
 
         Mockito.doReturn("second-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult second = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        request);
         Assertions.assertFalse(second.wasCreated());
         Mockito.verify(emailVerificatieService, Mockito.times(2)).requestEmailVerificationCode("unverified@test.com");
 
@@ -449,7 +467,11 @@ public class PartijServiceTest {
             contact.setIsGeverifieerd(true);
         });
 
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult second = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        request);
         Assertions.assertFalse(second.wasCreated());
         Mockito.verify(emailVerificatieService, Mockito.times(1)).requestEmailVerificationCode(Mockito.anyString());
     }
@@ -460,10 +482,8 @@ public class PartijServiceTest {
         request.voorkeurType = VoorkeurType.WebsiteTaal;
         request.waarde = "nl";
 
-        PartijService.AddVoorkeurResult first =
-                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-        PartijService.AddVoorkeurResult second =
-                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddVoorkeurResult first = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddVoorkeurResult second = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
         Assertions.assertTrue(first.wasCreated());
         Assertions.assertFalse(second.wasCreated());
@@ -582,8 +602,11 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(3, partij.getContactgegevens().size(),
-                    "Filtered read must not delete contactgegevens that were excluded by the filter");
+            Assertions
+                    .assertEquals(
+                            3,
+                            partij.getContactgegevens().size(),
+                            "Filtered read must not delete contactgegevens that were excluded by the filter");
         });
     }
 
@@ -595,9 +618,10 @@ public class PartijServiceTest {
         request.scope = new ScopeRequest();
         request.scope.dienstNaam = "TestDienst";
 
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
+        BusinessException ex = Assertions
+                .assertThrows(
+                        BusinessException.class,
+                        () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
         Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
     }
 
@@ -631,9 +655,10 @@ public class PartijServiceTest {
         request.scope.dienstverlenerNaam = "DV-A";
         request.scope.dienstNaam = "B-Vergunning";
 
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
+        BusinessException ex = Assertions
+                .assertThrows(
+                        BusinessException.class,
+                        () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
         Assertions.assertEquals(BusinessException.Kind.NOT_FOUND, ex.getKind());
     }
 
@@ -673,10 +698,14 @@ public class PartijServiceTest {
         Assertions.assertTrue(partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
 
         QuarkusTransaction.requiringNew().run(() -> {
-            Assertions.assertFalse(((Contactgegeven) Contactgegeven.findById(firstId.get())).isIsDefault(),
-                    "previous default must be demoted");
-            Assertions.assertTrue(((Contactgegeven) Contactgegeven.findById(secondId.get())).isIsDefault(),
-                    "new default must be set");
+            Assertions
+                    .assertFalse(
+                            ((Contactgegeven) Contactgegeven.findById(firstId.get())).isIsDefault(),
+                            "previous default must be demoted");
+            Assertions
+                    .assertTrue(
+                            ((Contactgegeven) Contactgegeven.findById(secondId.get())).isIsDefault(),
+                            "new default must be set");
         });
     }
 
@@ -769,13 +798,16 @@ public class PartijServiceTest {
 
         partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
 
-        Mockito.verify(emailVerificatieService, Mockito.never())
+        Mockito
+                .verify(emailVerificatieService, Mockito.never())
                 .requestEmailVerificationCode(Mockito.anyString());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven c = Contactgegeven.findById(id.get());
-            Assertions.assertTrue(c.isIsGeverifieerd(),
-                    "isDefault-only update mag verificatiestatus niet resetten");
+            Assertions
+                    .assertTrue(
+                            c.isIsGeverifieerd(),
+                            "isDefault-only update mag verificatiestatus niet resetten");
             Assertions.assertNotNull(c.getGeverifieerdAt());
         });
     }
@@ -809,9 +841,10 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "a@test.com";
 
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
+        BusinessException ex = Assertions
+                .assertThrows(
+                        BusinessException.class,
+                        () -> partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 
@@ -828,8 +861,11 @@ public class PartijServiceTest {
         ContactgegevenRequest second = new ContactgegevenRequest();
         second.type = ContactType.Email;
         second.waarde = "USER@TEST.COM";
-        PartijService.AddContactgegevenResult result =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", second);
+        PartijService.AddContactgegevenResult result = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        second);
         Assertions.assertFalse(result.wasCreated());
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -864,9 +900,10 @@ public class PartijServiceTest {
         request.waarde = "nl";
         request.teVerwijderenOp = Instant.now().minus(Duration.ofDays(1));
 
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
+        BusinessException ex = Assertions
+                .assertThrows(
+                        BusinessException.class,
+                        () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
         Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
     }
 
@@ -879,9 +916,10 @@ public class PartijServiceTest {
         request.waarde = "nl";
         request.teVerwijderenOp = beyondMax;
 
-        BusinessException ex = Assertions.assertThrows(
-                BusinessException.class,
-                () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
+        BusinessException ex = Assertions
+                .assertThrows(
+                        BusinessException.class,
+                        () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request));
         Assertions.assertEquals(BusinessException.Kind.BAD_REQUEST, ex.getKind());
     }
 
@@ -962,8 +1000,11 @@ public class PartijServiceTest {
         request.waarde = "0612345678";
         request.teVerwijderenOp = teVerwijderenOp;
 
-        PartijService.AddContactgegevenResult result =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+        PartijService.AddContactgegevenResult result = partijService
+                .addContactgegeven(
+                        IdentificatieType.BSN,
+                        "123456789",
+                        request);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(result.contactgegeven().id);
@@ -1037,9 +1078,10 @@ public class PartijServiceTest {
         request.dienstverlenerNaam = "OnbekendeDV";
         request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        AuthorizationException ex = Assertions.assertThrows(
-                AuthorizationException.class,
-                () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
+        AuthorizationException ex = Assertions
+                .assertThrows(
+                        AuthorizationException.class,
+                        () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
         Assertions.assertEquals("Forbidden", ex.getTitle());
     }
 
@@ -1099,9 +1141,10 @@ public class PartijServiceTest {
         request.dienstNaam = "AndereDienst";
         request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
 
-        AuthorizationException ex = Assertions.assertThrows(
-                AuthorizationException.class,
-                () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
+        AuthorizationException ex = Assertions
+                .assertThrows(
+                        AuthorizationException.class,
+                        () -> partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request));
         Assertions.assertEquals("Forbidden", ex.getTitle());
     }
 
@@ -1161,10 +1204,14 @@ public class PartijServiceTest {
             dv.persist();
         });
 
-        DienstverlenerDienst first = dienstverlenerService.findOrCreateDienstverlenerDienst(
-                dienstverlenerService.getDienstverlener("DV-broad"), null);
-        DienstverlenerDienst second = dienstverlenerService.findOrCreateDienstverlenerDienst(
-                dienstverlenerService.getDienstverlener("DV-broad"), null);
+        DienstverlenerDienst first = dienstverlenerService
+                .findOrCreateDienstverlenerDienst(
+                        dienstverlenerService.getDienstverlener("DV-broad"),
+                        null);
+        DienstverlenerDienst second = dienstverlenerService
+                .findOrCreateDienstverlenerDienst(
+                        dienstverlenerService.getDienstverlener("DV-broad"),
+                        null);
 
         Assertions.assertEquals(first.id, second.id);
 
@@ -1215,8 +1262,10 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven oldPhoneDefault = Contactgegeven.findById(phoneDefaultId.get());
             Contactgegeven updated = Contactgegeven.findById(emailDefaultId.get());
-            Assertions.assertFalse(oldPhoneDefault.isIsDefault(),
-                    "pre-existing Telefoonnummer default must be demoted when the row morphed into a Telefoonnummer default");
+            Assertions
+                    .assertFalse(
+                            oldPhoneDefault.isIsDefault(),
+                            "pre-existing Telefoonnummer default must be demoted when the row morphed into a Telefoonnummer default");
             Assertions.assertTrue(updated.isIsDefault());
             Assertions.assertEquals(ContactType.Telefoonnummer, updated.getType());
         });
