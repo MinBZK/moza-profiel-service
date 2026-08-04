@@ -17,4 +17,4 @@ Open issues in de [MijnOverheidZakelijk](https://github.com/MinBZK/MijnOverheidZ
 
 ## Beveiligingsmeldingen
 
-Zie de Security Policy in `SUPPORT.md` of meld kwetsbaarheden conform `security.txt` op het MOZa-platform.
+Zie het beveiligingsbeleid in [`SECURITY.md`](SECURITY.md) voor het verantwoord melden van kwetsbaarheden.
