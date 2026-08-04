@@ -54,10 +54,12 @@ public abstract class PartijMapper {
     public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
         Instant clearedAt = registreerGebruik(cg);
         ContactgegevenResponse cr = mapContactgegeven(cg);
+
         if (clearedAt != null) {
             cr.lastUpdated = clearedAt;
             cr.teVerwijderenOp = null;
         }
+
         return cr;
     }
 
@@ -65,10 +67,12 @@ public abstract class PartijMapper {
     public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
         Instant clearedAt = registreerGebruik(voorkeur);
         VoorkeurResponse vr = mapVoorkeur(voorkeur);
+
         if (clearedAt != null) {
             vr.lastUpdated = clearedAt;
             vr.teVerwijderenOp = null;
         }
+
         return vr;
     }
 
@@ -95,14 +99,18 @@ public abstract class PartijMapper {
         if (!isStale(cg.getLastUsedAt())) {
             return null;
         }
+
         if (cg.isTeVerwijderenOpAutomatisch()) {
             Instant clearedAt = Instant.now();
             Contactgegeven.update(
                     "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
                     clearedAt, cg.id);
+
             return clearedAt;
         }
+
         Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
+
         return null;
     }
 
@@ -113,14 +121,18 @@ public abstract class PartijMapper {
         if (!isStale(voorkeur.getLastUsedAt())) {
             return null;
         }
+
         if (voorkeur.isTeVerwijderenOpAutomatisch()) {
             Instant clearedAt = Instant.now();
             Voorkeur.update(
                     "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
                     clearedAt, voorkeur.id);
+
             return clearedAt;
         }
+
         Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
+
         return null;
     }
 
