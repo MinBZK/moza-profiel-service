@@ -110,6 +110,7 @@ public class PartijService {
         }
 
         contactgegeven.persist();
+
         return new AddContactgegevenResult(contactgegeven, true, false);
     }
 
@@ -139,6 +140,7 @@ public class PartijService {
         }
 
         Voorkeur verwijderd = findSoftDeletedVoorkeur(partij, request.voorkeurType, link);
+
         if (verwijderd != null) {
             LOG.info("Voorkeur was verwijderd, wordt hersteld door opnieuw te registreren");
             verwijderd.setVerwijderdOp(null);
@@ -156,6 +158,7 @@ public class PartijService {
         }
 
         voorkeur.persist();
+
         return new AddVoorkeurResult(voorkeur, true, false);
     }
 
@@ -167,6 +170,7 @@ public class PartijService {
                     partij, voorkeurType
             ).firstResult();
         }
+
         // Scoped voorkeur: maximaal één actieve rij per (partij, voorkeurType, dienstverlenerDienst).
         return Voorkeur.find(
                 "select distinct v from Voorkeur v join v.scopes s "
@@ -188,6 +192,7 @@ public class PartijService {
                     partij, voorkeurType
             ).firstResult();
         }
+
         return Voorkeur.find(
                 "select distinct v from Voorkeur v join v.scopes s "
                         + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 "
@@ -244,12 +249,14 @@ public class PartijService {
 
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
+
         if (partij == null) {
             LOG.info("Nieuwe partij aanmaken");
             partij = new Partij();
             partij.addIdentificatie(new Identificatie(type, nummer));
             partij.persist();
         }
+
         return partij;
     }
 
@@ -361,9 +368,8 @@ public class PartijService {
         }
 
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
-        // findExistingVoorkeur matcht alleen actieve rijen, dus een zachtverwijderde rij op
-        // dezelfde sleutel blokkeert deze update terecht niet.
         Voorkeur collision = findExistingVoorkeur(partij, request.voorkeurType, targetLink);
+
         if (collision != null && !collision.id.equals(voorkeur.id)) {
             throw new BusinessException(Kind.CONFLICT,
                     "Andere voorkeur bestaat al voor deze partij + type + scope");
@@ -378,6 +384,7 @@ public class PartijService {
 
     private void replaceScopesContactgegeven(Contactgegeven owner, DienstverlenerDienst link) {
         owner.clearScopes();
+
         if (link != null) {
             owner.addScope(new ScopeContactgegeven(owner, link));
         }
@@ -385,6 +392,7 @@ public class PartijService {
 
     private void replaceScopesVoorkeur(Voorkeur owner, DienstverlenerDienst link) {
         owner.clearScopes();
+
         if (link != null) {
             owner.addScope(new ScopeVoorkeur(owner, link));
         }
@@ -401,6 +409,7 @@ public class PartijService {
                 .filter(v -> v.id.equals(request.id) && v.getVerwijderdOp() == null)
                 .findFirst()
                 .orElse(null);
+
         if (voorkeur == null) return false;
 
         if (request.dienstverlenerNaam != null) {
@@ -410,6 +419,7 @@ public class PartijService {
         }
 
         voorkeur.setVerwijderdOp(Instant.now());
+
         return true;
     }
 
@@ -424,6 +434,7 @@ public class PartijService {
                 .filter(c -> c.id.equals(request.id) && c.getVerwijderdOp() == null)
                 .findFirst()
                 .orElse(null);
+
         if (contact == null) return false;
 
         if (request.dienstverlenerNaam != null) {
@@ -433,6 +444,7 @@ public class PartijService {
         }
 
         contact.setVerwijderdOp(Instant.now());
+
         return true;
     }
 
@@ -447,6 +459,7 @@ public class PartijService {
             if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(request.dienstverlenerNaam)) return false;
             if (request.dienstNaam == null) return true;
             Dienst dienst = dd.getDienst();
+            
             return dienst == null || dienst.getNaam().equalsIgnoreCase(request.dienstNaam);
         });
 
@@ -485,6 +498,7 @@ public class PartijService {
 
         List<Contactgegeven> filteredContacts = findFilteredContactgegevens(partij, partijRequest);
         List<Voorkeur> filteredVoorkeuren = findFilteredVoorkeuren(partij, partijRequest);
+
         return partijMapper.toResponse(partij, filteredContacts, filteredVoorkeuren);
     }
 
@@ -513,6 +527,7 @@ public class PartijService {
         }
 
         PanacheQuery<Contactgegeven> panacheQuery = Contactgegeven.find(query.toString(), params);
+
         return panacheQuery.list();
     }
 

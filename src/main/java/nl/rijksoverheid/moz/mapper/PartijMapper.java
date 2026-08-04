@@ -38,6 +38,7 @@ public abstract class PartijMapper {
     public PartijResponse toResponse(Partij partij) {
         java.util.List<Contactgegeven> contactgegevens = Contactgegeven.find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
         java.util.List<Voorkeur> voorkeuren = Voorkeur.find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+
         return toResponse(partij, contactgegevens, voorkeuren);
     }
 
