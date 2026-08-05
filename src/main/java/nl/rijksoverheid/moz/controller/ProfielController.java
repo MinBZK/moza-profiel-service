@@ -390,14 +390,14 @@ public class ProfielController {
     }
 
     @DELETE
-    @Path("/voorkeur/verwijderen/{id}")
+    @Path("/voorkeur/{id}")
     @Transactional
     @Operation(
             summary = "Verwijder voorkeur van een partij",
-            description = "Markeert een voorkeur als verwijderd (soft delete) op het huidige moment."
+            description = "Markeert een voorkeur als verwijderd."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Voorkeur succesvol verwijderd"),
+            @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Voorkeur niet gevonden")
     })
     @Logboek(name = "verwijderVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
@@ -415,18 +415,18 @@ public class ProfielController {
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur verwijderd");
 
-        return Response.ok().build();
+        return Response.noContent().build();
     }
 
     @DELETE
-    @Path("/contactgegeven/verwijderen/{id}")
+    @Path("/contactgegeven/{id}")
     @Transactional
     @Operation(
             summary = "Verwijder contactgegeven van een partij",
-            description = "Markeert een contactgegeven als verwijderd (soft delete) op het huidige moment."
+            description = "Markeert een contactgegeven als verwijderd."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Contactgegeven succesvol verwijderd"),
+            @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
             @APIResponse(responseCode = "404", description = "Contactgegeven niet gevonden")
     })
     @Logboek(name = "verwijderContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
@@ -444,7 +444,7 @@ public class ProfielController {
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Contactgegeven verwijderd");
 
-        return Response.ok().build();
+        return Response.noContent().build();
     }
 
     private void setDataSubjectFromVoorkeur(UUID id, Voorkeur voorkeur) {

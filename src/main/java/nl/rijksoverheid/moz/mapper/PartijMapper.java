@@ -55,7 +55,7 @@ public abstract class PartijMapper {
     @Named("contactgegevenMetGebruik")
     public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
         if (isStale(cg.getLastUsedAt())) {
-            Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
+            Contactgegeven.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), cg.id);
         }
 
         return mapContactgegeven(cg);
@@ -64,7 +64,7 @@ public abstract class PartijMapper {
     @Named("voorkeurMetGebruik")
     public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
         if (isStale(voorkeur.getLastUsedAt())) {
-            Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
+            Voorkeur.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), voorkeur.id);
         }
 
         return mapVoorkeur(voorkeur);

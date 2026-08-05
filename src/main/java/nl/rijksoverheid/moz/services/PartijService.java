@@ -171,8 +171,8 @@ public class PartijService {
 
         // Scoped voorkeur: maximaal één actieve rij per (partij, voorkeurType, dienstverlenerDienst).
         return Voorkeur.find(
-                "select distinct v from Voorkeur v join v.scopes s "
-                        + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
+                "SELECT DISTINCT v FROM Voorkeur v JOIN v.scopes s "
+                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
                 partij, voorkeurType, link
         ).firstResult();
     }
@@ -192,8 +192,8 @@ public class PartijService {
         }
 
         return Voorkeur.find(
-                "select distinct v from Voorkeur v join v.scopes s "
-                        + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 "
+                "SELECT DISTINCT v FROM Voorkeur v JOIN v.scopes s "
+                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 "
                         + "AND v.verwijderdOp IS NOT NULL ORDER BY v.verwijderdOp DESC",
                 partij, voorkeurType, link
         ).firstResult();
@@ -267,10 +267,9 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(request.id) && c.getVerwijderdOp() == null)
-                .findFirst()
-                .orElse(null);
+        Contactgegeven contact = Contactgegeven.find(
+                "partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, request.id
+        ).firstResult();
 
         if (contact == null) {
             return false;
@@ -347,7 +346,7 @@ public class PartijService {
         // Met flushmode=COMMIT zou deze demote-vóór-mutatie volgorde niet meer beschermen
         // tegen de partial unique index op (partij_id, type) WHERE is_default = true.
         Contactgegeven.update(
-                "isDefault = false, lastUpdated = ?1 where partij = ?2 and type = ?3 and isDefault = true and id <> ?4",
+                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND id <> ?4",
                 java.time.Instant.now(), partij, type, exceptId);
     }
 
@@ -356,10 +355,9 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(request.id) && v.getVerwijderdOp() == null)
-                .findFirst()
-                .orElse(null);
+        Voorkeur voorkeur = Voorkeur.find(
+                "partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, request.id
+        ).firstResult();
 
         if (voorkeur == null) {
             return false;
@@ -407,22 +405,16 @@ public class PartijService {
 
     @Transactional
     public boolean verwijderVoorkeur(UUID id) {
-        Voorkeur voorkeur = Voorkeur.findById(id);
-        if (voorkeur == null || voorkeur.getVerwijderdOp() != null) return false;
+        Instant nu = Instant.now();
 
-        voorkeur.setVerwijderdOp(Instant.now());
-
-        return true;
+        return Voorkeur.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0;
     }
 
     @Transactional
     public boolean verwijderContactgegeven(UUID id) {
-        Contactgegeven contact = Contactgegeven.findById(id);
-        if (contact == null || contact.getVerwijderdOp() != null) return false;
+        Instant nu = Instant.now();
 
-        contact.setVerwijderdOp(Instant.now());
-
-        return true;
+        return Contactgegeven.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0;
     }
 
     @Transactional
@@ -461,25 +453,25 @@ public class PartijService {
 
     public List<Contactgegeven> findFilteredContactgegevens(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(
-                "select distinct c from Contactgegeven c " +
-                "left join c.scopes s " +
-                "left join s.dienstverlenerDienst dd " +
-                "left join dd.dienst d " +
-                "left join dd.dienstverlener dv " +
-                "where c.partij = :partij AND c.verwijderdOp IS NULL"
+                "SELECT DISTINCT c FROM Contactgegeven c " +
+                "LEFT JOIN c.scopes s " +
+                "LEFT JOIN s.dienstverlenerDienst dd " +
+                "LEFT JOIN dd.dienst d " +
+                "LEFT JOIN dd.dienstverlener dv " +
+                "WHERE c.partij = :partij AND c.verwijderdOp IS NULL"
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);
 
         if (request.dienstverlener != null) {
-            query.append(" AND (s IS NULL OR lower(dv.naam) = lower(:dvNaam))");
+            query.append(" AND (s IS NULL OR LOWER(dv.naam) = LOWER(:dvNaam))");
             params.put("dvNaam", request.dienstverlener);
         }
 
         if (request.dienstNaam != null) {
             // Unscoped row (default voor alle diensten) en DV-brede scopes (dd.dienst IS NULL)
             // matchen ook, naast scopes die expliciet op dezelfde dienst-naam wijzen.
-            query.append(" AND (s IS NULL OR d IS NULL OR lower(d.naam) = lower(:dienstNaam))");
+            query.append(" AND (s IS NULL OR d IS NULL OR LOWER(d.naam) = LOWER(:dienstNaam))");
             params.put("dienstNaam", request.dienstNaam);
         }
 
@@ -490,23 +482,23 @@ public class PartijService {
 
     public List<Voorkeur> findFilteredVoorkeuren(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(
-                "select distinct v from Voorkeur v "
-                        + "left join v.scopes s "
-                        + "left join s.dienstverlenerDienst dd "
-                        + "left join dd.dienst d "
-                        + "left join dd.dienstverlener dv "
-                        + "where v.partij = :partij AND v.verwijderdOp IS NULL"
+                "SELECT DISTINCT v FROM Voorkeur v "
+                        + "LEFT JOIN v.scopes s "
+                        + "LEFT JOIN s.dienstverlenerDienst dd "
+                        + "LEFT JOIN dd.dienst d "
+                        + "LEFT JOIN dd.dienstverlener dv "
+                        + "WHERE v.partij = :partij AND v.verwijderdOp IS NULL"
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);
 
         if (request.dienstverlener != null) {
-            query.append(" AND (s IS NULL OR lower(dv.naam) = lower(:dvNaam))");
+            query.append(" AND (s IS NULL OR LOWER(dv.naam) = LOWER(:dvNaam))");
             params.put("dvNaam", request.dienstverlener);
         }
 
         if (request.dienstNaam != null) {
-            query.append(" AND (s IS NULL OR d IS NULL OR lower(d.naam) = lower(:dienstNaam))");
+            query.append(" AND (s IS NULL OR d IS NULL OR LOWER(d.naam) = LOWER(:dienstNaam))");
             params.put("dienstNaam", request.dienstNaam);
         }
 

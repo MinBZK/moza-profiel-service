@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 @QuarkusTest
@@ -613,9 +614,9 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
         given()
                 .filter(validationFilter)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen/" + voorkeurId.get())
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
                 .then()
-                .statusCode(OK);
+                .statusCode(NO_CONTENT);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur v = Voorkeur.findById(voorkeurId.get());
@@ -642,9 +643,9 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
         given()
                 .filter(validationFilter)
-                .delete("/api/profielservice/v1/contactgegeven/verwijderen/" + contactId.get())
+                .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
                 .then()
-                .statusCode(OK);
+                .statusCode(NO_CONTENT);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven c = Contactgegeven.findById(contactId.get());
@@ -657,7 +658,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     void verwijderVoorkeur_NotFound() {
         given()
                 .filter(validationFilter)
-                .delete("/api/profielservice/v1/voorkeur/verwijderen/" + UUID.randomUUID())
+                .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
@@ -668,7 +669,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     void verwijderContactgegeven_NotFound() {
         given()
                 .filter(validationFilter)
-                .delete("/api/profielservice/v1/contactgegeven/verwijderen/" + UUID.randomUUID())
+                .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
