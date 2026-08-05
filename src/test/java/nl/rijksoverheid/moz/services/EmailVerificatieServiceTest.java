@@ -265,10 +265,9 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
-    void verifieerEmail_ContactMetZelfdeWaardeMaarAnderType_WordtNietGeverifieerd() {
-        // Het contactgegeven wordt gezocht op type én waarde. Als alleen op waarde zou worden
-        // gematcht, kon een Telefoonnummer-rij met een e-mailachtige waarde als geverifieerd
-        // e-mailadres eindigen.
+    void verifieerEmail_SameValueButDifferentType_NotVerified() {
+        // The contact is looked up by type AND value. Matching on value alone would let a
+        // Telefoonnummer row holding an email-like value end up as a verified email address.
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111102"));
@@ -286,7 +285,7 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
-    void verifieerEmail_AnderEmailadresVanZelfdePartij_WordtNietGeverifieerd() {
+    void verifieerEmail_DifferentEmailOnSamePartij_NotVerified() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111103"));
@@ -304,7 +303,7 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
-    void vraagEmailVerificatieCodeAan_ContactMetAnderType_Geeft404() {
+    void vraagEmailVerificatieCodeAan_ContactWithDifferentType_Returns404() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111104"));
@@ -325,7 +324,7 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
-    void verifieerEmail_HoofdletterongevoeligOpEmailadres() {
+    void verifieerEmail_EmailMatchIsCaseInsensitive() {
         seedPartijWithUnverifiedContact("111111105");
         VerificationResponse ok = new VerificationResponse();
         ok.setSuccess(true);
