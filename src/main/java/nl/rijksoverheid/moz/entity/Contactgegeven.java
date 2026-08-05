@@ -15,8 +15,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.ContactType;
 import org.hibernate.annotations.BatchSize;
@@ -28,14 +26,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+// uk_contactgegeven_dedup (partij_id, type, waarde) bestaat in de database (zie V1/V4-migraties),
+// maar is daar een partiële unique index (WHERE verwijderd_op IS NULL). JPA's @UniqueConstraint
+// kan geen WHERE-clausule uitdrukken, dus staat die hier bewust niet: een niet-partiële variant
+// via deze annotatie zou in de door Hibernate gegenereerde testschema's (H2, drop-and-create)
+// weer duplicaten tegen zachtverwijderde rijen blokkeren, terwijl productie dat toestaat.
+// Gevolg: de H2-testsuite heeft hier geen DB-niveau vangnet meer, alleen PartijService's eigen
+// existingDuplicateExists-check. MigrationValidationTest verifieert tegen echte Postgres dat de
+// partiële index zelf klopt; een bug in existingDuplicateExists zelf zou geen van beide vangen.
 @Entity
 @Audited
-@Table(
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_contactgegeven_dedup",
-                columnNames = {"partij_id", "type", "waarde"}
-        )
-)
 public class Contactgegeven extends PanacheEntityBase {
 
     @Id
@@ -188,5 +188,35 @@ public class Contactgegeven extends PanacheEntityBase {
 
     public void setVerwijderdOp(@Nullable Instant verwijderdOp) {
         this.verwijderdOp = verwijderdOp;
+    }
+
+    @Nullable
+    public static Contactgegeven findActiefById(Partij partij, UUID id) {
+        return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
+    }
+
+    @Nullable
+    public static Contactgegeven findActief(Partij partij, ContactType type, String waarde) {
+        return find("partij = ?1 AND type = ?2 AND waarde = ?3 AND verwijderdOp IS NULL", partij, type, waarde).firstResult();
+    }
+
+    public static List<Contactgegeven> findActief(Partij partij) {
+        return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+    }
+
+    public static boolean existsActief(Partij partij, ContactType type, String waarde, UUID exceptId) {
+        return find(
+                "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4 AND verwijderdOp IS NULL",
+                partij, type, waarde, exceptId
+        ).firstResultOptional().isPresent();
+    }
+
+    /** Case-insensitieve match op e-mailadres, voor verificatie-lookups. */
+    @Nullable
+    public static Contactgegeven findActiefEmail(Partij partij, String email) {
+        return find(
+                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3) AND verwijderdOp IS NULL",
+                partij, ContactType.Email, email
+        ).firstResult();
     }
 }

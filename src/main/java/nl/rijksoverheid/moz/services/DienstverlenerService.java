@@ -26,7 +26,7 @@ public class DienstverlenerService {
 
     @Transactional
     public Dienstverlener getDienstverlener(String naam) {
-        return Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
+        return Dienstverlener.find("LOWER(naam) = LOWER(?1)", naam).firstResult();
     }
 
     @Transactional
@@ -60,7 +60,7 @@ public class DienstverlenerService {
 
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {
-        Dienstverlener dienstverlener = Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
+        Dienstverlener dienstverlener = Dienstverlener.find("LOWER(naam) = LOWER(?1)", naam).firstResult();
         if (dienstverlener != null) {
             return dienstverlener;
         }

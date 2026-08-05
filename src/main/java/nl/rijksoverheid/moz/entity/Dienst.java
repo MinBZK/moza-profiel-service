@@ -25,7 +25,7 @@ public class Dienst extends PanacheEntityBase {
     private String beschrijving;
 
     public static Dienst findByNaam(@NotNull String naam) {
-        return Dienst.find("lower(naam) = lower(?1)", naam).firstResult();
+        return Dienst.find("LOWER(naam) = LOWER(?1)", naam).firstResult();
     }
 
     public String getNaam() {

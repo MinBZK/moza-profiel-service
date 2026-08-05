@@ -22,6 +22,7 @@ import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.common.ApiResponseDescriptions;
+import nl.rijksoverheid.moz.common.LogboekConstants;
 import nl.rijksoverheid.moz.common.MediaTypes;
 import nl.rijksoverheid.moz.dto.request.PartijBulkRequest;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
@@ -34,6 +35,7 @@ import nl.rijksoverheid.moz.dto.response.PartijResponse;
 import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
+import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.HashHelper;
@@ -271,7 +273,8 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Contactgegeven succesvol bijgewerkt"),
             @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
-            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.CONTACTGEGEVEN_OF_PARTIJ_NIET_GEVONDEN)
+            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.CONTACTGEGEVEN_OF_PARTIJ_NIET_GEVONDEN),
+            @APIResponse(responseCode = "409", description = "Combinatie van type en waarde bestaat al voor een ander (actief) contactgegeven van deze partij")
     })
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
     public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
@@ -342,11 +345,7 @@ public class ProfielController {
             return Response.created(uri).entity(body).build();
         }
 
-        if (result.scopeAdded()) {
-            LOG.info("Scope toegevoegd aan bestaande voorkeur");
-        } else {
-            LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
-        }
+        LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
 
         return Response.ok(body).location(uri).build();
     }
@@ -367,7 +366,8 @@ public class ProfielController {
     @APIResponses({
             @APIResponse(responseCode = "200", description = "Voorkeur succesvol bijgewerkt"),
             @APIResponse(responseCode = "400", description = ApiResponseDescriptions.BAD_REQUEST_BODY),
-            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.VOORKEUR_OF_PARTIJ_NIET_GEVONDEN)
+            @APIResponse(responseCode = "404", description = ApiResponseDescriptions.VOORKEUR_OF_PARTIJ_NIET_GEVONDEN),
+            @APIResponse(responseCode = "409", description = "Combinatie van type en scope bestaat al voor een andere (actieve) voorkeur van deze partij")
     })
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
     public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
@@ -393,27 +393,28 @@ public class ProfielController {
     @Path("/voorkeur/{id}")
     @Transactional
     @Operation(
-            summary = "Verwijder voorkeur van een partij",
-            description = "Markeert een voorkeur als verwijderd."
+            summary = "Verwijder voorkeur (soft-delete)",
+            description = "Markeert de voorkeur als verwijderd. De voorkeur is daarna niet meer "
+                    + "opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel."
     )
     @APIResponses({
-            @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
+            @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd (of was al verwijderd)"),
             @APIResponse(responseCode = "404", description = "Voorkeur niet gevonden")
     })
     @Logboek(name = "verwijderVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
     public Response verwijderVoorkeur(@PathParam("id") UUID id) {
-        setDataSubjectFromVoorkeur(id, partijService.findVoorkeurById(id));
+        setDataSubjectFromVoorkeur(id, partijService.findVoorkeurByIdInclusiefVerwijderd(id));
 
-        boolean updated = partijService.verwijderVoorkeur(id);
+        PartijService.VerwijderResultaat resultaat = partijService.verwijderVoorkeur(id);
 
-        if (!updated) {
+        if (resultaat == PartijService.VerwijderResultaat.NIET_GEVONDEN) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Voorkeur verwijderd");
+        LOG.info(resultaat == PartijService.VerwijderResultaat.AL_VERWIJDERD ? "Voorkeur was al verwijderd" : "Voorkeur verwijderd");
 
         return Response.noContent().build();
     }
@@ -422,51 +423,75 @@ public class ProfielController {
     @Path("/contactgegeven/{id}")
     @Transactional
     @Operation(
-            summary = "Verwijder contactgegeven van een partij",
-            description = "Markeert een contactgegeven als verwijderd."
+            summary = "Verwijder contactgegeven (soft-delete)",
+            description = "Markeert het contactgegeven als verwijderd. Het contactgegeven is daarna "
+                    + "niet meer opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel."
     )
     @APIResponses({
-            @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),
+            @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd (of was al verwijderd)"),
             @APIResponse(responseCode = "404", description = "Contactgegeven niet gevonden")
     })
     @Logboek(name = "verwijderContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
     public Response verwijderContactgegeven(@PathParam("id") UUID id) {
-        setDataSubjectFromContactgegeven(id, partijService.findContactgegevenById(id));
+        setDataSubjectFromContactgegeven(id, partijService.findContactgegevenByIdInclusiefVerwijderd(id));
 
-        boolean updated = partijService.verwijderContactgegeven(id);
+        PartijService.VerwijderResultaat resultaat = partijService.verwijderContactgegeven(id);
 
-        if (!updated) {
+        if (resultaat == PartijService.VerwijderResultaat.NIET_GEVONDEN) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor verwijdering");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Contactgegeven verwijderd");
+        LOG.info(resultaat == PartijService.VerwijderResultaat.AL_VERWIJDERD ? "Contactgegeven was al verwijderd" : "Contactgegeven verwijderd");
 
         return Response.noContent().build();
     }
 
     private void setDataSubjectFromVoorkeur(UUID id, Voorkeur voorkeur) {
-        Identificatie identificatie = voorkeur == null ? null : voorkeur.getPartij().getIdentificaties().stream().findFirst().orElse(null);
-        setDataSubjectFromIdentificatie(id, identificatie);
+        if (voorkeur == null) {
+            LOG.warn("Voorkeur " + id + " niet gevonden; logboek-subject kan niet worden bepaald");
+            setDataSubjectOnbekend();
+
+            return;
+        }
+
+        setDataSubjectFromPartij(voorkeur.getPartij());
     }
 
     private void setDataSubjectFromContactgegeven(UUID id, Contactgegeven contactgegeven) {
-        Identificatie identificatie = contactgegeven == null ? null : contactgegeven.getPartij().getIdentificaties().stream().findFirst().orElse(null);
-        setDataSubjectFromIdentificatie(id, identificatie);
+        if (contactgegeven == null) {
+            LOG.warn("Contactgegeven " + id + " niet gevonden; logboek-subject kan niet worden bepaald");
+            setDataSubjectOnbekend();
+
+            return;
+        }
+
+        setDataSubjectFromPartij(contactgegeven.getPartij());
     }
 
-    private void setDataSubjectFromIdentificatie(UUID id, Identificatie identificatie) {
+    private void setDataSubjectFromPartij(Partij partij) {
+        Identificatie identificatie = partij.primaireIdentificatie();
+
         if (identificatie == null) {
-            logboekContext.setDataSubjectId(hashHelper.hashIdentifier(id.toString()));
-            logboekContext.setDataSubjectType("ONBEKEND");
+            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie
+            // of een misgelopen migratie, niet op een routinegeval.
+            LOG.warn("Partij " + partij.id + " heeft geen identificatie (geschonden invariant); logboek-subject kan niet worden bepaald");
+            setDataSubjectOnbekend();
 
             return;
         }
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()));
         logboekContext.setDataSubjectType(String.valueOf(identificatie.getIdentificatieType()));
+    }
+
+    // Geen hash van de resource-id: dat zou een niet-bestaand of oncorreleerbaar subject
+    // voorwenden. Logboek-consumenten kunnen op LogboekConstants.GEEN_SUBJECT filteren.
+    private void setDataSubjectOnbekend() {
+        logboekContext.setDataSubjectId(LogboekConstants.GEEN_SUBJECT);
+        logboekContext.setDataSubjectType("ONBEKEND");
     }
 
 }

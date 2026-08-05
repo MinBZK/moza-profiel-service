@@ -107,8 +107,10 @@ class PartijMapperTest {
         UUID partijId = persistPartijMetContactgegevenEnVoorkeur();
 
         AtomicReference<PartijResponse> response = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() ->
-                response.set(partijMapper.toResponse(Partij.findById(partijId))));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId);
+            response.set(partijMapper.toResponse(partij, Contactgegeven.findActief(partij), Voorkeur.findActief(partij)));
+        });
 
         Assertions.assertEquals(partijId, response.get().partijId);
         Assertions.assertEquals(1, response.get().identificaties.size());
@@ -125,7 +127,7 @@ class PartijMapperTest {
         Partij partij = new Partij();
         partij.id = UUID.randomUUID();
 
-        PartijResponse response = partijMapper.toResponse(partij);
+        PartijResponse response = partijMapper.toResponse(partij, List.of(), List.of());
 
         Assertions.assertTrue(response.identificaties.isEmpty());
         Assertions.assertTrue(response.contactgegevens.isEmpty());

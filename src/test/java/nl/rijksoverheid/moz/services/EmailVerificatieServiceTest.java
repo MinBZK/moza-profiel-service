@@ -243,6 +243,27 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
+    void verifieerEmail_ContactVerwijderd_ReturnsFalse() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111107"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("ref");
+            contact.setVerwijderdOp(Instant.now());
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        boolean result = service.verifieerEmail(makeVerifyRequest("111111107"));
+
+        Assertions.assertFalse(result);
+        Mockito.verify(emailVerificatieApi, Mockito.never()).verifyPost(Mockito.any());
+    }
+
+    @Test
     void verifieerEmail_ApiResponseNull() {
         seedPartijWithUnverifiedContact("111111101");
         Mockito.doReturn(null).when(emailVerificatieApi).verifyPost(Mockito.any());
@@ -298,6 +319,31 @@ public class EmailVerificatieServiceTest {
 
         int result = service.vraagEmailVerificatieCodeAan(request);
         Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_ContactVerwijderd_ReturnsNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111108"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.setVerwijderdOp(Instant.now());
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.identificatieType = IdentificatieType.BSN;
+        request.identificatieNummer = "111111108";
+        request.email = "test@test.com";
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
+        Mockito.verify(emailVerificatieApi, Mockito.never()).requestPost(Mockito.any());
     }
 
     @Test

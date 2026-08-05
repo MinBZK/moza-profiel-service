@@ -44,6 +44,13 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.21.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <!-- Pin swagger-parser to 2.1.40 as required by quarkus-openapi-generator.
                  The Atlassian swagger-request-validator brings in 2.1.22 which is too old and lacks setResolveResponses. -->
             <dependency>
@@ -177,6 +184,19 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- MigrationValidationTest drives Flyway directly (not through Quarkus' own wiring),
+             so it needs Flyway's Postgres plugin explicitly; quarkus-flyway only pulls it in
+             internally for Quarkus' own use. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

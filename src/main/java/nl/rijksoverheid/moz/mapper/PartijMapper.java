@@ -28,18 +28,14 @@ import java.util.List;
  * bevatten daarnaast retentie-logica ("touch on read"): wanneer een gegeven lang niet is
  * gebruikt wordt {@code lastUsedAt} bijgewerkt. Die business-logica is bewust handgeschreven
  * en delegeert het kopiëren naar de door MapStruct gegenereerde {@code map*}-methodes.
+ * Het laden van de contactgegevens/voorkeuren zelf hoort niet hier: die databasetoegang is aan
+ * de aanroeper (zie {@link nl.rijksoverheid.moz.services.PartijService}), zodat deze klasse een
+ * zuivere mapper blijft.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public abstract class PartijMapper {
 
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
-
-    public PartijResponse toResponse(Partij partij) {
-        java.util.List<Contactgegeven> contactgegevens = Contactgegeven.find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
-        java.util.List<Voorkeur> voorkeuren = Voorkeur.find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
-
-        return toResponse(partij, contactgegevens, voorkeuren);
-    }
 
     @Mapping(target = "partijId", source = "partij.id")
     @Mapping(target = "identificaties", source = "partij.identificaties")

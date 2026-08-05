@@ -431,6 +431,32 @@ public class PartijServiceTest {
     }
 
     @Test
+    void updateContactgegeven_AlreadyVerwijderd_ReturnsFalse() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.setVerwijderdOp(Instant.now());
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = contactId.get();
+        request.type = ContactType.Telefoonnummer;
+        request.waarde = "0687654321";
+
+        boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertFalse(result, "an already soft-deleted contactgegeven must be treated as not found");
+    }
+
+    @Test
     void updateVoorkeur_VoorkeurNotFound() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -730,6 +756,42 @@ public class PartijServiceTest {
     }
 
     @Test
+    void updateContactgegeven_DuplicateIsSoftDeleted_DoesNotThrowConflict() {
+        // uk_contactgegeven_dedup is partieel (WHERE verwijderd_op IS NULL): een botsing met een
+        // zachtverwijderde rij is geen conflict meer, noch op applicatie- noch op DB-niveau.
+        AtomicReference<UUID> targetId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven verwijderd = new Contactgegeven();
+            verwijderd.setType(ContactType.Email);
+            verwijderd.setWaarde("a@test.com");
+            verwijderd.setPartij(partij);
+            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.persist();
+
+            Contactgegeven target = new Contactgegeven();
+            target.setType(ContactType.Email);
+            target.setWaarde("b@test.com");
+            target.setPartij(partij);
+            target.persist();
+            targetId.set(target.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = targetId.get();
+        request.type = ContactType.Email;
+        request.waarde = "a@test.com";
+
+        boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
+        Assertions.assertTrue(result);
+    }
+
+    @Test
     void addContactgegeven_EmailIsNormalisedToLowercase() {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
@@ -769,25 +831,30 @@ public class PartijServiceTest {
             voorkeurId.set(voorkeur.id);
         });
 
-        boolean result = partijService.verwijderVoorkeur(voorkeurId.get());
+        // Kleine marge (i.p.v. exact "voor"): de DB-kolom rondt tijdstempels af op een grovere
+        // eenheid dan Java's Instant, dus een in-memory "voor" kan net na afronding groter lijken
+        // dan de teruggelezen waarde. Nog altijd 100x strenger dan de oude plusSeconds(5)-marge.
+        Instant voor = Instant.now().minusMillis(50);
+        PartijService.VerwijderResultaat result = partijService.verwijderVoorkeur(voorkeurId.get());
 
-        Assertions.assertTrue(result);
+        Assertions.assertEquals(PartijService.VerwijderResultaat.VERWIJDERD, result);
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
             Assertions.assertNotNull(voorkeur.getVerwijderdOp());
-            Assertions.assertTrue(voorkeur.getVerwijderdOp().isBefore(Instant.now().plusSeconds(5)));
+            Assertions.assertFalse(voorkeur.getVerwijderdOp().isBefore(voor));
         });
     }
 
     @Test
-    void verwijderVoorkeur_VoorkeurNotFound_ReturnsFalse() {
-        boolean result = partijService.verwijderVoorkeur(UUID.randomUUID());
-        Assertions.assertFalse(result);
+    void verwijderVoorkeur_VoorkeurNotFound_ReturnsNietGevonden() {
+        PartijService.VerwijderResultaat result = partijService.verwijderVoorkeur(UUID.randomUUID());
+        Assertions.assertEquals(PartijService.VerwijderResultaat.NIET_GEVONDEN, result);
     }
 
     @Test
-    void verwijderVoorkeur_AlreadyVerwijderd_ReturnsFalse() {
+    void verwijderVoorkeur_AlreadyVerwijderd_ReturnsAlVerwijderd() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        AtomicReference<Instant> origineelVerwijderdOp = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -797,13 +864,20 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
             voorkeur.persist();
             voorkeurId.set(voorkeur.id);
+            origineelVerwijderdOp.set(voorkeur.getVerwijderdOp());
         });
 
-        boolean result = partijService.verwijderVoorkeur(voorkeurId.get());
-        Assertions.assertFalse(result, "an already soft-deleted voorkeur must be treated as not found");
+        PartijService.VerwijderResultaat result = partijService.verwijderVoorkeur(voorkeurId.get());
+
+        Assertions.assertEquals(PartijService.VerwijderResultaat.AL_VERWIJDERD, result,
+                "een herhaalde verwijdering moet idempotent zijn, geen 404");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(origineelVerwijderdOp.get(),
+                        Voorkeur.<Voorkeur>findById(voorkeurId.get()).getVerwijderdOp(),
+                        "een al gezette verwijderdOp mag niet worden overschreven"));
     }
 
     @Test
@@ -822,24 +896,57 @@ public class PartijServiceTest {
             contactId.set(contact.id);
         });
 
-        boolean result = partijService.verwijderContactgegeven(contactId.get());
+        // Kleine marge (i.p.v. exact "voor"): de DB-kolom rondt tijdstempels af op een grovere
+        // eenheid dan Java's Instant, dus een in-memory "voor" kan net na afronding groter lijken
+        // dan de teruggelezen waarde. Nog altijd 100x strenger dan de oude plusSeconds(5)-marge.
+        Instant voor = Instant.now().minusMillis(50);
+        PartijService.VerwijderResultaat result = partijService.verwijderContactgegeven(contactId.get());
 
-        Assertions.assertTrue(result);
+        Assertions.assertEquals(PartijService.VerwijderResultaat.VERWIJDERD, result);
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(contactId.get());
             Assertions.assertNotNull(contact.getVerwijderdOp());
-            Assertions.assertTrue(contact.getVerwijderdOp().isBefore(Instant.now().plusSeconds(5)));
+            Assertions.assertFalse(contact.getVerwijderdOp().isBefore(voor));
         });
     }
 
     @Test
-    void verwijderContactgegeven_ContactNotFound_ReturnsFalse() {
-        boolean result = partijService.verwijderContactgegeven(UUID.randomUUID());
-        Assertions.assertFalse(result);
+    void verwijderContactgegeven_ContactNotFound_ReturnsNietGevonden() {
+        PartijService.VerwijderResultaat result = partijService.verwijderContactgegeven(UUID.randomUUID());
+        Assertions.assertEquals(PartijService.VerwijderResultaat.NIET_GEVONDEN, result);
     }
 
     @Test
-    void verwijderContactgegeven_AlreadyVerwijderd_ReturnsFalse() {
+    void verwijderContactgegeven_AlreadyVerwijderd_ReturnsAlVerwijderd() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        AtomicReference<Instant> origineelVerwijderdOp = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+            contact.persist();
+            contactId.set(contact.id);
+            origineelVerwijderdOp.set(contact.getVerwijderdOp());
+        });
+
+        PartijService.VerwijderResultaat result = partijService.verwijderContactgegeven(contactId.get());
+
+        Assertions.assertEquals(PartijService.VerwijderResultaat.AL_VERWIJDERD, result,
+                "een herhaalde verwijdering moet idempotent zijn, geen 404");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(origineelVerwijderdOp.get(),
+                        Contactgegeven.<Contactgegeven>findById(contactId.get()).getVerwijderdOp(),
+                        "een al gezette verwijderdOp mag niet worden overschreven"));
+    }
+
+    @Test
+    void verwijderContactgegeven_ZetIsDefaultOpFalse() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -850,17 +957,21 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now());
+            contact.setIsDefault(true);
             contact.persist();
             contactId.set(contact.id);
         });
 
-        boolean result = partijService.verwijderContactgegeven(contactId.get());
-        Assertions.assertFalse(result, "an already soft-deleted contactgegeven must be treated as not found");
+        partijService.verwijderContactgegeven(contactId.get());
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertFalse(Contactgegeven.<Contactgegeven>findById(contactId.get()).isIsDefault(),
+                        "een zachtverwijderd contactgegeven mag het default-slot niet blijven bezetten"));
     }
 
     @Test
     void getPartijResponse_HidesVerwijderdeVoorkeurEnContactgegeven() {
+        createTestDienstverlenerWithDienst();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -886,13 +997,33 @@ public class PartijServiceTest {
         Assertions.assertNotNull(result);
         Assertions.assertTrue(result.voorkeuren.isEmpty());
         Assertions.assertTrue(result.contactgegevens.isEmpty());
+
+        // Het ongefilterde pad (isEmpty() == true) raakt findFilteredContactgegevens/-Voorkeuren
+        // niet. Diezelfde verwijderdOp-filter zit ook in die twee methodes (PartijService.java) —
+        // hier expliciet geraakt zodat een weggehaalde filter daar niet stil groen blijft.
+        PartijRequest metDienstverlener = new PartijRequest();
+        metDienstverlener.identificatieType = IdentificatieType.BSN;
+        metDienstverlener.identificatieNummer = "123456789";
+        metDienstverlener.dienstverlener = "TestDV";
+
+        PartijResponse viaDienstverlener = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", metDienstverlener);
+        Assertions.assertTrue(viaDienstverlener.voorkeuren.isEmpty());
+        Assertions.assertTrue(viaDienstverlener.contactgegevens.isEmpty());
+
+        PartijRequest metDienstNaam = new PartijRequest();
+        metDienstNaam.identificatieType = IdentificatieType.BSN;
+        metDienstNaam.identificatieNummer = "123456789";
+        metDienstNaam.dienstNaam = "TestDienst";
+
+        PartijResponse viaDienstNaam = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", metDienstNaam);
+        Assertions.assertTrue(viaDienstNaam.voorkeuren.isEmpty());
+        Assertions.assertTrue(viaDienstNaam.contactgegevens.isEmpty());
     }
 
     @Test
-    void addContactgegeven_ExistingIsVerwijderd_RevivesRecord() {
-        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
-
-        AtomicReference<UUID> contactId = new AtomicReference<>();
+    void addContactgegeven_ExistingIsVerwijderd_CreatesNewRow() {
+        AtomicReference<UUID> verwijderdId = new AtomicReference<>();
+        AtomicReference<Instant> verwijderdOp = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -902,9 +1033,10 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now());
+            contact.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
             contact.persist();
-            contactId.set(contact.id);
+            verwijderdId.set(contact.id);
+            verwijderdOp.set(contact.getVerwijderdOp());
         });
 
         ContactgegevenRequest request = new ContactgegevenRequest();
@@ -914,16 +1046,50 @@ public class PartijServiceTest {
         PartijService.AddContactgegevenResult result =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertEquals(contactId.get(), result.contactgegeven().id);
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven contact = Contactgegeven.findById(contactId.get());
-            Assertions.assertNull(contact.getVerwijderdOp(), "re-adding the same value must revive a soft-deleted contactgegeven");
-        });
+        Assertions.assertTrue(result.wasCreated(), "een zachtverwijderde rij mag niet hersteld worden, er moet een nieuwe komen");
+        Assertions.assertNotEquals(verwijderdId.get(), result.contactgegeven().id);
+        Assertions.assertNull(result.contactgegeven().getVerwijderdOp());
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(verwijderdOp.get(), Contactgegeven.<Contactgegeven>findById(verwijderdId.get()).getVerwijderdOp(),
+                        "de oude zachtverwijderde rij moet ongemoeid blijven"));
     }
 
     @Test
-    void addVoorkeur_ExistingIsVerwijderd_RevivesRecord() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+    void addContactgegeven_EmailExistingIsVerwijderd_CreatesNewRowNeedingVerification() {
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@example.com");
+            contact.setPartij(partij);
+            contact.setIsGeverifieerd(true);
+            contact.setGeverifieerdAt(Instant.now());
+            contact.setVerwijderdOp(Instant.now());
+            contact.persist();
+        });
+
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Email;
+        request.waarde = "test@example.com";
+
+        PartijService.AddContactgegevenResult result =
+                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        Assertions.assertTrue(result.wasCreated());
+        Assertions.assertFalse(result.contactgegeven().isIsGeverifieerd(),
+                "een nieuwe rij moet opnieuw geverifieerd worden, ongeacht de verificatiestatus van de oude");
+        Mockito.verify(emailVerificatieService).requestEmailVerificationCode("test@example.com");
+    }
+
+    @Test
+    void addVoorkeur_ExistingIsVerwijderd_CreatesNewRow() {
+        AtomicReference<UUID> verwijderdId = new AtomicReference<>();
+        AtomicReference<Instant> verwijderdOp = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -933,9 +1099,10 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
             voorkeur.persist();
-            voorkeurId.set(voorkeur.id);
+            verwijderdId.set(voorkeur.id);
+            verwijderdOp.set(voorkeur.getVerwijderdOp());
         });
 
         VoorkeurRequest request = new VoorkeurRequest();
@@ -944,11 +1111,12 @@ public class PartijServiceTest {
 
         PartijService.AddVoorkeurResult result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertEquals(voorkeurId.get(), result.voorkeur().id);
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertNull(voorkeur.getVerwijderdOp(), "re-adding the same value must revive a soft-deleted voorkeur");
-        });
+        Assertions.assertTrue(result.wasCreated(), "een zachtverwijderde rij mag niet hersteld worden, er moet een nieuwe komen");
+        Assertions.assertNotEquals(verwijderdId.get(), result.voorkeur().id);
+        Assertions.assertNull(result.voorkeur().getVerwijderdOp());
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(verwijderdOp.get(), Voorkeur.<Voorkeur>findById(verwijderdId.get()).getVerwijderdOp(),
+                        "de oude zachtverwijderde rij moet ongemoeid blijven"));
     }
 
     @Test
@@ -1013,9 +1181,9 @@ public class PartijServiceTest {
 
     @Test
     void updateVoorkeurThenAddVoorkeur_DoesNotCreateDuplicateActiveVoorkeur() {
-        // Regression: updateVoorkeur correctly ignores a soft-deleted collision, but if the
-        // soft-deleted row and the newly-updated row now share a key, a later addVoorkeur on
-        // that same key must never revive the soft-deleted one alongside the already-active one.
+        // updateVoorkeur correctly ignores a soft-deleted collision, so the soft-deleted row and
+        // the newly-updated row can end up sharing a key. A later addVoorkeur on that same key
+        // must then update the already-active row (upsert), never insert a second active row.
         AtomicReference<UUID> targetId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();

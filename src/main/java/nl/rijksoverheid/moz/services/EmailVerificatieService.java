@@ -6,7 +6,6 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.exception.TechnicalException;
-import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -49,10 +48,7 @@ public class EmailVerificatieService {
             return false;
         }
 
-        Contactgegeven contact = Contactgegeven.find(
-                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3)",
-                partij, ContactType.Email, emailVerificatieRequest.email
-        ).firstResult();
+        Contactgegeven contact = Contactgegeven.findActiefEmail(partij, emailVerificatieRequest.email);
 
         if (contact == null || contact.getGeverifieerdAt() != null) {
             LOG.warn("Verificatie mislukt: Contact niet gevonden of al geverifieerd");
@@ -100,10 +96,7 @@ public class EmailVerificatieService {
             return Response.Status.NOT_FOUND.getStatusCode();
         }
 
-        Contactgegeven contact = Contactgegeven.find(
-                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3)",
-                partij, ContactType.Email, aanvraag.email
-        ).firstResult();
+        Contactgegeven contact = Contactgegeven.findActiefEmail(partij, aanvraag.email);
 
         if (contact == null) {
             LOG.warn("Verificatie code aanvraag mislukt: Contact niet gevonden");

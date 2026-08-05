@@ -41,6 +41,8 @@ public class PartijService {
 
     private static final Logger LOG = Logger.getLogger(PartijService.class);
 
+    private static final String ACTIEF = "verwijderdOp IS NULL";
+
     @Inject
     PartijMapper partijMapper;
 
@@ -52,7 +54,9 @@ public class PartijService {
 
     public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean scopeAdded) {}
 
-    public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated, boolean scopeAdded) {}
+    public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated) {}
+
+    public enum VerwijderResultaat { VERWIJDERD, AL_VERWIJDERD, NIET_GEVONDEN }
 
     @Transactional
     public AddContactgegevenResult addContactgegeven(
@@ -67,18 +71,10 @@ public class PartijService {
                 ? request.waarde.toLowerCase(Locale.ROOT)
                 : request.waarde;
 
-        Contactgegeven existing = Contactgegeven.find(
-                "partij = ?1 AND type = ?2 AND waarde = ?3",
-                partij, request.type, normalisedWaarde
-        ).firstResult();
-        
+        Contactgegeven existing = Contactgegeven.findActief(partij, request.type, normalisedWaarde);
+
         if (existing != null) {
             LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
-
-            if (existing.getVerwijderdOp() != null) {
-                LOG.info("Contactgegeven was verwijderd, wordt hersteld door opnieuw te registreren");
-                existing.setVerwijderdOp(null);
-            }
 
             if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
                 requestAndApplyVerificatieCode(existing);
@@ -88,6 +84,7 @@ public class PartijService {
             if (link == null || hasContactgegevenScopeFor(existing.getScopes(), link)) {
                 return new AddContactgegevenResult(existing, false, false);
             }
+
             existing.addScope(new ScopeContactgegeven(existing, link));
 
             return new AddContactgegevenResult(existing, false, true);
@@ -122,28 +119,20 @@ public class PartijService {
         DienstverlenerDienst link = resolveDienstverlenerDienst(request.scope);
 
         // Voorkeur-invariant per 08-data.md: maximaal één ACTIEVE rij per (partij, voorkeurType, scope).
-        // POST is daarmee upsert: zelfde sleutel + nieuwe waarde overschrijft, geen tweede rij.
-        // findExistingVoorkeur matcht alleen actieve rijen, zodat dit nooit dezelfde rij kan zijn
-        // als een eventuele zachtverwijderde match hieronder — anders zou een niet-deterministische
-        // .firstResult() (geen ORDER BY, en Voorkeur heeft geen DB-constraint zoals Contactgegeven)
-        // de verkeerde rij kunnen herstellen en zo twee actieve rijen op dezelfde sleutel opleveren.
-        Voorkeur existing = findExistingVoorkeur(partij, request.voorkeurType, link);
+        // POST is daarmee upsert: zelfde sleutel + nieuwe waarde overschrijft de actieve rij, geen
+        // tweede rij. Een eerder zachtverwijderde rij op dezelfde sleutel blokkeert dit niet en wordt
+        // ook niet hersteld — er ontstaat gewoon een nieuwe actieve rij (de unique index is partieel,
+        // WHERE verwijderd_op IS NULL). Let op: deze invariant wordt uitsluitend in applicatiecode
+        // afgedwongen, er is geen unieke DB-index op (partij, voorkeurType, scope); twee gelijktijdige
+        // POSTs op dezelfde sleutel kunnen dus beide hier voorbij komen en twee actieve rijen invoegen.
+        Voorkeur existing = Voorkeur.findActief(partij, request.voorkeurType, link);
 
         if (existing != null) {
             if (!Objects.equals(existing.getWaarde(), request.waarde)) {
                 existing.setWaarde(request.waarde);
             }
 
-            return new AddVoorkeurResult(existing, false, false);
-        }
-
-        Voorkeur verwijderd = findSoftDeletedVoorkeur(partij, request.voorkeurType, link);
-
-        if (verwijderd != null) {
-            LOG.info("Voorkeur was verwijderd, wordt hersteld door opnieuw te registreren");
-            verwijderd.setVerwijderdOp(null);
-            verwijderd.setWaarde(request.waarde);
-            return new AddVoorkeurResult(verwijderd, false, false);
+            return new AddVoorkeurResult(existing, false);
         }
 
         Voorkeur voorkeur = new Voorkeur();
@@ -157,46 +146,7 @@ public class PartijService {
 
         voorkeur.persist();
 
-        return new AddVoorkeurResult(voorkeur, true, false);
-    }
-
-    private Voorkeur findExistingVoorkeur(Partij partij, nl.rijksoverheid.moz.common.VoorkeurType voorkeurType, DienstverlenerDienst link) {
-        if (link == null) {
-            // Scope-loze voorkeur: maximaal één actieve rij per (partij, voorkeurType) zonder ScopeVoorkeur.
-            return Voorkeur.find(
-                    "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NULL",
-                    partij, voorkeurType
-            ).firstResult();
-        }
-
-        // Scoped voorkeur: maximaal één actieve rij per (partij, voorkeurType, dienstverlenerDienst).
-        return Voorkeur.find(
-                "SELECT DISTINCT v FROM Voorkeur v JOIN v.scopes s "
-                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
-                partij, voorkeurType, link
-        ).firstResult();
-    }
-
-    // Losse, op-verwijderd-gerichte lookup: alleen gebruikt om addVoorkeur een zachtverwijderde
-    // rij te laten herstellen wanneer er geen actieve match is. Los van findExistingVoorkeur
-    // gehouden zodat de twee elkaar nooit kunnen overlappen (zie toelichting in addVoorkeur).
-    // ORDER BY maakt de keuze deterministisch als er meerdere zachtverwijderde rijen op dezelfde
-    // sleutel bestaan (bv. na meerdere toevoeg/verwijder-cycli): de meest recent verwijderde wint.
-    private Voorkeur findSoftDeletedVoorkeur(Partij partij, nl.rijksoverheid.moz.common.VoorkeurType voorkeurType, DienstverlenerDienst link) {
-        if (link == null) {
-            return Voorkeur.find(
-                    "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NOT NULL "
-                            + "ORDER BY verwijderdOp DESC",
-                    partij, voorkeurType
-            ).firstResult();
-        }
-
-        return Voorkeur.find(
-                "SELECT DISTINCT v FROM Voorkeur v JOIN v.scopes s "
-                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 "
-                        + "AND v.verwijderdOp IS NOT NULL ORDER BY v.verwijderdOp DESC",
-                partij, voorkeurType, link
-        ).firstResult();
+        return new AddVoorkeurResult(voorkeur, true);
     }
 
     private boolean hasContactgegevenScopeFor(List<ScopeContactgegeven> existing, DienstverlenerDienst link) {
@@ -233,7 +183,7 @@ public class PartijService {
         }
 
         DienstverlenerDienst link = DienstverlenerDienst.find(
-                "dienstverlener = ?1 AND lower(dienst.naam) = lower(?2)",
+                "dienstverlener = ?1 AND LOWER(dienst.naam) = LOWER(?2)",
                 dienstverlener, scope.dienstNaam
         ).firstResult();
 
@@ -267,9 +217,7 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Contactgegeven contact = Contactgegeven.find(
-                "partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, request.id
-        ).firstResult();
+        Contactgegeven contact = Contactgegeven.findActiefById(partij, request.id);
 
         if (contact == null) {
             return false;
@@ -293,9 +241,7 @@ public class PartijService {
                     "Combinatie (type, waarde) bestaat al voor deze partij");
         }
 
-        // Demote BEFORE mutating contact. Hibernate flushes dirty entities before bulk JPQL
-        // updates touching the same table; mutating first would trip the partial unique index
-        // before the demote could clear the slot.
+        // Demote BEFORE mutating contact.setType (see demoteCurrentDefault for why).
         if (targetDefault) {
             demoteCurrentDefault(partij, request.type, contact.id);
         }
@@ -330,24 +276,25 @@ public class PartijService {
     }
 
     private boolean existingDuplicateExists(Partij partij, ContactType type, String waarde, UUID exceptId) {
-        return Contactgegeven.find(
-                "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4",
-                partij, type, waarde, exceptId
-        ).firstResultOptional().isPresent();
+        // Alleen actieve rijen tellen mee: uk_contactgegeven_dedup is partieel
+        // (WHERE verwijderd_op IS NULL), dus een PUT die botst met een zachtverwijderde rij
+        // is geen conflict — die rij bezet de unieke sleutel niet meer.
+        return Contactgegeven.existsActief(partij, type, waarde, exceptId);
     }
 
     private void demoteCurrentDefault(Partij partij, ContactType type, UUID exceptId) {
-        // Bulk JPQL update bypasst @PreUpdate, dus lastUpdated wordt expliciet meegebumped
-        // zodat de gedemoveerde rij dezelfde audit-stempel krijgt als een entity-update.
-        // Persistence context is op deze plek nog niet gewarmd voor andere defaults van
-        // dezelfde (partij, type), dus stale-state risico is hier in de praktijk afwezig.
-        // Afhankelijkheid: Hibernate FlushModeType.AUTO (default), waarmee dirty entities
-        // worden geflusht voordat een JPQL bulk-update tegen dezelfde tabel uitvoert.
-        // Met flushmode=COMMIT zou deze demote-vóór-mutatie volgorde niet meer beschermen
-        // tegen de partial unique index op (partij_id, type) WHERE is_default = true.
+        // Moet vóór contact.setType(...) draaien (updateContactgegeven, hierboven): het wijzigen
+        // van type verplaatst de rij naar een ander slot van de partiële index
+        // contactgegeven_default_per_type (WHERE is_default = true AND verwijderd_op IS NULL)
+        // terwijl hij nog isDefault = true draagt. Hibernate flusht dirty entities (default
+        // FlushModeType.AUTO) vóór een JPQL bulk-update tegen dezelfde tabel, dus deze volgorde
+        // werkt; bij flushmode=COMMIT zou de partiële index alsnog kunnen breken.
+        // lastUpdated wordt expliciet meegebumped omdat een bulk-update @PreUpdate bypasst.
+        // Filtert bewust niet op verwijderdOp: een zachtverwijderde rij heeft isDefault al op
+        // false staan (verwijderContactgegeven zet die mee), dus kan hier toch nooit matchen.
         Contactgegeven.update(
                 "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND id <> ?4",
-                java.time.Instant.now(), partij, type, exceptId);
+                Instant.now(), partij, type, exceptId);
     }
 
     @Transactional
@@ -355,16 +302,14 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Voorkeur voorkeur = Voorkeur.find(
-                "partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, request.id
-        ).firstResult();
+        Voorkeur voorkeur = Voorkeur.findActiefById(partij, request.id);
 
         if (voorkeur == null) {
             return false;
         }
 
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
-        Voorkeur collision = findExistingVoorkeur(partij, request.voorkeurType, targetLink);
+        Voorkeur collision = Voorkeur.findActief(partij, request.voorkeurType, targetLink);
 
         if (collision != null && !collision.id.equals(voorkeur.id)) {
             throw new BusinessException(Kind.CONFLICT,
@@ -394,32 +339,47 @@ public class PartijService {
         }
     }
 
-    // Logboek-only lookups: ignore verwijderdOp so an already-deleted row still yields a real subject to log.
-    public Voorkeur findVoorkeurById(UUID id) {
+    // Logboek-only lookups: ignoreren verwijderdOp bewust, zodat een al-verwijderde rij nog een
+    // echt subject oplevert om te loggen. De naam zegt dat expliciet: gebruik deze niet als
+    // gewone lookup.
+    public Voorkeur findVoorkeurByIdInclusiefVerwijderd(UUID id) {
         return Voorkeur.findById(id);
     }
 
-    public Contactgegeven findContactgegevenById(UUID id) {
+    public Contactgegeven findContactgegevenByIdInclusiefVerwijderd(UUID id) {
         return Contactgegeven.findById(id);
     }
 
     // Bulk update, geen entity-load: de controller heeft de entity vlak hiervoor al geladen
-    // (via findVoorkeurById, voor het logboek) maar die instance wordt daarna nergens meer
-    // gelezen. Mocht dat ooit wel gebeuren binnen dezelfde transactie, dan is die instance
-    // stale — bulk updates gaan buiten de persistence context om.
+    // (via findVoorkeurByIdInclusiefVerwijderd, voor het logboek) maar die instance wordt daarna
+    // nergens meer gelezen. Mocht dat ooit wel gebeuren binnen dezelfde transactie, dan is die
+    // instance stale — bulk updates gaan buiten de persistence context om.
+    // Bij 0 gewijzigde rijen volgt één losse count() om "nooit bestaan" te onderscheiden van
+    // "al verwijderd" — dat blijft goedkoper dan de entity zelf te laden.
     @Transactional
-    public boolean verwijderVoorkeur(UUID id) {
+    public VerwijderResultaat verwijderVoorkeur(UUID id) {
         Instant nu = Instant.now();
 
-        return Voorkeur.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0;
+        if (Voorkeur.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0) {
+            return VerwijderResultaat.VERWIJDERD;
+        }
+
+        return Voorkeur.count("id = ?1", id) > 0 ? VerwijderResultaat.AL_VERWIJDERD : VerwijderResultaat.NIET_GEVONDEN;
     }
 
-    // Zie toelichting bij verwijderVoorkeur.
+    // Zie toelichting bij verwijderVoorkeur. isDefault wordt hier ook gewist: een zachtverwijderd
+    // contactgegeven mag het slot van de partiële index contactgegeven_default_per_type
+    // (WHERE is_default = true AND verwijderd_op IS NULL) niet blijven bezetten.
     @Transactional
-    public boolean verwijderContactgegeven(UUID id) {
+    public VerwijderResultaat verwijderContactgegeven(UUID id) {
         Instant nu = Instant.now();
 
-        return Contactgegeven.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0;
+        if (Contactgegeven.update(
+                "verwijderdOp = ?1, lastUpdated = ?1, isDefault = false WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0) {
+            return VerwijderResultaat.VERWIJDERD;
+        }
+
+        return Contactgegeven.count("id = ?1", id) > 0 ? VerwijderResultaat.AL_VERWIJDERD : VerwijderResultaat.NIET_GEVONDEN;
     }
 
     @Transactional
@@ -437,7 +397,7 @@ public class PartijService {
                             entry.getKey(), entry.getValue());
                     return found.stream();
                 })
-                .map(partijMapper::toResponse)
+                .map(partij -> partijMapper.toResponse(partij, Contactgegeven.findActief(partij), Voorkeur.findActief(partij)))
                 .toList();
     }
 
@@ -447,7 +407,7 @@ public class PartijService {
         if (partij == null) return null;
 
         if (partijRequest.isEmpty()) {
-            return partijMapper.toResponse(partij);
+            return partijMapper.toResponse(partij, Contactgegeven.findActief(partij), Voorkeur.findActief(partij));
         }
 
         List<Contactgegeven> filteredContacts = findFilteredContactgegevens(partij, partijRequest);
@@ -463,7 +423,7 @@ public class PartijService {
                 "LEFT JOIN s.dienstverlenerDienst dd " +
                 "LEFT JOIN dd.dienst d " +
                 "LEFT JOIN dd.dienstverlener dv " +
-                "WHERE c.partij = :partij AND c.verwijderdOp IS NULL"
+                "WHERE c.partij = :partij AND c." + ACTIEF
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);
@@ -492,7 +452,7 @@ public class PartijService {
                         + "LEFT JOIN s.dienstverlenerDienst dd "
                         + "LEFT JOIN dd.dienst d "
                         + "LEFT JOIN dd.dienstverlener dv "
-                        + "WHERE v.partij = :partij AND v.verwijderdOp IS NULL"
+                        + "WHERE v.partij = :partij AND v." + ACTIEF
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);

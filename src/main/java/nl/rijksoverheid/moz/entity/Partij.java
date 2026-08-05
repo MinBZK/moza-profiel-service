@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.entity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -66,6 +67,19 @@ public class Partij extends PanacheEntityBase {
     public void setIdentificaties(List<Identificatie> identificaties) {
         this.identificaties.clear();
         this.identificaties.addAll(identificaties);
+    }
+
+    /**
+     * Deterministische keuze uit de identificaties, voor logboek-doeleinden waar precies één
+     * identificatie nodig is. Sorteert op type dan nummer; die volgorde is stabiel maar draagt
+     * verder geen betekenis (geen "primaire" identificatie in domeinzin). {@code null} als de
+     * partij geen identificaties heeft, wat een geschonden invariant is (zie findOrCreatePartij).
+     */
+    public Identificatie primaireIdentificatie() {
+        return identificaties.stream()
+                .min(Comparator.comparing((Identificatie i) -> i.getIdentificatieType().name())
+                        .thenComparing(Identificatie::getIdentificatieNummer))
+                .orElse(null);
     }
 
     public List<Contactgegeven> getContactgegevens() {

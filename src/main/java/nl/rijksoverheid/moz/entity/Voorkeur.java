@@ -135,4 +135,36 @@ public class Voorkeur extends PanacheEntityBase {
     public void setVerwijderdOp(@Nullable Instant verwijderdOp) {
         this.verwijderdOp = verwijderdOp;
     }
+
+    @Nullable
+    public static Voorkeur findActiefById(Partij partij, UUID id) {
+        return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
+    }
+
+    public static List<Voorkeur> findActief(Partij partij) {
+        return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+    }
+
+    /** Actieve, scope-loze voorkeur voor dit (partij, type): maximaal één per sleutel. */
+    @Nullable
+    public static Voorkeur findActief(Partij partij, VoorkeurType voorkeurType) {
+        return find(
+                "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NULL",
+                partij, voorkeurType
+        ).firstResult();
+    }
+
+    /** Actieve voorkeur voor dit (partij, type, scope); zonder scope gelijk aan de scope-loze variant. */
+    @Nullable
+    public static Voorkeur findActief(Partij partij, VoorkeurType voorkeurType, @Nullable DienstverlenerDienst scope) {
+        if (scope == null) {
+            return findActief(partij, voorkeurType);
+        }
+
+        return find(
+                "SELECT DISTINCT v FROM Voorkeur v JOIN v.scopes s "
+                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
+                partij, voorkeurType, scope
+        ).firstResult();
+    }
 }

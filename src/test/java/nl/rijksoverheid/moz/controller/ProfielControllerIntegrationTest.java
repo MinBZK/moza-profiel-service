@@ -655,6 +655,57 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
+    void verwijderVoorkeur_Herhaald_BlijftIdempotent204() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111128"));
+            p.persist();
+
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+            voorkeurId.set(v.id);
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
+                .then().statusCode(NO_CONTENT);
+
+        // Herhaalde/dubbelklik-DELETE op een al-verwijderde voorkeur is idempotent: 204, geen 404.
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
+                .then().statusCode(NO_CONTENT);
+    }
+
+    @Test
+    void verwijderContactgegeven_Herhaald_BlijftIdempotent204() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111129"));
+            p.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
+                .then().statusCode(NO_CONTENT);
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
+                .then().statusCode(NO_CONTENT);
+    }
+
+    @Test
     void verwijderVoorkeur_NotFound() {
         given()
                 .filter(validationFilter)
@@ -674,5 +725,117 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
                 .body("title", equalTo("Contactgegeven niet gevonden"));
+    }
+
+    @Test
+    void verwijderVoorkeur_DanGet_VerdwijntUitResponse() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111124"));
+            p.persist();
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+            voorkeurId.set(v.id);
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
+                .then().statusCode(NO_CONTENT);
+
+        var request = new PartijRequest();
+        request.identificatieType = BSN;
+        request.identificatieNummer = "111111124";
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(request)
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK)
+                .body("voorkeuren", org.hamcrest.Matchers.empty());
+    }
+
+    @Test
+    void verwijderContactgegeven_DanGet_VerdwijntUitResponse() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111125"));
+            p.persist();
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
+                .then().statusCode(NO_CONTENT);
+
+        var request = new PartijRequest();
+        request.identificatieType = BSN;
+        request.identificatieNummer = "111111125";
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(request)
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK)
+                .body("contactgegevens", org.hamcrest.Matchers.empty());
+    }
+
+    @Test
+    void verwijderVoorkeur_DanOpnieuwToevoegen_GeeftNieuweRijMet201() {
+        var addBody = new VoorkeurRequest();
+        addBody.identificatieType = BSN;
+        addBody.identificatieNummer = "111111126";
+        addBody.voorkeurType = VoorkeurType.WebsiteTaal;
+        addBody.waarde = "nl";
+
+        UUID origineleId = UUID.fromString(
+                given().filter(validationFilter).contentType(ContentType.JSON).body(addBody)
+                        .post("/api/profielservice/v1/voorkeur")
+                        .then().statusCode(CREATED)
+                        .extract().path("id"));
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/voorkeur/" + origineleId)
+                .then().statusCode(NO_CONTENT);
+
+        // Opnieuw dezelfde waarde toevoegen: de zachtverwijderde rij mag niet hersteld worden
+        // (dat zou 200 + de oude id geven), er moet een nieuwe rij ontstaan (201 + nieuwe id).
+        given().filter(validationFilter).contentType(ContentType.JSON).body(addBody)
+                .post("/api/profielservice/v1/voorkeur")
+                .then()
+                .statusCode(CREATED)
+                .body("id", org.hamcrest.Matchers.not(equalTo(origineleId.toString())));
+    }
+
+    @Test
+    void verwijderContactgegeven_DanOpnieuwToevoegen_GeeftNieuweRijMet201() {
+        var addBody = new ContactgegevenRequest();
+        addBody.identificatieType = BSN;
+        addBody.identificatieNummer = "111111127";
+        addBody.type = ContactType.Telefoonnummer;
+        addBody.waarde = "0612345678";
+
+        UUID origineleId = UUID.fromString(
+                given().filter(validationFilter).contentType(ContentType.JSON).body(addBody)
+                        .post("/api/profielservice/v1/contactgegeven")
+                        .then().statusCode(CREATED)
+                        .extract().path("id"));
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/contactgegeven/" + origineleId)
+                .then().statusCode(NO_CONTENT);
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(addBody)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(CREATED)
+                .body("id", org.hamcrest.Matchers.not(equalTo(origineleId.toString())));
     }
 }
