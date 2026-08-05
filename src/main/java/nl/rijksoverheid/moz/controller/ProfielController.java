@@ -5,7 +5,6 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -82,20 +81,24 @@ public class ProfielController {
 
     private static final Logger LOG = Logger.getLogger(ProfielController.class);
 
-    @Inject
-    PartijService partijService;
+    private final PartijService partijService;
+    private final PartijMapper partijMapper;
+    private final LogboekContext logboekContext;
+    private final HashHelper hashHelper;
+    private final ProcessingHandler processingHandler;
 
-    @Inject
-    PartijMapper partijMapper;
-
-    @Inject
-    LogboekContext logboekContext;
-
-    @Inject
-    HashHelper hashHelper;
-
-    @Inject
-    ProcessingHandler processingHandler;
+    public ProfielController(
+            PartijService partijService,
+            PartijMapper partijMapper,
+            LogboekContext logboekContext,
+            HashHelper hashHelper,
+            ProcessingHandler processingHandler) {
+        this.partijService = partijService;
+        this.partijMapper = partijMapper;
+        this.logboekContext = logboekContext;
+        this.hashHelper = hashHelper;
+        this.processingHandler = processingHandler;
+    }
 
     /**
      * Haalt een profiel op van een partij.
