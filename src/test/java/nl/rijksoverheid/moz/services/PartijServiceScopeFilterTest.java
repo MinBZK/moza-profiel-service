@@ -72,22 +72,28 @@ class PartijServiceScopeFilterTest {
 
     private DienstverlenerDienst maakLink(String dvNaam, String dienstNaam) {
         Dienstverlener dv = Dienstverlener.find("naam", dvNaam).firstResult();
+
         if (dv == null) {
             dv = new Dienstverlener();
             dv.setNaam(dvNaam);
             dv.persist();
         }
+
         Dienst dienst = null;
+
         if (dienstNaam != null) {
             dienst = Dienst.find("naam", dienstNaam).firstResult();
+
             if (dienst == null) {
                 dienst = new Dienst();
                 dienst.setNaam(dienstNaam);
                 dienst.persist();
             }
         }
+
         DienstverlenerDienst link = new DienstverlenerDienst(dv, dienst);
         link.persist();
+
         return link;
     }
 
@@ -119,9 +125,11 @@ class PartijServiceScopeFilterTest {
         cg.setPartij(partij);
         cg.setType(ContactType.Telefoonnummer);
         cg.setWaarde(waarde);
+
         if (link != null) {
             cg.addScope(new ScopeContactgegeven(cg, link));
         }
+
         cg.persist();
     }
 
@@ -130,9 +138,11 @@ class PartijServiceScopeFilterTest {
         v.setPartij(partij);
         v.setVoorkeurType(type);
         v.setWaarde(waarde);
+
         if (link != null) {
             v.addScope(new ScopeVoorkeur(v, link));
         }
+
         v.persist();
     }
 
@@ -142,6 +152,7 @@ class PartijServiceScopeFilterTest {
         request.identificatieNummer = BSN_NUMMER;
         request.dienstverlener = dienstverlener;
         request.dienstNaam = dienstNaam;
+
         return request;
     }
 
@@ -204,6 +215,45 @@ class PartijServiceScopeFilterTest {
 
         // De scope van DV-A hangt aan Dienst-A; met dienstNaam=Dienst-B valt die af.
         Assertions.assertEquals(List.of("0600000000"), contactWaardes(response));
+    }
+
+    @Test
+    void rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug() {
+        // Beide scopes van deze rij matchen het filter, dus de join levert twee resultaatrijen op.
+        // Zonder 'distinct' in findFilteredContactgegevens/findFilteredVoorkeuren zou het
+        // contactgegeven en de voorkeur dubbel in de response belanden.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, BSN_NUMMER));
+            partij.persist();
+
+            DienstverlenerDienst linkA = maakLink("DV-A", "Dienst-A");
+            DienstverlenerDienst linkB = maakLink("DV-A", "Dienst-B");
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Telefoonnummer);
+            cg.setWaarde("0644444444");
+            cg.addScope(new ScopeContactgegeven(cg, linkA));
+            cg.addScope(new ScopeContactgegeven(cg, linkB));
+            cg.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(partij);
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.addScope(new ScopeVoorkeur(voorkeur, linkA));
+            voorkeur.addScope(new ScopeVoorkeur(voorkeur, linkB));
+            voorkeur.persist();
+        });
+
+        PartijResponse response = partijService.getPartijResponse(
+                IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-A", null));
+
+        Assertions.assertEquals(List.of("0644444444"), contactWaardes(response));
+        Assertions.assertEquals(1, response.voorkeuren.size());
+        Assertions.assertEquals(2, response.contactgegevens.getFirst().scopes.size(),
+                "Beide scopes horen wel in de response te staan, alleen de rij zelf niet dubbel");
     }
 
     @Test
@@ -385,6 +435,7 @@ class PartijServiceScopeFilterTest {
         request.scope = new ScopeRequest();
         request.scope.dienstverlenerNaam = dvNaam;
         request.scope.dienstNaam = dienstNaam;
+
         return request;
     }
 

@@ -220,6 +220,8 @@ class PartijMapperTest {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
             Assertions.assertNull(voorkeur.getTeVerwijderenOp());
             Assertions.assertFalse(voorkeur.isTeVerwijderenOpAutomatisch());
+            Assertions.assertFalse(voorkeur.getLastUsedAt().isBefore(voorMapping),
+                    "lastUsedAt moet zijn bijgewerkt bij het lezen van een stale voorkeur");
         });
     }
 
@@ -227,6 +229,7 @@ class PartijMapperTest {
     void toVoorkeurResponse_staleEnHandmatig_behoudtVerwijderdatum() {
         Instant handmatig = Instant.now().plus(Duration.ofDays(30)).truncatedTo(ChronoUnit.MICROS);
         UUID voorkeurId = persistVoorkeur(ouder(), handmatig, false);
+        Instant voorMapping = Instant.now();
 
         AtomicReference<VoorkeurResponse> response = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() ->
@@ -235,8 +238,14 @@ class PartijMapperTest {
         Assertions.assertEquals(handmatig, response.get().teVerwijderenOp,
                 "Een handmatig gezette verwijderdatum mag niet worden teruggedraaid");
 
-        QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertEquals(handmatig, Voorkeur.<Voorkeur>findById(voorkeurId).getTeVerwijderenOp()));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
+            Assertions.assertEquals(handmatig, voorkeur.getTeVerwijderenOp());
+            // De verwijderdatum blijft staan, maar de touch-on-read moet wél zijn uitgevoerd:
+            // lastUsedAt gaat van 48 uur oud naar nu.
+            Assertions.assertFalse(voorkeur.getLastUsedAt().isBefore(voorMapping),
+                    "lastUsedAt moet zijn bijgewerkt bij het lezen van een stale voorkeur");
+        });
     }
 
     // ---------------------------------------------------------------------
