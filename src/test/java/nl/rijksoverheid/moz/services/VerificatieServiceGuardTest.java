@@ -29,7 +29,13 @@ class VerificatieServiceGuardTest {
 
     private static final int DREMPEL = 2;
     private static final double ALLE_AANROEPEN_MISLUKT = 1.0;
-    private static final int SUCCESS_THRESHOLD = 2;
+
+    /**
+     * Bewust ongelijk aan {@link #DREMPEL}: het zijn de eerste en de laatste parameter van een
+     * positionele constructor met twee {@code int}-posities, dus met dezelfde waarde zou een
+     * verwisseling van die twee compileren en de test alsnog laten slagen.
+     */
+    private static final int SUCCESS_THRESHOLD = 3;
 
     /** Ruim langer dan de testduur, zodat de breaker tijdens de test niet vanzelf half-open gaat. */
     private static final long LANGE_DELAY_SECONDEN = 30;
