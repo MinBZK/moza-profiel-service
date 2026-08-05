@@ -4,6 +4,7 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
@@ -47,6 +48,9 @@ class PartijServiceScopeFilterTest {
 
     @Inject
     PartijService partijService;
+
+    @Inject
+    EntityManager entityManager;
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;
@@ -220,12 +224,15 @@ class PartijServiceScopeFilterTest {
     @Test
     void rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug() {
         // Beide scopes van deze rij matchen het filter, dus de join levert twee resultaatrijen op.
-        // Zonder 'distinct' in findFilteredContactgegevens/findFilteredVoorkeuren zou het
-        // contactgegeven en de voorkeur dubbel in de response belanden.
+        // De query draait zonder 'distinct'; Hibernate ontdubbelt entity-resultaten zelf. Deze
+        // test legt dat gedrag vast: zou een Hibernate-upgrade het loslaten, dan staan het
+        // contactgegeven en de voorkeur ineens dubbel in de response en valt deze test om.
+        AtomicReference<UUID> partijId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, BSN_NUMMER));
             partij.persist();
+            partijId.set(partij.id);
 
             DienstverlenerDienst linkA = maakLink("DV-A", "Dienst-A");
             DienstverlenerDienst linkB = maakLink("DV-A", "Dienst-B");
@@ -247,6 +254,24 @@ class PartijServiceScopeFilterTest {
             voorkeur.persist();
         });
 
+        // Zonder deze controle zou de test stilletjes niets meer aantonen zodra de opzet
+        // verandert en er nog maar één scope matcht: de join moet echt uitwaaieren.
+        QuarkusTransaction.requiringNew().run(() -> {
+            long joinRijen = entityManager.createQuery(
+                            "select count(c.id) from Contactgegeven c "
+                                    + "left join c.scopes s "
+                                    + "left join s.dienstverlenerDienst dd "
+                                    + "left join dd.dienstverlener dv "
+                                    + "where c.partij.id = :partijId "
+                                    + "AND (s IS NULL OR lower(dv.naam) = lower(:dvNaam))", Long.class)
+                    .setParameter("partijId", partijId.get())
+                    .setParameter("dvNaam", "DV-A")
+                    .getSingleResult();
+
+            Assertions.assertEquals(2L, joinRijen,
+                    "De join hoort twee rijen op te leveren, anders toont deze test niets aan");
+        });
+
         PartijResponse response = partijService.getPartijResponse(
                 IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-A", null));
 
@@ -254,6 +279,64 @@ class PartijServiceScopeFilterTest {
         Assertions.assertEquals(1, response.voorkeuren.size());
         Assertions.assertEquals(2, response.contactgegevens.getFirst().scopes.size(),
                 "Beide scopes horen wel in de response te staan, alleen de rij zelf niet dubbel");
+    }
+
+    @Test
+    void rijMetDienstBredeEnDienstSpecifiekeScope_KomtSlechtsEenmaalTerug() {
+        // Tweede ontdubbel-scenario, nu via het dienstNaam-filter: een DV-brede scope
+        // (dienst IS NULL) en een scope op Dienst-A matchen allebei, dus ook hier levert
+        // de join twee rijen op voor hetzelfde contactgegeven.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, BSN_NUMMER));
+            partij.persist();
+
+            DienstverlenerDienst breed = maakLink("DV-A", null);
+            DienstverlenerDienst specifiek = maakLink("DV-A", "Dienst-A");
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Telefoonnummer);
+            cg.setWaarde("0655555555");
+            cg.addScope(new ScopeContactgegeven(cg, breed));
+            cg.addScope(new ScopeContactgegeven(cg, specifiek));
+            cg.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(partij);
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.addScope(new ScopeVoorkeur(voorkeur, breed));
+            voorkeur.addScope(new ScopeVoorkeur(voorkeur, specifiek));
+            voorkeur.persist();
+        });
+
+        PartijResponse response = partijService.getPartijResponse(
+                IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-A", "Dienst-A"));
+
+        Assertions.assertEquals(List.of("0655555555"), contactWaardes(response));
+        Assertions.assertEquals(1, response.voorkeuren.size());
+    }
+
+    @Test
+    void ongescopteRijNaastGescopteRij_LevertGeenDubbeleTreffers() {
+        // De left join maakt voor een rij zonder scopes één rij met s IS NULL. Samen met een
+        // tweede, wél gescopte rij dekt dit het pad waarop beide OR-takken van het filter
+        // tegelijk raak zijn.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, BSN_NUMMER));
+            partij.persist();
+
+            DienstverlenerDienst link = maakLink("DV-A", "Dienst-A");
+            maakContact(partij, "0600000000", null);
+            maakContact(partij, "0611111111", link);
+        });
+
+        PartijResponse response = partijService.getPartijResponse(
+                IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-A", "Dienst-A"));
+
+        Assertions.assertEquals(List.of("0600000000", "0611111111"), contactWaardes(response));
     }
 
     @Test
