@@ -505,9 +505,17 @@ public class PartijService {
         return partijMapper.toResponse(partij, filteredContacts, filteredVoorkeuren);
     }
 
+    /**
+     * Geen {@code distinct} in de query: een rij met meerdere matchende scopes levert net zoveel
+     * join-rijen op, maar Hibernate ontdubbelt entity-resultaten sinds versie 6 zelf. Het
+     * trefwoord deed hier dus niets. Dat de response geen dubbele rijen bevat is gedrag waar
+     * aanroepers op leunen, dus het staat vastgelegd in
+     * {@code PartijServiceScopeFilterTest.rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug} —
+     * die test valt om zodra een Hibernate-upgrade dit weer verandert.
+     */
     public List<Contactgegeven> findFilteredContactgegevens(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(
-                "select distinct c from Contactgegeven c " +
+                "select c from Contactgegeven c " +
                 "left join c.scopes s " +
                 "left join s.dienstverlenerDienst dd " +
                 "left join dd.dienst d " +
@@ -533,9 +541,10 @@ public class PartijService {
         return panacheQuery.list();
     }
 
+    /** Zonder {@code distinct}, om dezelfde reden als {@link #findFilteredContactgegevens}. */
     public List<Voorkeur> findFilteredVoorkeuren(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(
-                "select distinct v from Voorkeur v "
+                "select v from Voorkeur v "
                         + "left join v.scopes s "
                         + "left join s.dienstverlenerDienst dd "
                         + "left join dd.dienst d "

@@ -7,7 +7,7 @@
 
     <properties>
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
@@ -295,6 +295,21 @@
                     </excludes>
                 </configuration>
                 <executions>
+                    <!-- Zonder deze agent draait surefire zonder JaCoCo en tellen alleen
+                         @QuarkusTest-klassen mee (die worden door de quarkus-jacoco extensie
+                         geregistreerd). Gewone JUnit-tests leverden daardoor 0% dekking op.
+                         reuse-data-file=true (test-application.properties) zorgt dat de
+                         extensie het bestand niet weggooit voordat de agent het wegschrijft. -->
+                    <execution>
+                        <id>default-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-quarkus.exec</destFile>
+                            <append>true</append>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>jacoco-check</id>
                         <goals>
@@ -303,6 +318,10 @@
                         <phase>test</phase>
                         <configuration>
                             <dataFile>${project.build.directory}/jacoco-quarkus.exec</dataFile>
+                            <!-- De drempels stonden op 0.5 toen alleen @QuarkusTest-klassen werden
+                                 gemeten. Nu de gewone unittests meetellen ligt de werkelijke dekking
+                                 op ~95% line / ~93% branch; 0.85/0.80 laat ruimte voor normale
+                                 fluctuatie maar vangt een echte terugval wel af. -->
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
@@ -310,12 +329,12 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.5</minimum>
+                                            <minimum>0.85</minimum>
                                         </limit>
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.5</minimum>
+                                            <minimum>0.80</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

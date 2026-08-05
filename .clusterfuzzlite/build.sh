@@ -20,11 +20,11 @@ cp -r target/test-classes $OUT/test-classes
 # Quarkus as a subprocess (java -jar quarkus-run.jar). H2 is baked in at build time.
 cp -r target/quarkus-app $OUT/quarkus-app
 
-# Bundle the ENTIRE JDK 21 runtime to $OUT so the runner can execute Java 21 bytecode.
+# Bundle the ENTIRE JDK 25 runtime to $OUT so the runner can execute Java 25 bytecode.
 # Uses rsync -aL to dereference symlinks (critical for JDK directory structure).
 # Pattern taken from the oss-fuzz tomcat project.
-mkdir -p "$OUT/open-jdk-21"
-rsync -aL --exclude='*.zip' "$JAVA_HOME/" "$OUT/open-jdk-21/"
+mkdir -p "$OUT/open-jdk-25"
+rsync -aL --exclude='*.zip' "$JAVA_HOME/" "$OUT/open-jdk-25/"
 
 # Create a wrapper script for every standalone fuzzer
 # (classes that define the static fuzzerTestOneInput method expected by jazzer_driver)
@@ -50,9 +50,9 @@ else
 fi
 
 # Start Quarkus as a background process with H2 in-memory database.
-JAVA_HOME="$this_dir/open-jdk-21" \
-LD_LIBRARY_PATH="$this_dir/open-jdk-21/lib/server" \
-"$this_dir/open-jdk-21/bin/java" \
+JAVA_HOME="$this_dir/open-jdk-25" \
+LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server" \
+"$this_dir/open-jdk-25/bin/java" \
   -Dquarkus.http.port=8081 \
   -Dquarkus.log.level=WARN \
   -Dquarkus.rest-client.basisprofiel-api.url=http://localhost:9999 \
@@ -76,8 +76,8 @@ for jar in "$this_dir"/lib/*.jar; do
   CP="$CP:$jar"
 done
 
-JAVA_HOME="$this_dir/open-jdk-21" \
-LD_LIBRARY_PATH="$this_dir/open-jdk-21/lib/server":"$this_dir" \
+JAVA_HOME="$this_dir/open-jdk-25" \
+LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server":"$this_dir" \
 "$this_dir/jazzer_driver" \
   --agent_path="$this_dir/jazzer_agent_deploy.jar" \
   --cp="$CP" \
@@ -105,10 +105,10 @@ for jar in "$this_dir"/lib/*.jar; do
 done
 
 # Set JAVA_HOME and LD_LIBRARY_PATH inline so jazzer_driver loads
-# the bundled JDK 21 libjvm.so (not the runner's JDK 17).
+# the bundled JDK 25 libjvm.so (not the runner's JDK 17).
 # Pattern taken from the oss-fuzz tomcat project.
-JAVA_HOME="$this_dir/open-jdk-21" \
-LD_LIBRARY_PATH="$this_dir/open-jdk-21/lib/server":"$this_dir" \
+JAVA_HOME="$this_dir/open-jdk-25" \
+LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server":"$this_dir" \
 "$this_dir/jazzer_driver" \
   --agent_path="$this_dir/jazzer_agent_deploy.jar" \
   --cp="$CP" \

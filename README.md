@@ -23,7 +23,7 @@ De API volgt de [NL GOV API Design Rules 2.1.0](https://gitdocumentatie.logius.n
 ## Lokaal draaien
 
 Vereisten:
-- Java 21
+- Java 25
 - Maven (of de meegeleverde wrapper `./mvnw`)
 - PostgreSQL (of gebruik H2 via het `test` profile)
 

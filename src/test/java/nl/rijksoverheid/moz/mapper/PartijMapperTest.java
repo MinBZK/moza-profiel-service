@@ -181,6 +181,73 @@ class PartijMapperTest {
         });
     }
 
+    @Test
+    void toContactgegevensResponse_versEnAutomatisch_wordtNietAangeraakt() {
+        // Binnen de drempel van 24 uur mag een leesactie geen schrijfactie veroorzaken:
+        // anders zou elke GET de verwijderdatum van een net gebruikte rij wissen.
+        Instant lastUsedAt = Instant.now().minus(Duration.ofHours(1)).truncatedTo(ChronoUnit.MICROS);
+        Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(30)).truncatedTo(ChronoUnit.MICROS);
+        UUID cgId = persistContactgegeven(lastUsedAt, teVerwijderenOp, true);
+
+        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
+
+        Assertions.assertEquals(teVerwijderenOp, response.get().teVerwijderenOp);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven cg = Contactgegeven.findById(cgId);
+            Assertions.assertTrue(cg.isTeVerwijderenOpAutomatisch());
+            Assertions.assertEquals(lastUsedAt, cg.getLastUsedAt(), "lastUsedAt mag niet zijn aangeraakt");
+        });
+    }
+
+    @Test
+    void toVoorkeurResponse_staleEnAutomatisch_responseHeeftVerwijderdatumTeruggedraaid() {
+        UUID voorkeurId = persistVoorkeur(ouder(), Instant.now().plus(Duration.ofDays(30)), true);
+        Instant voorMapping = Instant.now();
+
+        AtomicReference<VoorkeurResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toVoorkeurResponse(Voorkeur.findById(voorkeurId))));
+
+        Assertions.assertNull(response.get().teVerwijderenOp,
+                "Een automatisch gezette verwijderdatum moet in de response zijn teruggedraaid");
+        Assertions.assertFalse(response.get().lastUpdated.isBefore(voorMapping),
+                "lastUpdated moet het moment van teruggedraaien weerspiegelen");
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
+            Assertions.assertNull(voorkeur.getTeVerwijderenOp());
+            Assertions.assertFalse(voorkeur.isTeVerwijderenOpAutomatisch());
+            Assertions.assertFalse(voorkeur.getLastUsedAt().isBefore(voorMapping),
+                    "lastUsedAt moet zijn bijgewerkt bij het lezen van een stale voorkeur");
+        });
+    }
+
+    @Test
+    void toVoorkeurResponse_staleEnHandmatig_behoudtVerwijderdatum() {
+        Instant handmatig = Instant.now().plus(Duration.ofDays(30)).truncatedTo(ChronoUnit.MICROS);
+        UUID voorkeurId = persistVoorkeur(ouder(), handmatig, false);
+        Instant voorMapping = Instant.now();
+
+        AtomicReference<VoorkeurResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toVoorkeurResponse(Voorkeur.findById(voorkeurId))));
+
+        Assertions.assertEquals(handmatig, response.get().teVerwijderenOp,
+                "Een handmatig gezette verwijderdatum mag niet worden teruggedraaid");
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
+            Assertions.assertEquals(handmatig, voorkeur.getTeVerwijderenOp());
+            // De verwijderdatum blijft staan, maar de touch-on-read moet wél zijn uitgevoerd:
+            // lastUsedAt gaat van 48 uur oud naar nu.
+            Assertions.assertFalse(voorkeur.getLastUsedAt().isBefore(voorMapping),
+                    "lastUsedAt moet zijn bijgewerkt bij het lezen van een stale voorkeur");
+        });
+    }
+
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
@@ -239,6 +306,26 @@ class PartijMapperTest {
             cg.setTeVerwijderenOpAutomatisch(automatisch);
             cg.persist();
             id.set(cg.id);
+        });
+        return id.get();
+    }
+
+    private UUID persistVoorkeur(Instant lastUsedAt, Instant teVerwijderenOp, boolean automatisch) {
+        AtomicReference<UUID> id = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(partij);
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setLastUsedAt(lastUsedAt);
+            voorkeur.setTeVerwijderenOp(teVerwijderenOp);
+            voorkeur.setTeVerwijderenOpAutomatisch(automatisch);
+            voorkeur.persist();
+            id.set(voorkeur.id);
         });
         return id.get();
     }
