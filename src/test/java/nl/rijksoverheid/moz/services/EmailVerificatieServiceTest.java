@@ -227,9 +227,9 @@ public class EmailVerificatieServiceTest {
     }
 
     /**
-     * apiKey en templateId zijn twee opeenvolgende String-parameters van dezelfde constructor,
-     * dus een verwisseling compileert zonder klacht. Deze test controleert dat elke waarde in
-     * het juiste veld van het uitgaande verzoek terechtkomt.
+     * apiKey and templateId are two consecutive String parameters of the same constructor,
+     * so swapping them compiles without complaint. This test asserts that each value ends up
+     * in the correct field of the outgoing request.
      */
     @Test
     void requestEmailVerificationCode_SendsConfiguredApiKeyAndTemplateId() {
@@ -240,10 +240,10 @@ public class EmailVerificatieServiceTest {
         ArgumentCaptor<VerificationApplicationRequest> captor = ArgumentCaptor.forClass(VerificationApplicationRequest.class);
         Mockito.verify(emailVerificatieApi).requestPost(captor.capture());
 
-        VerificationApplicationRequest verzonden = captor.getValue();
-        Assertions.assertEquals("mock-key", verzonden.getApiKey());
-        Assertions.assertEquals("mock-template", verzonden.getTemplateId());
-        Assertions.assertEquals("email@email.com", verzonden.getEmail());
+        VerificationApplicationRequest sentRequest = captor.getValue();
+        Assertions.assertEquals("mock-key", sentRequest.getApiKey());
+        Assertions.assertEquals("mock-template", sentRequest.getTemplateId());
+        Assertions.assertEquals("email@email.com", sentRequest.getEmail());
     }
 
     @Test
