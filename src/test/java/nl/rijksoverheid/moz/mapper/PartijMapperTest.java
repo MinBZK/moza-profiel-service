@@ -60,7 +60,6 @@ class PartijMapperTest {
         Contactgegeven cg = contactgegeven(ContactType.Email, "test@example.com");
         cg.setIsGeverifieerd(true);
         cg.setIsDefault(true);
-        cg.setTeVerwijderenOp(Instant.now().plus(Duration.ofDays(30)));
         cg.addScope(new ScopeContactgegeven(cg, link));
 
         ContactgegevenResponse response = partijMapper.toContactgegevensResponse(cg);
@@ -70,7 +69,6 @@ class PartijMapperTest {
         Assertions.assertEquals("test@example.com", response.waarde);
         Assertions.assertTrue(response.isGeverifieerd);
         Assertions.assertTrue(response.isDefault);
-        Assertions.assertEquals(cg.getTeVerwijderenOp(), response.teVerwijderenOp);
         Assertions.assertEquals(1, response.scopes.size());
         Assertions.assertEquals("Gemeente Amsterdam", response.scopes.get(0).dienstverlenerNaam);
         Assertions.assertEquals("Verhuizen", response.scopes.get(0).dienstNaam);
@@ -106,22 +104,20 @@ class PartijMapperTest {
 
     @Test
     void toResponse_maptPartijMetAlleCollecties() {
-        Partij partij = new Partij();
-        partij.id = UUID.randomUUID();
-        partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-        partij.setContactgegevens(List.of(contactgegeven(ContactType.Email, "a@example.com")));
-        partij.setVoorkeuren(List.of(voorkeur(VoorkeurType.WebsiteTaal, "nl")));
+        UUID partijId = persistPartijMetContactgegevenEnVoorkeur();
 
-        PartijResponse response = partijMapper.toResponse(partij);
+        AtomicReference<PartijResponse> response = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() ->
+                response.set(partijMapper.toResponse(Partij.findById(partijId))));
 
-        Assertions.assertEquals(partij.id, response.partijId);
-        Assertions.assertEquals(1, response.identificaties.size());
-        Assertions.assertEquals(IdentificatieType.BSN, response.identificaties.get(0).identificatieType);
-        Assertions.assertEquals("123456789", response.identificaties.get(0).identificatieNummer);
-        Assertions.assertEquals(1, response.contactgegevens.size());
-        Assertions.assertEquals("a@example.com", response.contactgegevens.get(0).waarde);
-        Assertions.assertEquals(1, response.voorkeuren.size());
-        Assertions.assertEquals("nl", response.voorkeuren.get(0).waarde);
+        Assertions.assertEquals(partijId, response.get().partijId);
+        Assertions.assertEquals(1, response.get().identificaties.size());
+        Assertions.assertEquals(IdentificatieType.BSN, response.get().identificaties.get(0).identificatieType);
+        Assertions.assertEquals("123456789", response.get().identificaties.get(0).identificatieNummer);
+        Assertions.assertEquals(1, response.get().contactgegevens.size());
+        Assertions.assertEquals("a@example.com", response.get().contactgegevens.get(0).waarde);
+        Assertions.assertEquals(1, response.get().voorkeuren.size());
+        Assertions.assertEquals("nl", response.get().voorkeuren.get(0).waarde);
     }
 
     @Test
@@ -137,48 +133,35 @@ class PartijMapperTest {
     }
 
     // ---------------------------------------------------------------------
-    // Retentie-logica ("touch on read") die in de map-methodes de response overschrijft
+    // Retentie-logica ("touch on read") die in de map-methodes lastUsedAt bijwerkt
     // ---------------------------------------------------------------------
 
     @Test
-    void toContactgegevensResponse_staleEnAutomatisch_responseHeeftVerwijderdatumTeruggedraaid() {
-        UUID cgId = persistContactgegeven(ouder(), Instant.now().plus(Duration.ofDays(30)), true);
+    void toContactgegevensResponse_stale_werktLastUsedAtBij() {
+        UUID cgId = persistContactgegeven(ouder());
         Instant voorMapping = Instant.now();
 
-        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() ->
-                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
-
-        Assertions.assertNull(response.get().teVerwijderenOp,
-                "Een automatisch gezette verwijderdatum moet in de response zijn teruggedraaid");
-        Assertions.assertNotNull(response.get().lastUpdated);
-        Assertions.assertFalse(response.get().lastUpdated.isBefore(voorMapping),
-                "lastUpdated moet het moment van teruggedraaien weerspiegelen");
+                partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId)));
 
         QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven cg = Contactgegeven.findById(cgId);
-            Assertions.assertNull(cg.getTeVerwijderenOp());
-            Assertions.assertFalse(cg.isTeVerwijderenOpAutomatisch());
+            Instant lastUsedAt = Contactgegeven.<Contactgegeven>findById(cgId).getLastUsedAt();
+            Assertions.assertNotNull(lastUsedAt);
+            Assertions.assertFalse(lastUsedAt.isBefore(voorMapping),
+                    "lastUsedAt moet het moment van lezen weerspiegelen");
         });
     }
 
     @Test
-    void toContactgegevensResponse_staleEnHandmatig_behoudtVerwijderdatum() {
-        Instant handmatig = Instant.now().plus(Duration.ofDays(30)).truncatedTo(ChronoUnit.MICROS);
-        UUID cgId = persistContactgegeven(ouder(), handmatig, false);
+    void toContactgegevensResponse_nietStale_laatLastUsedAtOngemoeid() {
+        Instant recent = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        UUID cgId = persistContactgegeven(recent);
 
-        AtomicReference<ContactgegevenResponse> response = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() ->
-                response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
+                partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId)));
 
-        Assertions.assertEquals(handmatig, response.get().teVerwijderenOp,
-                "Een handmatig gezette verwijderdatum mag niet worden teruggedraaid");
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven cg = Contactgegeven.findById(cgId);
-            Assertions.assertEquals(handmatig, cg.getTeVerwijderenOp());
-            Assertions.assertNotNull(cg.getLastUsedAt());
-        });
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(recent, Contactgegeven.<Contactgegeven>findById(cgId).getLastUsedAt()));
     }
 
     // ---------------------------------------------------------------------
@@ -223,7 +206,31 @@ class PartijMapperTest {
         return voorkeur;
     }
 
-    private UUID persistContactgegeven(Instant lastUsedAt, Instant teVerwijderenOp, boolean automatisch) {
+    private UUID persistPartijMetContactgegevenEnVoorkeur() {
+        AtomicReference<UUID> id = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Email);
+            cg.setWaarde("a@example.com");
+            cg.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(partij);
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.persist();
+
+            id.set(partij.id);
+        });
+        return id.get();
+    }
+
+    private UUID persistContactgegeven(Instant lastUsedAt) {
         AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -235,8 +242,6 @@ class PartijMapperTest {
             cg.setType(ContactType.Email);
             cg.setWaarde("touch@example.com");
             cg.setLastUsedAt(lastUsedAt);
-            cg.setTeVerwijderenOp(teVerwijderenOp);
-            cg.setTeVerwijderenOpAutomatisch(automatisch);
             cg.persist();
             id.set(cg.id);
         });

@@ -26,9 +26,8 @@ import java.util.List;
  * Het zuivere veld-voor-veld kopiëren wordt door MapStruct gegenereerd. De methodes
  * {@link #toContactgegevensResponse(Contactgegeven)} en {@link #toVoorkeurResponse(Voorkeur)}
  * bevatten daarnaast retentie-logica ("touch on read"): wanneer een gegeven lang niet is
- * gebruikt wordt {@code lastUsedAt} bijgewerkt en een automatisch gezette verwijderdatum
- * teruggedraaid. Die business-logica is bewust handgeschreven en delegeert het kopiëren
- * naar de door MapStruct gegenereerde {@code map*}-methodes.
+ * gebruikt wordt {@code lastUsedAt} bijgewerkt. Die business-logica is bewust handgeschreven
+ * en delegeert het kopiëren naar de door MapStruct gegenereerde {@code map*}-methodes.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public abstract class PartijMapper {
@@ -55,28 +54,20 @@ public abstract class PartijMapper {
 
     @Named("contactgegevenMetGebruik")
     public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
-        Instant clearedAt = registreerGebruik(cg);
-        ContactgegevenResponse cr = mapContactgegeven(cg);
-
-        if (clearedAt != null) {
-            cr.lastUpdated = clearedAt;
-            cr.teVerwijderenOp = null;
+        if (isStale(cg.getLastUsedAt())) {
+            Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
         }
 
-        return cr;
+        return mapContactgegeven(cg);
     }
 
     @Named("voorkeurMetGebruik")
     public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
-        Instant clearedAt = registreerGebruik(voorkeur);
-        VoorkeurResponse vr = mapVoorkeur(voorkeur);
-
-        if (clearedAt != null) {
-            vr.lastUpdated = clearedAt;
-            vr.teVerwijderenOp = null;
+        if (isStale(voorkeur.getLastUsedAt())) {
+            Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
         }
 
-        return vr;
+        return mapVoorkeur(voorkeur);
     }
 
     abstract ContactgegevenResponse mapContactgegeven(Contactgegeven cg);
@@ -90,54 +81,6 @@ public abstract class PartijMapper {
     @Mapping(target = "dienstverlenerNaam", source = "dienstverlenerDienst.dienstverlener.naam")
     @Mapping(target = "dienstNaam", source = "dienstverlenerDienst.dienst.naam")
     abstract ScopeResponse toScopeResponse(ScopeVoorkeur scope);
-
-    /**
-     * Registreert dat een contactgegeven is gebruikt. Bij een lang ongebruikt gegeven wordt
-     * {@code lastUsedAt} bijgewerkt en een automatisch gezette verwijderdatum teruggedraaid.
-     *
-     * @return het moment waarop een automatische verwijderdatum is teruggedraaid, of {@code null}
-     *         wanneer er niets is teruggedraaid.
-     */
-    private static Instant registreerGebruik(Contactgegeven cg) {
-        if (!isStale(cg.getLastUsedAt())) {
-            return null;
-        }
-
-        if (cg.isTeVerwijderenOpAutomatisch()) {
-            Instant clearedAt = Instant.now();
-            Contactgegeven.update(
-                    "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
-                    clearedAt, cg.id);
-
-            return clearedAt;
-        }
-
-        Contactgegeven.update("lastUsedAt = ?1 where id = ?2", Instant.now(), cg.id);
-
-        return null;
-    }
-
-    /**
-     * Registreert dat een voorkeur is gebruikt. Zie {@link #registreerGebruik(Contactgegeven)}.
-     */
-    private static Instant registreerGebruik(Voorkeur voorkeur) {
-        if (!isStale(voorkeur.getLastUsedAt())) {
-            return null;
-        }
-
-        if (voorkeur.isTeVerwijderenOpAutomatisch()) {
-            Instant clearedAt = Instant.now();
-            Voorkeur.update(
-                    "lastUsedAt = ?1, teVerwijderenOp = null, teVerwijderenOpAutomatisch = false, lastUpdated = ?1 where id = ?2",
-                    clearedAt, voorkeur.id);
-
-            return clearedAt;
-        }
-
-        Voorkeur.update("lastUsedAt = ?1 where id = ?2", Instant.now(), voorkeur.id);
-
-        return null;
-    }
 
     private static boolean isStale(Instant lastUsedAt) {
         return lastUsedAt == null
