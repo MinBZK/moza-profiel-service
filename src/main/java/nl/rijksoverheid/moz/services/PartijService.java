@@ -403,6 +403,10 @@ public class PartijService {
         return Contactgegeven.findById(id);
     }
 
+    // Bulk update, geen entity-load: de controller heeft de entity vlak hiervoor al geladen
+    // (via findVoorkeurById, voor het logboek) maar die instance wordt daarna nergens meer
+    // gelezen. Mocht dat ooit wel gebeuren binnen dezelfde transactie, dan is die instance
+    // stale — bulk updates gaan buiten de persistence context om.
     @Transactional
     public boolean verwijderVoorkeur(UUID id) {
         Instant nu = Instant.now();
@@ -410,6 +414,7 @@ public class PartijService {
         return Voorkeur.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0;
     }
 
+    // Zie toelichting bij verwijderVoorkeur.
     @Transactional
     public boolean verwijderContactgegeven(UUID id) {
         Instant nu = Instant.now();

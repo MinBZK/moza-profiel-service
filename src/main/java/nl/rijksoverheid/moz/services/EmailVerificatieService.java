@@ -49,10 +49,10 @@ public class EmailVerificatieService {
             return false;
         }
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
-                .findFirst()
-                .orElse(null);
+        Contactgegeven contact = Contactgegeven.find(
+                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3)",
+                partij, ContactType.Email, emailVerificatieRequest.email
+        ).firstResult();
 
         if (contact == null || contact.getGeverifieerdAt() != null) {
             LOG.warn("Verificatie mislukt: Contact niet gevonden of al geverifieerd");
@@ -100,10 +100,10 @@ public class EmailVerificatieService {
             return Response.Status.NOT_FOUND.getStatusCode();
         }
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(aanvraag.email))
-                .findFirst()
-                .orElse(null);
+        Contactgegeven contact = Contactgegeven.find(
+                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3)",
+                partij, ContactType.Email, aanvraag.email
+        ).firstResult();
 
         if (contact == null) {
             LOG.warn("Verificatie code aanvraag mislukt: Contact niet gevonden");
