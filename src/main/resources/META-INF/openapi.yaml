@@ -474,9 +474,15 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "404":
           description: Contactgegeven of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "409":
+          description: Combinatie van type en waarde bestaat al voor deze partij
           content:
             application/problem+json:
               schema:
@@ -518,6 +524,12 @@ paths:
           content:
             application/problem+json:
               schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
+        "404":
+          description: Dienstverlener of dienst uit de scope bestaat niet
+          content:
+            application/problem+json:
+              schema:
                 $ref: "#/components/schemas/HttpProblem"
   /api/profielservice/v1/contactgegeven/te-verwijderen-op:
     patch:
@@ -550,7 +562,7 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "403":
           description: Dienstverlener heeft geen scope op dit contactgegeven
           content:
@@ -597,6 +609,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
+        "400":
+          description: Request body ontbreekt of is ongeldig
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
   /api/profielservice/v1/dienstverlener:
     post:
       summary: Voegt een dienstverlener toe
@@ -628,7 +646,7 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "409":
           description: Dienstverlener bestaat al met conflicterende waarden
           content:
@@ -673,7 +691,7 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "409":
           description: Dienst bestaat al met een andere beschrijving
           content:
@@ -823,7 +841,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "400":
-          description: Bad Request
+          description: Request body ontbreekt of is ongeldig
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
   /api/profielservice/v1/partijen/bulk:
     post:
       summary: Ophalen profielen van meerdere partijen
@@ -866,7 +888,7 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "404":
           description: Geen enkel profiel gevonden
           content:
@@ -904,9 +926,15 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "404":
           description: Voorkeur of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "409":
+          description: Andere voorkeur bestaat al voor deze partij, type en scope
           content:
             application/problem+json:
               schema:
@@ -948,6 +976,12 @@ paths:
           content:
             application/problem+json:
               schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
+        "404":
+          description: Dienstverlener of dienst uit de scope bestaat niet
+          content:
+            application/problem+json:
+              schema:
                 $ref: "#/components/schemas/HttpProblem"
   /api/profielservice/v1/voorkeur/te-verwijderen-op:
     patch:
@@ -980,7 +1014,7 @@ paths:
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "403":
           description: Dienstverlener heeft geen scope op deze voorkeur
           content:
@@ -1027,6 +1061,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
+        "400":
+          description: Request body ontbreekt of is ongeldig
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
 info:
   title: MOZa Profiel Service API
   version: 1.0.0
