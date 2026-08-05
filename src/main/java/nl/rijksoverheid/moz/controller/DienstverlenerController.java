@@ -2,7 +2,6 @@
 package nl.rijksoverheid.moz.controller;
 
 import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -51,11 +50,13 @@ public class DienstverlenerController {
 
     private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
 
-    @Inject
-    DienstverlenerService dienstverlenerService;
+    private final DienstverlenerService dienstverlenerService;
+    private final DienstMapper dienstMapper;
 
-    @Inject
-    DienstMapper dienstMapper;
+    public DienstverlenerController(DienstverlenerService dienstverlenerService, DienstMapper dienstMapper) {
+        this.dienstverlenerService = dienstverlenerService;
+        this.dienstMapper = dienstMapper;
+    }
 
     @GET
     @Path("/dienstverlener/{naam}")

@@ -22,12 +22,14 @@ import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationApplicationRequest;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.time.Instant;
@@ -222,6 +224,26 @@ public class EmailVerificatieServiceTest {
         Mockito.doThrow(new RuntimeException("boom")).when(emailVerificatieApi).requestPost(Mockito.any());
         String result = service.requestEmailVerificationCode("email@email.com");
         Assertions.assertNull(result);
+    }
+
+    /**
+     * apiKey and templateId are two consecutive String parameters of the same constructor,
+     * so swapping them compiles without complaint. This test asserts that each value ends up
+     * in the correct field of the outgoing request.
+     */
+    @Test
+    void requestEmailVerificationCode_SendsConfiguredApiKeyAndTemplateId() {
+        Mockito.doReturn("reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
+
+        service.requestEmailVerificationCode("email@email.com");
+
+        ArgumentCaptor<VerificationApplicationRequest> captor = ArgumentCaptor.forClass(VerificationApplicationRequest.class);
+        Mockito.verify(emailVerificatieApi).requestPost(captor.capture());
+
+        VerificationApplicationRequest sentRequest = captor.getValue();
+        Assertions.assertEquals("mock-key", sentRequest.getApiKey());
+        Assertions.assertEquals("mock-template", sentRequest.getTemplateId());
+        Assertions.assertEquals("email@email.com", sentRequest.getEmail());
     }
 
     @Test
