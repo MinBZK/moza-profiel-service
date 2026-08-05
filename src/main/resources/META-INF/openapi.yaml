@@ -1028,10 +1028,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
 info:
-  title: profiel-service API
-  version: 1.0.0-SNAPSHOT
+  title: MOZa Profiel Service API
+  version: 1.0.0
+  description: "Profiel service voor MijnOverheid Zakelijk: beheer van contactgegevens
+    en communicatievoorkeuren van partijen."
+  contact:
+    name: MijnOverheid Zakelijk Team
+    email: moza@minbzk.nl
+    url: https://docs.mijnoverheidzakelijk.nl
+  license:
+    name: EUPL-1.2
+    url: https://joinup.ec.europa.eu/software/page/eupl
 servers:
+- url: https://api.mijnoverheidzakelijk.nl/profielservice
+  description: Productie
 - url: http://localhost:8080
-  description: Auto generated value
-- url: http://0.0.0.0:8080
-  description: Auto generated value
+  description: Lokale ontwikkelomgeving

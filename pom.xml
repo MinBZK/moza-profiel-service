@@ -94,22 +94,6 @@
             <artifactId>quarkus-openapi-generator</artifactId>
             <version>2.19.0</version>
         </dependency>
-        <!-- Contract-first server-stub generatie (JAX-RS interfaces + DTOs) uit src/main/openapi-server.
-             Shadow: gegenereerde interfaces zijn inert tot een controller ze implementeert (#651).
-             Zelfde versie als quarkus-openapi-generator hierboven (beide komen uit dezelfde
-             reactor/release). Vanaf 2.20.0 genereert deze extensie voor een breed deel van de
-             beans (niet alleen Scope/ScopeRequest/ScopeResponse) velden als Object i.p.v. het
-             juiste type zoals String — geverifieerd door 2.18.0 t/m 2.23.0 stuk voor stuk te
-             bouwen en de gegenereerde beans te inspecteren. 2.17.0 t/m 2.19.0 genereren correct;
-             2.19.0 is de nieuwste geverifieerd goede versie. Oorzaak niet vastgesteld: dit raakt
-             te veel beans om aan schema-deduplicatie van Scope/ScopeRequest/ScopeResponse te
-             wijten. Niet ophogen voorbij 2.19.0 zonder de gegenereerde server-stub-beans opnieuw
-             te controleren. -->
-        <dependency>
-            <groupId>io.quarkiverse.openapi.generator</groupId>
-            <artifactId>quarkus-openapi-generator-server</artifactId>
-            <version>2.19.0</version>
-        </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
