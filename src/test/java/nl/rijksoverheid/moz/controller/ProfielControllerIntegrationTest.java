@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.INTERNAL_SERVER_ERROR;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
@@ -434,7 +435,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(body)
                 .put("/api/profielservice/v1/contactgegeven")
                 .then()
-                .statusCode(OK);
+                .statusCode(NO_CONTENT);
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven updated = Contactgegeven.findById(id.get());
@@ -552,7 +553,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body(body)
                 .put("/api/profielservice/v1/voorkeur")
                 .then()
-                .statusCode(OK);
+                .statusCode(NO_CONTENT);
     }
 
     @Test
@@ -655,7 +656,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void verwijderVoorkeur_Herhaald_BlijftIdempotent204() {
+    void verwijderVoorkeur_Herhaald_TweedeGeeft404() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -674,14 +675,13 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
                 .then().statusCode(NO_CONTENT);
 
-        // Herhaalde/dubbelklik-DELETE op een al-verwijderde voorkeur is idempotent: 204, geen 404.
         given().filter(validationFilter)
                 .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
-                .then().statusCode(NO_CONTENT);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
-    void verwijderContactgegeven_Herhaald_BlijftIdempotent204() {
+    void verwijderContactgegeven_Herhaald_TweedeGeeft404() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -702,7 +702,29 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
         given().filter(validationFilter)
                 .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
-                .then().statusCode(NO_CONTENT);
+                .then().statusCode(NOT_FOUND);
+    }
+
+    @Test
+    void verwijderVoorkeur_PartijZonderIdentificatie_Geeft500() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.persist();
+
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+            voorkeurId.set(v.id);
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
+                .then()
+                .statusCode(INTERNAL_SERVER_ERROR)
+                .contentType("application/problem+json");
     }
 
     @Test

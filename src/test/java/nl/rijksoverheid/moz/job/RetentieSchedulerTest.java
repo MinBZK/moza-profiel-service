@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.job;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -30,6 +31,9 @@ public class RetentieSchedulerTest {
 
     @Inject
     RetentieScheduler retentieScheduler;
+
+    @Inject
+    MeterRegistry meterRegistry;
 
     @AfterEach
     @Transactional
@@ -244,5 +248,59 @@ public class RetentieSchedulerTest {
         } finally {
             System.clearProperty("retentie.scheduler.max-per-run");
         }
+    }
+
+    @Test
+    void voorkeur_partijZonderIdentificatie_WordtOvergeslagen_AnderenBlijvenVerwijderd() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "type", "voorkeur").count();
+
+        UUID corruptePartijId = createPartijZonderIdentificatie();
+        UUID corrupteVoorkeurId = createVoorkeur(corruptePartijId, ouderDanGrens(), null);
+
+        UUID geldigePartijId = createPartij();
+        UUID geldigeVoorkeurId = createVoorkeur(geldigePartijId, ouderDanGrens(), null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertNull(Voorkeur.<Voorkeur>findById(corrupteVoorkeurId).getVerwijderdOp(),
+                    "een rij van een partij zonder identificatie mag niet verwijderd worden zonder logboek-vermelding");
+            Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(geldigeVoorkeurId).getVerwijderdOp(),
+                    "een geldige kandidaat mag niet geblokkeerd raken door een corrupte partij elders in de batch");
+        });
+
+        Assertions.assertEquals(anomalieVoor + 1, meterRegistry.counter("retentie.anomalie", "type", "voorkeur").count());
+    }
+
+    @Test
+    void contactgegeven_partijZonderIdentificatie_WordtOvergeslagen_AnderenBlijvenVerwijderd() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "type", "contactgegeven").count();
+
+        UUID corruptePartijId = createPartijZonderIdentificatie();
+        UUID corrupteContactId = createContactgegeven(corruptePartijId, ouderDanGrens(), null);
+
+        UUID geldigePartijId = createPartij();
+        UUID geldigeContactId = createContactgegeven(geldigePartijId, ouderDanGrens(), null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertNull(Contactgegeven.<Contactgegeven>findById(corrupteContactId).getVerwijderdOp(),
+                    "een rij van een partij zonder identificatie mag niet verwijderd worden zonder logboek-vermelding");
+            Assertions.assertNotNull(Contactgegeven.<Contactgegeven>findById(geldigeContactId).getVerwijderdOp(),
+                    "een geldige kandidaat mag niet geblokkeerd raken door een corrupte partij elders in de batch");
+        });
+
+        Assertions.assertEquals(anomalieVoor + 1, meterRegistry.counter("retentie.anomalie", "type", "contactgegeven").count());
+    }
+
+    private UUID createPartijZonderIdentificatie() {
+        AtomicReference<UUID> id = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.persist();
+            id.set(partij.id);
+        });
+        return id.get();
     }
 }

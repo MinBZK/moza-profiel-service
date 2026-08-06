@@ -26,7 +26,7 @@ import java.nio.charset.StandardCharsets;
  *   constrained (non-string) path parameter is ever added.
  * - validation.response.body.missing: false positive caused by SmallRye's class-level @Produces
  *   annotation generating an implicit content entry for responses that intentionally carry no
- *   body (e.g. 200 from updateContactgegeven / postEmailVerificatie). IGNORE is correct here:
+ *   body (e.g. 204 from updateContactgegeven, 200 from postEmailVerificatie). IGNORE is correct here:
  *   the check is structurally wrong for these endpoints, not a real spec gap.
  */
 abstract class OpenApiValidationTest {

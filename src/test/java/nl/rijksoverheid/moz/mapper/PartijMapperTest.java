@@ -23,9 +23,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -51,18 +48,18 @@ class PartijMapperTest {
     }
 
     // ---------------------------------------------------------------------
-    // Zuivere mapping (in-memory, niet-stale zodat de retentie-touch niet triggert)
+    // Zuivere mapping (in-memory)
     // ---------------------------------------------------------------------
 
     @Test
-    void toContactgegevensResponse_maptAlleVeldenEnScopes() {
+    void mapContactgegeven_maptAlleVeldenEnScopes() {
         DienstverlenerDienst link = link("Gemeente Amsterdam", "Verhuizen");
         Contactgegeven cg = contactgegeven(ContactType.Email, "test@example.com");
         cg.setIsGeverifieerd(true);
         cg.setIsDefault(true);
         cg.addScope(new ScopeContactgegeven(cg, link));
 
-        ContactgegevenResponse response = partijMapper.toContactgegevensResponse(cg);
+        ContactgegevenResponse response = partijMapper.mapContactgegeven(cg);
 
         Assertions.assertEquals(cg.id, response.id);
         Assertions.assertEquals(ContactType.Email, response.type);
@@ -75,24 +72,24 @@ class PartijMapperTest {
     }
 
     @Test
-    void toContactgegevensResponse_scopeZonderDienst_dienstNaamIsNull() {
+    void mapContactgegeven_scopeZonderDienst_dienstNaamIsNull() {
         DienstverlenerDienst link = new DienstverlenerDienst(dienstverlener("Gemeente Utrecht"), null);
         Contactgegeven cg = contactgegeven(ContactType.Email, "geen-dienst@example.com");
         cg.addScope(new ScopeContactgegeven(cg, link));
 
-        ContactgegevenResponse response = partijMapper.toContactgegevensResponse(cg);
+        ContactgegevenResponse response = partijMapper.mapContactgegeven(cg);
 
         Assertions.assertEquals("Gemeente Utrecht", response.scopes.get(0).dienstverlenerNaam);
         Assertions.assertNull(response.scopes.get(0).dienstNaam);
     }
 
     @Test
-    void toVoorkeurResponse_maptAlleVeldenEnScopes() {
+    void mapVoorkeur_maptAlleVeldenEnScopes() {
         DienstverlenerDienst link = link("Gemeente Rotterdam", "Parkeren");
         Voorkeur voorkeur = voorkeur(VoorkeurType.WebsiteTaal, "nl");
         voorkeur.addScope(new ScopeVoorkeur(voorkeur, link));
 
-        VoorkeurResponse response = partijMapper.toVoorkeurResponse(voorkeur);
+        VoorkeurResponse response = partijMapper.mapVoorkeur(voorkeur);
 
         Assertions.assertEquals(voorkeur.id, response.id);
         Assertions.assertEquals(VoorkeurType.WebsiteTaal, response.voorkeurType);
@@ -135,44 +132,8 @@ class PartijMapperTest {
     }
 
     // ---------------------------------------------------------------------
-    // Retentie-logica ("touch on read") die in de map-methodes lastUsedAt bijwerkt
-    // ---------------------------------------------------------------------
-
-    @Test
-    void toContactgegevensResponse_stale_werktLastUsedAtBij() {
-        UUID cgId = persistContactgegeven(ouder());
-        Instant voorMapping = Instant.now();
-
-        QuarkusTransaction.requiringNew().run(() ->
-                partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId)));
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Instant lastUsedAt = Contactgegeven.<Contactgegeven>findById(cgId).getLastUsedAt();
-            Assertions.assertNotNull(lastUsedAt);
-            Assertions.assertFalse(lastUsedAt.isBefore(voorMapping),
-                    "lastUsedAt moet het moment van lezen weerspiegelen");
-        });
-    }
-
-    @Test
-    void toContactgegevensResponse_nietStale_laatLastUsedAtOngemoeid() {
-        Instant recent = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        UUID cgId = persistContactgegeven(recent);
-
-        QuarkusTransaction.requiringNew().run(() ->
-                partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId)));
-
-        QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertEquals(recent, Contactgegeven.<Contactgegeven>findById(cgId).getLastUsedAt()));
-    }
-
-    // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
-
-    private static Instant ouder() {
-        return Instant.now().minus(Duration.ofHours(48));
-    }
 
     private static Dienstverlener dienstverlener(String naam) {
         Dienstverlener dv = new Dienstverlener();
@@ -188,23 +149,21 @@ class PartijMapperTest {
         return new DienstverlenerDienst(dienstverlener(dienstverlenerNaam), dienst);
     }
 
-    /** Bouwt een niet-persistent, niet-stale contactgegeven zodat de retentie-touch niet triggert. */
+    /** Bouwt een niet-persistent contactgegeven voor mapping-tests. */
     private static Contactgegeven contactgegeven(ContactType type, String waarde) {
         Contactgegeven cg = new Contactgegeven();
         cg.id = UUID.randomUUID();
         cg.setType(type);
         cg.setWaarde(waarde);
-        cg.setLastUsedAt(Instant.now());
         return cg;
     }
 
-    /** Bouwt een niet-persistente, niet-stale voorkeur zodat de retentie-touch niet triggert. */
+    /** Bouwt een niet-persistente voorkeur voor mapping-tests. */
     private static Voorkeur voorkeur(VoorkeurType type, String waarde) {
         Voorkeur voorkeur = new Voorkeur();
         voorkeur.id = UUID.randomUUID();
         voorkeur.setVoorkeurType(type);
         voorkeur.setWaarde(waarde);
-        voorkeur.setLastUsedAt(Instant.now());
         return voorkeur;
     }
 
@@ -228,24 +187,6 @@ class PartijMapperTest {
             voorkeur.persist();
 
             id.set(partij.id);
-        });
-        return id.get();
-    }
-
-    private UUID persistContactgegeven(Instant lastUsedAt) {
-        AtomicReference<UUID> id = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Contactgegeven cg = new Contactgegeven();
-            cg.setPartij(partij);
-            cg.setType(ContactType.Email);
-            cg.setWaarde("touch@example.com");
-            cg.setLastUsedAt(lastUsedAt);
-            cg.persist();
-            id.set(cg.id);
         });
         return id.get();
     }

@@ -30,7 +30,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -196,6 +199,39 @@ public class PartijServiceTest {
         });
     }
 
+    /** Zie addContactgegeven_Duplicate_UnverifiedEmail_TouchOverleeftLatereMutatie voor de reden. */
+    @Test
+    void addVoorkeur_Existing_TouchOverleeftWaardeMutatie() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        Instant ouder = Instant.now().minus(Duration.ofHours(48));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.setLastUsedAt(ouder);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        Instant voorAanroep = Instant.now();
+        VoorkeurRequest request = new VoorkeurRequest();
+        request.voorkeurType = VoorkeurType.WebsiteTaal;
+        request.waarde = "en";
+        partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
+            Assertions.assertEquals("en", voorkeur.getWaarde());
+            Assertions.assertFalse(voorkeur.getLastUsedAt().isBefore(voorAanroep),
+                    "lastUsedAt moet de touch weerspiegelen, niet de oude waarde van vóór de aanroep");
+        });
+    }
+
     @Test
     void updateContactgegeven_Success() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
@@ -286,6 +322,58 @@ public class PartijServiceTest {
     }
 
     @Test
+    void getPartijResponse_ContactgegevenIsStale_WerktLastUsedAtBij() {
+        AtomicReference<UUID> cgId = new AtomicReference<>();
+        Instant ouder = Instant.now().minus(Duration.ofHours(48));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Email);
+            cg.setWaarde("touch@example.com");
+            cg.setLastUsedAt(ouder);
+            cg.persist();
+            cgId.set(cg.id);
+        });
+
+        Instant voorLezen = Instant.now();
+        partijService.getPartijResponse(IdentificatieType.BSN, "123456789", new PartijRequest());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Instant lastUsedAt = Contactgegeven.<Contactgegeven>findById(cgId.get()).getLastUsedAt();
+            Assertions.assertNotNull(lastUsedAt);
+            Assertions.assertFalse(lastUsedAt.isBefore(voorLezen), "lastUsedAt moet het moment van lezen weerspiegelen");
+        });
+    }
+
+    @Test
+    void getPartijResponse_ContactgegevenNietStale_LaatLastUsedAtOngemoeid() {
+        AtomicReference<UUID> cgId = new AtomicReference<>();
+        Instant recent = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Email);
+            cg.setWaarde("touch@example.com");
+            cg.setLastUsedAt(recent);
+            cg.persist();
+            cgId.set(cg.id);
+        });
+
+        partijService.getPartijResponse(IdentificatieType.BSN, "123456789", new PartijRequest());
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(recent, Contactgegeven.<Contactgegeven>findById(cgId.get()).getLastUsedAt()));
+    }
+
+    @Test
     void addContactgegeven_Duplicate_NewScope_AddsScopeToExisting() {
         createTestDienstverlenerWithDienst();
 
@@ -367,6 +455,45 @@ public class PartijServiceTest {
             Assertions.assertEquals("second-ref", contact.getVerificatieReferentieId());
             Assertions.assertNull(contact.getGeverifieerdAt());
             Assertions.assertFalse(contact.isIsGeverifieerd());
+        });
+    }
+
+    /**
+     * touchIfStale is een bulk update die buiten de persistence context om schrijft; als de
+     * entity ná die aanroep nog verder gemuteerd wordt (hier: requestAndApplyVerificatieCode),
+     * overschrijft de flush van die entity bij commit de touch weer met de oude, in-memory
+     * lastUsedAt. Deze test legt vast dat de touch de mutatie moet overleven.
+     */
+    @Test
+    void addContactgegeven_Duplicate_UnverifiedEmail_TouchOverleeftLatereMutatie() {
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        Instant ouder = Instant.now().minus(Duration.ofHours(48));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("stale-unverified@test.com");
+            contact.setPartij(partij);
+            contact.setLastUsedAt(ouder);
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        Instant voorAanroep = Instant.now();
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Email;
+        request.waarde = "stale-unverified@test.com";
+        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Instant lastUsedAt = Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt();
+            Assertions.assertFalse(lastUsedAt.isBefore(voorAanroep),
+                    "lastUsedAt moet de touch weerspiegelen, niet de oude waarde van vóór de aanroep");
         });
     }
 
@@ -835,9 +962,9 @@ public class PartijServiceTest {
         // eenheid dan Java's Instant, dus een in-memory "voor" kan net na afronding groter lijken
         // dan de teruggelezen waarde. Nog altijd 100x strenger dan de oude plusSeconds(5)-marge.
         Instant voor = Instant.now().minusMillis(50);
-        PartijService.VerwijderResultaat result = partijService.verwijderVoorkeur(voorkeurId.get());
+        Voorkeur result = partijService.verwijderVoorkeur(voorkeurId.get());
 
-        Assertions.assertEquals(PartijService.VerwijderResultaat.VERWIJDERD, result);
+        Assertions.assertNotNull(result);
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
             Assertions.assertNotNull(voorkeur.getVerwijderdOp());
@@ -846,13 +973,13 @@ public class PartijServiceTest {
     }
 
     @Test
-    void verwijderVoorkeur_VoorkeurNotFound_ReturnsNietGevonden() {
-        PartijService.VerwijderResultaat result = partijService.verwijderVoorkeur(UUID.randomUUID());
-        Assertions.assertEquals(PartijService.VerwijderResultaat.NIET_GEVONDEN, result);
+    void verwijderVoorkeur_VoorkeurNotFound_ReturnsNull() {
+        Voorkeur result = partijService.verwijderVoorkeur(UUID.randomUUID());
+        Assertions.assertNull(result);
     }
 
     @Test
-    void verwijderVoorkeur_AlreadyVerwijderd_ReturnsAlVerwijderd() {
+    void verwijderVoorkeur_AlreadyVerwijderd_ReturnsNull() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         AtomicReference<Instant> origineelVerwijderdOp = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
@@ -864,16 +991,15 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
             voorkeur.persist();
             voorkeurId.set(voorkeur.id);
             origineelVerwijderdOp.set(voorkeur.getVerwijderdOp());
         });
 
-        PartijService.VerwijderResultaat result = partijService.verwijderVoorkeur(voorkeurId.get());
+        Voorkeur result = partijService.verwijderVoorkeur(voorkeurId.get());
 
-        Assertions.assertEquals(PartijService.VerwijderResultaat.AL_VERWIJDERD, result,
-                "een herhaalde verwijdering moet idempotent zijn, geen 404");
+        Assertions.assertNull(result, "een al-verwijderde voorkeur wordt behandeld als niet gevonden");
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(origineelVerwijderdOp.get(),
                         Voorkeur.<Voorkeur>findById(voorkeurId.get()).getVerwijderdOp(),
@@ -900,9 +1026,9 @@ public class PartijServiceTest {
         // eenheid dan Java's Instant, dus een in-memory "voor" kan net na afronding groter lijken
         // dan de teruggelezen waarde. Nog altijd 100x strenger dan de oude plusSeconds(5)-marge.
         Instant voor = Instant.now().minusMillis(50);
-        PartijService.VerwijderResultaat result = partijService.verwijderContactgegeven(contactId.get());
+        Contactgegeven result = partijService.verwijderContactgegeven(contactId.get());
 
-        Assertions.assertEquals(PartijService.VerwijderResultaat.VERWIJDERD, result);
+        Assertions.assertNotNull(result);
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven contact = Contactgegeven.findById(contactId.get());
             Assertions.assertNotNull(contact.getVerwijderdOp());
@@ -911,13 +1037,13 @@ public class PartijServiceTest {
     }
 
     @Test
-    void verwijderContactgegeven_ContactNotFound_ReturnsNietGevonden() {
-        PartijService.VerwijderResultaat result = partijService.verwijderContactgegeven(UUID.randomUUID());
-        Assertions.assertEquals(PartijService.VerwijderResultaat.NIET_GEVONDEN, result);
+    void verwijderContactgegeven_ContactNotFound_ReturnsNull() {
+        Contactgegeven result = partijService.verwijderContactgegeven(UUID.randomUUID());
+        Assertions.assertNull(result);
     }
 
     @Test
-    void verwijderContactgegeven_AlreadyVerwijderd_ReturnsAlVerwijderd() {
+    void verwijderContactgegeven_AlreadyVerwijderd_ReturnsNull() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
         AtomicReference<Instant> origineelVerwijderdOp = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
@@ -929,16 +1055,15 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+            contact.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
             contact.persist();
             contactId.set(contact.id);
             origineelVerwijderdOp.set(contact.getVerwijderdOp());
         });
 
-        PartijService.VerwijderResultaat result = partijService.verwijderContactgegeven(contactId.get());
+        Contactgegeven result = partijService.verwijderContactgegeven(contactId.get());
 
-        Assertions.assertEquals(PartijService.VerwijderResultaat.AL_VERWIJDERD, result,
-                "een herhaalde verwijdering moet idempotent zijn, geen 404");
+        Assertions.assertNull(result, "een al-verwijderd contactgegeven wordt behandeld als niet gevonden");
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(origineelVerwijderdOp.get(),
                         Contactgegeven.<Contactgegeven>findById(contactId.get()).getVerwijderdOp(),
@@ -1033,7 +1158,7 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+            contact.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
             contact.persist();
             verwijderdId.set(contact.id);
             verwijderdOp.set(contact.getVerwijderdOp());
@@ -1052,6 +1177,45 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(verwijderdOp.get(), Contactgegeven.<Contactgegeven>findById(verwijderdId.get()).getVerwijderdOp(),
                         "de oude zachtverwijderde rij moet ongemoeid blijven"));
+    }
+
+    /**
+     * Herhaald toevoegen/verwijderen van dezelfde (partij, type, waarde) mag niet vastlopen op de
+     * findActief-lookup in addContactgegeven: elke cyclus moet een nieuwe rij aanmaken, ook als er
+     * al meerdere soft deleted rijen met dezelfde waarde bestaan.
+     * <p>
+     * Dit toetst de servicelaag, niet de partiële unique index zelf (uk_contactgegeven_dedup,
+     * WHERE verwijderd_op IS NULL): Contactgegeven heeft bewust geen {@code @UniqueConstraint}
+     * (zie de klasse-comment daar), dus H2's testschema kent die index niet. Dat de index in
+     * productie ook echt partieel is, verifieert MigrationValidationTest tegen echte Postgres.
+     */
+    @Test
+    void addContactgegeven_MeerdereCyclusVanToevoegenEnVerwijderen_LaatMeerdereVerwijderdeRijenToe() {
+        ContactgegevenRequest request = new ContactgegevenRequest();
+        request.type = ContactType.Telefoonnummer;
+        request.waarde = "0612345678";
+
+        UUID eersteId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).contactgegeven().id;
+        partijService.verwijderContactgegeven(eersteId);
+
+        UUID tweedeId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).contactgegeven().id;
+        partijService.verwijderContactgegeven(tweedeId);
+
+        UUID derdeId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).contactgegeven().id;
+
+        Assertions.assertNotEquals(eersteId, tweedeId);
+        Assertions.assertNotEquals(tweedeId, derdeId);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            List<Contactgegeven> alleRijen = Contactgegeven.list("waarde", "0612345678");
+            Assertions.assertEquals(3, alleRijen.size(), "elke cyclus voegt een nieuwe rij toe, geen hergebruik");
+
+            long actief = alleRijen.stream().filter(c -> c.getVerwijderdOp() == null).count();
+            Assertions.assertEquals(1, actief, "precies één rij mag actief zijn");
+            Assertions.assertNull(Contactgegeven.<Contactgegeven>findById(derdeId).getVerwijderdOp());
+            Assertions.assertNotNull(Contactgegeven.<Contactgegeven>findById(eersteId).getVerwijderdOp());
+            Assertions.assertNotNull(Contactgegeven.<Contactgegeven>findById(tweedeId).getVerwijderdOp());
+        });
     }
 
     @Test
@@ -1099,7 +1263,7 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
+            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
             voorkeur.persist();
             verwijderdId.set(voorkeur.id);
             verwijderdOp.set(voorkeur.getVerwijderdOp());

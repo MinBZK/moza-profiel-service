@@ -31,9 +31,6 @@ import java.util.UUID;
 // kan geen WHERE-clausule uitdrukken, dus staat die hier bewust niet: een niet-partiële variant
 // via deze annotatie zou in de door Hibernate gegenereerde testschema's (H2, drop-and-create)
 // weer duplicaten tegen zachtverwijderde rijen blokkeren, terwijl productie dat toestaat.
-// Gevolg: de H2-testsuite heeft hier geen DB-niveau vangnet meer, alleen PartijService's eigen
-// existingDuplicateExists-check. MigrationValidationTest verifieert tegen echte Postgres dat de
-// partiële index zelf klopt; een bug in existingDuplicateExists zelf zou geen van beide vangen.
 @Entity
 @Audited
 public class Contactgegeven extends PanacheEntityBase {
@@ -186,13 +183,18 @@ public class Contactgegeven extends PanacheEntityBase {
         return verwijderdOp;
     }
 
-    public void setVerwijderdOp(@Nullable Instant verwijderdOp) {
+    public void setVerwijderdOp(Instant verwijderdOp) {
         this.verwijderdOp = verwijderdOp;
     }
 
     @Nullable
     public static Contactgegeven findActiefById(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
+    }
+
+    @Nullable
+    public static Contactgegeven findActiefById(UUID id) {
+        return find("id = ?1 AND verwijderdOp IS NULL", id).firstResult();
     }
 
     @Nullable

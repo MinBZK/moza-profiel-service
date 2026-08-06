@@ -8,11 +8,9 @@ import io.opentelemetry.context.Context;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
-import nl.rijksoverheid.moz.common.LogboekConstants;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -25,6 +23,7 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -54,16 +53,17 @@ public class RetentieScheduler {
     private static final String MAX_PER_RUN_PROPERTY = "retentie.scheduler.max-per-run";
     private static final int MAX_PER_RUN_DEFAULT = 10_000;
 
-    @Inject
-    HashHelper hashHelper;
-
-    @Inject
-    ProcessingHandler processingHandler;
-
-    @Inject
-    MeterRegistry meterRegistry;
+    private final HashHelper hashHelper;
+    private final ProcessingHandler processingHandler;
+    private final MeterRegistry meterRegistry;
 
     private final AtomicLong laatsteRunEpochSeconds = new AtomicLong(0);
+
+    public RetentieScheduler(HashHelper hashHelper, ProcessingHandler processingHandler, MeterRegistry meterRegistry) {
+        this.hashHelper = hashHelper;
+        this.processingHandler = processingHandler;
+        this.meterRegistry = meterRegistry;
+    }
 
     @PostConstruct
     void registerGauge() {
@@ -98,17 +98,25 @@ public class RetentieScheduler {
         List<Voorkeur> kandidaten = Voorkeur.find(
                 "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", berekenGrens(nu)).list();
 
-        if (overschrijdtMaxPerRun("voorkeuren", kandidaten.size())) {
+        if (overschrijdtMaxPerRun("voorkeur", kandidaten.size())) {
             return;
         }
 
+        int verwijderd = 0;
+
         for (Voorkeur voorkeur : kandidaten) {
+            // Logging (en dus identiteitsresolutie) vóór de mutatie: een rij mag niet als
+            // verwijderd achterblijven zonder logboek-vermelding.
+            if (!logVerwijderingOfSlaOver("verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID, voorkeur.getPartij(), voorkeur.id, "voorkeur")) {
+                continue;
+            }
+
             voorkeur.setVerwijderdOp(nu);
-            logVerwijdering("verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID, voorkeur.getPartij());
+            verwijderd++;
         }
 
-        meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(kandidaten.size());
-        LOG.info("Retentiescheduler: " + kandidaten.size() + " voorkeuren verwijderd");
+        meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
+        LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
     }
 
     @Transactional
@@ -117,20 +125,26 @@ public class RetentieScheduler {
         List<Contactgegeven> kandidaten = Contactgegeven.find(
                 "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", berekenGrens(nu)).list();
 
-        if (overschrijdtMaxPerRun("contactgegevens", kandidaten.size())) {
+        if (overschrijdtMaxPerRun("contactgegeven", kandidaten.size())) {
             return;
         }
 
+        int verwijderd = 0;
+
         for (Contactgegeven contact : kandidaten) {
+            if (!logVerwijderingOfSlaOver("verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, contact.getPartij(), contact.id, "contactgegeven")) {
+                continue;
+            }
+
             contact.setVerwijderdOp(nu);
             // Net als bij handmatig verwijderen (PartijService.verwijderContactgegeven): mag het
             // default-slot van de partiële index niet blijven bezetten.
             contact.setIsDefault(false);
-            logVerwijdering("verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, contact.getPartij());
+            verwijderd++;
         }
 
-        meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(kandidaten.size());
-        LOG.info("Retentiescheduler: " + kandidaten.size() + " contactgegevens verwijderd");
+        meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
+        LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
     }
 
     private static Instant berekenGrens(Instant nu) {
@@ -138,7 +152,7 @@ public class RetentieScheduler {
     }
 
     private boolean overschrijdtMaxPerRun(String type, int aantalKandidaten) {
-        int grens = ConfigProvider.getConfig()
+        final int grens = ConfigProvider.getConfig()
                 .getOptionalValue(MAX_PER_RUN_PROPERTY, Integer.class)
                 .orElse(MAX_PER_RUN_DEFAULT);
 
@@ -154,24 +168,30 @@ public class RetentieScheduler {
         return true;
     }
 
-    private void logVerwijdering(String naam, String processingActivityId, Partij partij) {
+    // Per rij overslaan i.p.v. de ontbrekende identificatie te laten throwen: een throw zou de hele
+    // batch terugdraaien, en de corrupte rij zou elke volgende run opnieuw de anderen blokkeren.
+    private boolean logVerwijderingOfSlaOver(String naam, String processingActivityId, Partij partij, UUID entityId, String type) {
         Identificatie identificatie = partij.primaireIdentificatie();
+
+        if (identificatie == null) {
+            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie
+            // of een misgelopen migratie, niet op een routinegeval.
+            LOG.error("Retentiescheduler: partij " + partij.id + " heeft geen identificatie (invariant violation, "
+                    + "zie findOrCreatePartij); " + type + " " + entityId + " wordt overgeslagen, niet verwijderd");
+            meterRegistry.counter("retentie.anomalie", "type", type).increment();
+
+            return false;
+        }
 
         LogboekContext ctx = new LogboekContext();
         ctx.setProcessingActivityId(processingActivityId);
-
-        if (identificatie != null) {
-            ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()));
-            ctx.setDataSubjectType(String.valueOf(identificatie.getIdentificatieType()));
-        } else {
-            LOG.warn("Partij " + partij.id + " heeft geen identificatie (geschonden invariant); logboek-subject kan niet worden bepaald");
-            ctx.setDataSubjectId(LogboekConstants.GEEN_SUBJECT);
-            ctx.setDataSubjectType("ONBEKEND");
-        }
-
+        ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()));
+        ctx.setDataSubjectType(String.valueOf(identificatie.getIdentificatieType()));
         ctx.setStatus(StatusCode.OK);
         Span span = processingHandler.startSpan(naam, Context.current());
         processingHandler.addLogboekContextToSpan(span, ctx);
         span.end();
+
+        return true;
     }
 }

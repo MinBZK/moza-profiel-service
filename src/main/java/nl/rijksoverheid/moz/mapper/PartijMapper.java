@@ -14,33 +14,22 @@ import nl.rijksoverheid.moz.entity.Voorkeur;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
-import org.mapstruct.Named;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 
 /**
- * Mapt {@link Partij}-entiteiten naar hun response-DTO's.
- * <p>
- * Het zuivere veld-voor-veld kopiëren wordt door MapStruct gegenereerd. De methodes
- * {@link #toContactgegevensResponse(Contactgegeven)} en {@link #toVoorkeurResponse(Voorkeur)}
- * bevatten daarnaast retentie-logica ("touch on read"): wanneer een gegeven lang niet is
- * gebruikt wordt {@code lastUsedAt} bijgewerkt. Die business-logica is bewust handgeschreven
- * en delegeert het kopiëren naar de door MapStruct gegenereerde {@code map*}-methodes.
- * Het laden van de contactgegevens/voorkeuren zelf hoort niet hier: die databasetoegang is aan
- * de aanroeper (zie {@link nl.rijksoverheid.moz.services.PartijService}), zodat deze klasse een
- * zuivere mapper blijft.
+ * Mapt {@link Partij}-entiteiten naar hun response-DTO's. Zuiver veld-voor-veld kopiëren,
+ * gegenereerd door MapStruct. Geen databasetoegang: het laden van de contactgegevens/voorkeuren
+ * is aan de aanroeper, zie {@link nl.rijksoverheid.moz.services.PartijService}.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public abstract class PartijMapper {
 
-    private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
-
     @Mapping(target = "partijId", source = "partij.id")
     @Mapping(target = "identificaties", source = "partij.identificaties")
-    @Mapping(target = "contactgegevens", source = "contactgegevens", qualifiedByName = "contactgegevenMetGebruik")
-    @Mapping(target = "voorkeuren", source = "voorkeuren", qualifiedByName = "voorkeurMetGebruik")
+    // Bron expliciet aan de parameter gebonden, niet aan partij.contactgegevens/partij.voorkeuren.
+    @Mapping(target = "contactgegevens", source = "contactgegevens")
+    @Mapping(target = "voorkeuren", source = "voorkeuren")
     public abstract PartijResponse toResponse(
             Partij partij,
             List<Contactgegeven> contactgegevens,
@@ -48,27 +37,9 @@ public abstract class PartijMapper {
 
     abstract IdentificatieResponse toIdentificatieResponse(Identificatie identificatie);
 
-    @Named("contactgegevenMetGebruik")
-    public ContactgegevenResponse toContactgegevensResponse(Contactgegeven cg) {
-        if (isStale(cg.getLastUsedAt())) {
-            Contactgegeven.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), cg.id);
-        }
+    public abstract ContactgegevenResponse mapContactgegeven(Contactgegeven cg);
 
-        return mapContactgegeven(cg);
-    }
-
-    @Named("voorkeurMetGebruik")
-    public VoorkeurResponse toVoorkeurResponse(Voorkeur voorkeur) {
-        if (isStale(voorkeur.getLastUsedAt())) {
-            Voorkeur.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), voorkeur.id);
-        }
-
-        return mapVoorkeur(voorkeur);
-    }
-
-    abstract ContactgegevenResponse mapContactgegeven(Contactgegeven cg);
-
-    abstract VoorkeurResponse mapVoorkeur(Voorkeur voorkeur);
+    public abstract VoorkeurResponse mapVoorkeur(Voorkeur voorkeur);
 
     @Mapping(target = "dienstverlenerNaam", source = "dienstverlenerDienst.dienstverlener.naam")
     @Mapping(target = "dienstNaam", source = "dienstverlenerDienst.dienst.naam")
@@ -77,9 +48,4 @@ public abstract class PartijMapper {
     @Mapping(target = "dienstverlenerNaam", source = "dienstverlenerDienst.dienstverlener.naam")
     @Mapping(target = "dienstNaam", source = "dienstverlenerDienst.dienst.naam")
     abstract ScopeResponse toScopeResponse(ScopeVoorkeur scope);
-
-    private static boolean isStale(Instant lastUsedAt) {
-        return lastUsedAt == null
-                || lastUsedAt.plus(LAST_USED_TOUCH_THRESHOLD).isBefore(Instant.now());
-    }
 }

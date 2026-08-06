@@ -70,10 +70,10 @@ public class Partij extends PanacheEntityBase {
     }
 
     /**
-     * Deterministische keuze uit de identificaties, voor logboek-doeleinden waar precies één
-     * identificatie nodig is. Sorteert op type dan nummer; die volgorde is stabiel maar draagt
-     * verder geen betekenis (geen "primaire" identificatie in domeinzin). {@code null} als de
-     * partij geen identificaties heeft, wat een geschonden invariant is (zie findOrCreatePartij).
+     * Deterministische keuze uit de identificaties, voor wanneer precies één identificatie nodig
+     * is. Sorteert op type dan nummer; die volgorde is stabiel maar draagt verder geen betekenis
+     * (geen "primaire" identificatie in domeinzin). {@code null} als de partij geen identificaties
+     * heeft (invariant violation, zie findOrCreatePartij).
      */
     public Identificatie primaireIdentificatie() {
         return identificaties.stream()

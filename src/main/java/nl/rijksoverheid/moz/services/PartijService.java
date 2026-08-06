@@ -26,6 +26,7 @@ import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +42,10 @@ public class PartijService {
     private static final Logger LOG = Logger.getLogger(PartijService.class);
 
     private static final String ACTIEF = "verwijderdOp IS NULL";
+
+    // Binnen deze drempel mag een leesactie (GET/POST) geen schrijfactie veroorzaken: anders zou
+    // elke aanroep lastUsedAt bijwerken. Zie touchIfStale.
+    private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
     private final PartijMapper partijMapper;
     private final EmailVerificatieService emailVerificatieService;
@@ -58,8 +63,6 @@ public class PartijService {
     public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean scopeAdded) {}
 
     public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated) {}
-
-    public enum VerwijderResultaat { VERWIJDERD, AL_VERWIJDERD, NIET_GEVONDEN }
 
     @Transactional
     public AddContactgegevenResult addContactgegeven(
@@ -84,13 +87,19 @@ public class PartijService {
                 LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
             }
 
-            if (link == null || hasContactgegevenScopeFor(existing.getScopes(), link)) {
-                return new AddContactgegevenResult(existing, false, false);
+            boolean scopeAdded = false;
+
+            if (link != null && !hasContactgegevenScopeFor(existing.getScopes(), link)) {
+                existing.addScope(new ScopeContactgegeven(existing, link));
+                scopeAdded = true;
             }
 
-            existing.addScope(new ScopeContactgegeven(existing, link));
+            // Ná alle mutaties hierboven: touchIfStale is een bulk-update die buiten de
+            // persistence context om schrijft. Vóór verdere mutaties aanroepen zou hem laten
+            // overschrijven door de flush van deze (dan alsnog dirty) entity bij commit.
+            touchIfStale(existing);
 
-            return new AddContactgegevenResult(existing, false, true);
+            return new AddContactgegevenResult(existing, false, scopeAdded);
         }
 
         Contactgegeven contactgegeven = new Contactgegeven();
@@ -98,6 +107,7 @@ public class PartijService {
         contactgegeven.setType(request.type);
         contactgegeven.setWaarde(normalisedWaarde);
         contactgegeven.setGeverifieerdAt(null);
+        contactgegeven.setLastUsedAt(Instant.now());
 
         if (request.type == ContactType.Email) {
             requestAndApplyVerificatieCode(contactgegeven);
@@ -135,6 +145,9 @@ public class PartijService {
                 existing.setWaarde(request.waarde);
             }
 
+            // Ná de mutatie hierboven: zie de toelichting bij touchIfStale in addContactgegeven.
+            touchIfStale(existing);
+
             return new AddVoorkeurResult(existing, false);
         }
 
@@ -142,6 +155,7 @@ public class PartijService {
         voorkeur.setPartij(partij);
         voorkeur.setVoorkeurType(request.voorkeurType);
         voorkeur.setWaarde(request.waarde);
+        voorkeur.setLastUsedAt(Instant.now());
 
         if (link != null) {
             voorkeur.addScope(new ScopeVoorkeur(voorkeur, link));
@@ -279,9 +293,8 @@ public class PartijService {
     }
 
     private boolean existingDuplicateExists(Partij partij, ContactType type, String waarde, UUID exceptId) {
-        // Alleen actieve rijen tellen mee: uk_contactgegeven_dedup is partieel
-        // (WHERE verwijderd_op IS NULL), dus een PUT die botst met een zachtverwijderde rij
-        // is geen conflict — die rij bezet de unieke sleutel niet meer.
+        // Alleen actieve rows tellen mee: uk_contactgegeven_dedup is partieel,
+        // dus een PUT die botst met een soft deleted row is geen conflict
         return Contactgegeven.existsActief(partij, type, waarde, exceptId);
     }
 
@@ -342,47 +355,29 @@ public class PartijService {
         }
     }
 
-    // Logboek-only lookups: ignoreren verwijderdOp bewust, zodat een al-verwijderde rij nog een
-    // echt subject oplevert om te loggen. De naam zegt dat expliciet: gebruik deze niet als
-    // gewone lookup.
-    public Voorkeur findVoorkeurByIdInclusiefVerwijderd(UUID id) {
-        return Voorkeur.findById(id);
-    }
-
-    public Contactgegeven findContactgegevenByIdInclusiefVerwijderd(UUID id) {
-        return Contactgegeven.findById(id);
-    }
-
-    // Bulk update, geen entity-load: de controller heeft de entity vlak hiervoor al geladen
-    // (via findVoorkeurByIdInclusiefVerwijderd, voor het logboek) maar die instance wordt daarna
-    // nergens meer gelezen. Mocht dat ooit wel gebeuren binnen dezelfde transactie, dan is die
-    // instance stale — bulk updates gaan buiten de persistence context om.
-    // Bij 0 gewijzigde rijen volgt één losse count() om "nooit bestaan" te onderscheiden van
-    // "al verwijderd" — dat blijft goedkoper dan de entity zelf te laden.
     @Transactional
-    public VerwijderResultaat verwijderVoorkeur(UUID id) {
-        Instant nu = Instant.now();
+    public Voorkeur verwijderVoorkeur(UUID id) {
+        Voorkeur voorkeur = Voorkeur.findActiefById(id);
 
-        if (Voorkeur.update("verwijderdOp = ?1, lastUpdated = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0) {
-            return VerwijderResultaat.VERWIJDERD;
+        if (voorkeur != null) {
+            voorkeur.setVerwijderdOp(Instant.now());
         }
 
-        return Voorkeur.count("id = ?1", id) > 0 ? VerwijderResultaat.AL_VERWIJDERD : VerwijderResultaat.NIET_GEVONDEN;
+        return voorkeur;
     }
 
-    // Zie toelichting bij verwijderVoorkeur. isDefault wordt hier ook gewist: een zachtverwijderd
-    // contactgegeven mag het slot van de partiële index contactgegeven_default_per_type
-    // (WHERE is_default = true AND verwijderd_op IS NULL) niet blijven bezetten.
+    // isDefault wordt hier gewist: een soft deleted contactgegeven
+    // mag het slot van de partiële index contactgegeven_default_per_type niet blijven bezetten.
     @Transactional
-    public VerwijderResultaat verwijderContactgegeven(UUID id) {
-        Instant nu = Instant.now();
+    public Contactgegeven verwijderContactgegeven(UUID id) {
+        Contactgegeven contact = Contactgegeven.findActiefById(id);
 
-        if (Contactgegeven.update(
-                "verwijderdOp = ?1, lastUpdated = ?1, isDefault = false WHERE id = ?2 AND verwijderdOp IS NULL", nu, id) > 0) {
-            return VerwijderResultaat.VERWIJDERD;
+        if (contact != null) {
+            contact.setVerwijderdOp(Instant.now());
+            contact.setIsDefault(false);
         }
 
-        return Contactgegeven.count("id = ?1", id) > 0 ? VerwijderResultaat.AL_VERWIJDERD : VerwijderResultaat.NIET_GEVONDEN;
+        return contact;
     }
 
     @Transactional
@@ -398,9 +393,17 @@ public class PartijService {
                             "SELECT p FROM Partij p JOIN p.identificaties i " +
                             "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2",
                             entry.getKey(), entry.getValue());
+
                     return found.stream();
                 })
-                .map(partij -> partijMapper.toResponse(partij, Contactgegeven.findActief(partij), Voorkeur.findActief(partij)))
+                .map(partij -> {
+                    List<Contactgegeven> contactgegevens = Contactgegeven.findActief(partij);
+                    List<Voorkeur> voorkeuren = Voorkeur.findActief(partij);
+                    contactgegevens.forEach(this::touchIfStale);
+                    voorkeuren.forEach(this::touchIfStale);
+
+                    return partijMapper.toResponse(partij, contactgegevens, voorkeuren);
+                })
                 .toList();
     }
 
@@ -409,14 +412,40 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return null;
 
+        List<Contactgegeven> contactgegevens;
+        List<Voorkeur> voorkeuren;
+
         if (partijRequest.isEmpty()) {
-            return partijMapper.toResponse(partij, Contactgegeven.findActief(partij), Voorkeur.findActief(partij));
+            contactgegevens = Contactgegeven.findActief(partij);
+            voorkeuren = Voorkeur.findActief(partij);
+        } else {
+            contactgegevens = findFilteredContactgegevens(partij, partijRequest);
+            voorkeuren = findFilteredVoorkeuren(partij, partijRequest);
         }
 
-        List<Contactgegeven> filteredContacts = findFilteredContactgegevens(partij, partijRequest);
-        List<Voorkeur> filteredVoorkeuren = findFilteredVoorkeuren(partij, partijRequest);
+        contactgegevens.forEach(this::touchIfStale);
+        voorkeuren.forEach(this::touchIfStale);
 
-        return partijMapper.toResponse(partij, filteredContacts, filteredVoorkeuren);
+        return partijMapper.toResponse(partij, contactgegevens, voorkeuren);
+    }
+
+    // Bulk update, geen setter: lastUpdated (via @PreUpdate) mag niet meebewegen met een touch-on-
+    // read, alleen met een echte veldwijziging. Zie ProfielControllerIntegrationTest.getPartij_ReadDoesNotBumpLastUpdated.
+    private void touchIfStale(Contactgegeven cg) {
+        if (isStale(cg.getLastUsedAt())) {
+            Contactgegeven.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), cg.id);
+        }
+    }
+
+    private void touchIfStale(Voorkeur voorkeur) {
+        if (isStale(voorkeur.getLastUsedAt())) {
+            Voorkeur.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), voorkeur.id);
+        }
+    }
+
+    private static boolean isStale(Instant lastUsedAt) {
+        return lastUsedAt == null
+                || lastUsedAt.plus(LAST_USED_TOUCH_THRESHOLD).isBefore(Instant.now());
     }
 
     /**

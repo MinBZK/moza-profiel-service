@@ -132,13 +132,18 @@ public class Voorkeur extends PanacheEntityBase {
         return verwijderdOp;
     }
 
-    public void setVerwijderdOp(@Nullable Instant verwijderdOp) {
+    public void setVerwijderdOp(Instant verwijderdOp) {
         this.verwijderdOp = verwijderdOp;
     }
 
     @Nullable
     public static Voorkeur findActiefById(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
+    }
+
+    @Nullable
+    public static Voorkeur findActiefById(UUID id) {
+        return find("id = ?1 AND verwijderdOp IS NULL", id).firstResult();
     }
 
     public static List<Voorkeur> findActief(Partij partij) {
