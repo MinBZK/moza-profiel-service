@@ -450,6 +450,11 @@ tags:
   description: Endpoints voor het verifiëren van emails
 - name: Profiel
   description: Endpoints voor het beheren van partijen
+# De responses staan per operatie op volgorde: eerst de succescode, daarna de
+# foutcodes oplopend. Voor OpenAPI zelf is die volgorde betekenisloos, maar zodra
+# server-interfaces gegenereerd worden (#751) leidt de generator er @Produces uit
+# af, en kiest JAX-RS de eerste vermelde media type als standaard. Staat een
+# foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
 paths:
   /api/profielservice/v1/contactgegeven:
     put:
@@ -466,12 +471,6 @@ paths:
               $ref: "#/components/schemas/ContactgegevenUpdateRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Contactgegeven succesvol bijgewerkt
           content:
@@ -495,6 +494,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
     post:
       summary: Toevoegen nieuwe contactgegeven voor een partij
       operationId: addContactgegeven
@@ -509,20 +514,14 @@ paths:
               $ref: "#/components/schemas/ContactgegevenRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
-        "201":
-          description: Contactgegeven succesvol toegevoegd
+        "200":
+          description: Contactgegeven was al geregistreerd voor deze partij en scope
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ContactgegevenResponse"
-        "200":
-          description: Contactgegeven was al geregistreerd voor deze partij en scope
+        "201":
+          description: Contactgegeven succesvol toegevoegd
           content:
             application/json:
               schema:
@@ -535,6 +534,12 @@ paths:
                 $ref: "#/components/schemas/HttpValidationProblem"
         "404":
           description: Dienstverlener of dienst uit de scope bestaat niet
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -554,12 +559,6 @@ paths:
               $ref: "#/components/schemas/TeVerwijderenOpRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Te-verwijderen-op succesvol bijgewerkt
           content:
@@ -579,6 +578,12 @@ paths:
                 $ref: "#/components/schemas/HttpProblem"
         "404":
           description: Contactgegeven of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -603,26 +608,26 @@ paths:
               $ref: "#/components/schemas/PartijIdentificatieRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "204":
           description: Contactgegeven succesvol verwijderd
-        "404":
-          description: Contactgegeven of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "400":
           description: Request body ontbreekt of is ongeldig
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpValidationProblem"
+        "404":
+          description: Contactgegeven of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
   /api/profielservice/v1/dienstverlener:
     post:
       summary: Voegt een dienstverlener toe
@@ -637,12 +642,6 @@ paths:
               $ref: "#/components/schemas/DienstverlenerRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "201":
           description: Dienstverlener succesvol toegevoegd
           content:
@@ -657,6 +656,12 @@ paths:
                 $ref: "#/components/schemas/HttpValidationProblem"
         "409":
           description: Dienstverlener bestaat al met conflicterende waarden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -682,12 +687,6 @@ paths:
               $ref: "#/components/schemas/DienstRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "201":
           description: Dienst succesvol toegevoegd
           content:
@@ -702,6 +701,12 @@ paths:
                 $ref: "#/components/schemas/HttpValidationProblem"
         "409":
           description: Dienst bestaat al met een andere beschrijving
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -721,12 +726,6 @@ paths:
         schema:
           type: string
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Dienstverlener succesvol opgehaald
           content:
@@ -735,6 +734,12 @@ paths:
                 $ref: "#/components/schemas/DienstverlenerResponse"
         "404":
           description: Dienstverlener niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -754,12 +759,6 @@ paths:
               $ref: "#/components/schemas/EmailVerificatieRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Email verificatie succesvol
           content:
@@ -767,6 +766,12 @@ paths:
               schema: {}
         "400":
           description: Email verificatie mislukt
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -787,12 +792,6 @@ paths:
               $ref: "#/components/schemas/EmailVerificatieCodeAanvraagRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Email verificatie code aanvraag succesvol
           content:
@@ -806,6 +805,12 @@ paths:
                 $ref: "#/components/schemas/HttpProblem"
         "404":
           description: Partij of Contactgegeven niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -830,30 +835,30 @@ paths:
               $ref: "#/components/schemas/PartijRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Partij succesvol opgehaald
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PartijResponse"
-        "404":
-          description: Partij niet gevonden of is verwijderd
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "400":
           description: Request body ontbreekt of is ongeldig
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpValidationProblem"
+        "404":
+          description: Partij niet gevonden of is verwijderd
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
   /api/profielservice/v1/partijen/bulk:
     post:
       summary: Ophalen profielen van meerdere partijen
@@ -869,12 +874,6 @@ paths:
               $ref: "#/components/schemas/PartijBulkRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Alle profielen succesvol opgehaald
           content:
@@ -903,6 +902,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
   /api/profielservice/v1/voorkeur:
     put:
       summary: Update voorkeur van een partij
@@ -918,12 +923,6 @@ paths:
               $ref: "#/components/schemas/VoorkeurUpdateRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Voorkeur succesvol bijgewerkt
           content:
@@ -947,6 +946,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
     post:
       summary: Toevoegen nieuwe voorkeur voor een partij
       operationId: addVoorkeur
@@ -961,20 +966,14 @@ paths:
               $ref: "#/components/schemas/VoorkeurRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
-        "201":
-          description: Voorkeur succesvol toegevoegd
+        "200":
+          description: Voorkeur was al geregistreerd voor deze partij en scope
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/VoorkeurResponse"
-        "200":
-          description: Voorkeur was al geregistreerd voor deze partij en scope
+        "201":
+          description: Voorkeur succesvol toegevoegd
           content:
             application/json:
               schema:
@@ -987,6 +986,12 @@ paths:
                 $ref: "#/components/schemas/HttpValidationProblem"
         "404":
           description: Dienstverlener of dienst uit de scope bestaat niet
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -1006,12 +1011,6 @@ paths:
               $ref: "#/components/schemas/TeVerwijderenOpRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "200":
           description: Te-verwijderen-op succesvol bijgewerkt
           content:
@@ -1031,6 +1030,12 @@ paths:
                 $ref: "#/components/schemas/HttpProblem"
         "404":
           description: Voorkeur of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
           content:
             application/problem+json:
               schema:
@@ -1055,26 +1060,26 @@ paths:
               $ref: "#/components/schemas/PartijIdentificatieRequest"
         required: true
       responses:
-        "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "204":
           description: Voorkeur succesvol verwijderd
-        "404":
-          description: Voorkeur of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
         "400":
           description: Request body ontbreekt of is ongeldig
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpValidationProblem"
+        "404":
+          description: Voorkeur of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          description: Interne serverfout
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
 info:
   title: MOZa Profiel Service API
   version: 1.0.0
