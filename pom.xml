@@ -91,6 +91,13 @@
             <artifactId>quarkus-openapi-generator</artifactId>
             <version>2.17.0</version>
         </dependency>
+        <!-- Contract-first server-stub generatie (JAX-RS interfaces + DTOs) uit src/main/openapi-server.
+             Shadow: gegenereerde interfaces zijn inert tot een controller ze implementeert (#651). -->
+        <dependency>
+            <groupId>io.quarkiverse.openapi.generator</groupId>
+            <artifactId>quarkus-openapi-generator-server</artifactId>
+            <version>2.16.0-lts</version>
+        </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
@@ -292,6 +299,7 @@
                 <configuration>
                     <excludes>
                         <exclude>nl/rijksoverheid/moz/external/**/*</exclude>
+                        <exclude>nl/rijksoverheid/moz/api/generated/**/*</exclude>
                     </excludes>
                 </configuration>
                 <executions>
