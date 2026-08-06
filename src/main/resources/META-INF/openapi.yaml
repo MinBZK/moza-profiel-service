@@ -27,6 +27,7 @@ components:
           $ref: "#/components/schemas/ContactType"
         waarde:
           type: string
+          pattern: ".*\\S.*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -71,6 +72,7 @@ components:
           $ref: "#/components/schemas/ContactType"
         waarde:
           type: string
+          pattern: ".*\\S.*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -107,6 +109,7 @@ components:
       properties:
         naam:
           type: string
+          pattern: ".*\\S.*"
         beschrijving:
           type: string
     DienstverlenerResponse:
@@ -146,12 +149,15 @@ components:
       properties:
         email:
           type: string
+          pattern: ".*\\S.*"
         identificatieNummer:
           type: string
+          pattern: ".*\\S.*"
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
         verificatieCode:
           type: string
+          pattern: ".*\\S.*"
     HttpProblem:
       description: HTTP Problem Response according to RFC9457 and RFC7807
       additionalProperties: true
@@ -381,6 +387,7 @@ components:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
           type: string
+          pattern: ".*\\S.*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -429,6 +436,7 @@ components:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
           type: string
+          pattern: ".*\\S.*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
