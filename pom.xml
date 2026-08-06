@@ -21,8 +21,7 @@
         <dependencies>
             <!-- Security-override: quarkus-bom 3.37.0 pint OpenTelemetry nog op 1.60.1 (Dependabot-alert).
                  De BOM MOET vóór de quarkus-bom import staan: import-scope is first-wins, dus een override
-                 ná quarkus-bom heeft geen effect. Netty (4.1.135.Final) wordt sinds 3.36.3 al door de
-                 quarkus-bom beheerd en heeft daarom geen eigen pins meer nodig. -->
+                 ná quarkus-bom heeft geen effect. -->
             <dependency>
                 <groupId>io.opentelemetry</groupId>
                 <artifactId>opentelemetry-bom</artifactId>
@@ -36,6 +35,34 @@
                 <version>1.62.0-alpha</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <!-- Security-override: quarkus-bom 3.37.0 pint Netty nog op 4.1.135.Final (meerdere
+                 Dependabot-alerts, o.a. ByteBuf-leaks en DoS-issues in de codec-modules), gefixt in
+                 4.1.136.Final. netty-bom i.p.v. losse artifact-pins zodat alle netty-modules
+                 consistent op dezelfde versie blijven. Moet vóór de quarkus-bom import staan. -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>4.1.136.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Security-override: quarkus-bom 3.37.0 pint de postgresql-driver nog op 42.7.11
+                 (Dependabot-alert: channel-binding downgrade), gefixt in 42.7.12. Moet vóór de
+                 quarkus-bom import staan. -->
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
+            </dependency>
+            <!-- Security-override: jackson-databind 2.22.0 (via logboekdataverwerking-wrapper, en
+                 mogelijk ook via quarkus-bom) heeft twee Dependabot-alerts (@JsonView-bypass bij
+                 @JsonUnwrapped, en case-insensitive deserialisatie die @JsonIgnoreProperties omzeilt),
+                 beide gefixt in 2.22.1. Moet vóór de quarkus-bom import staan. -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>2.22.1</version>
             </dependency>
             <dependency>
                 <groupId>${quarkus.platform.group-id}</groupId>
