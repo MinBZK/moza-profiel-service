@@ -1,454 +1,22 @@
 ---
 openapi: 3.1.0
-components:
-  schemas:
-    ContactType:
-      type: string
-      enum:
-      - Email
-      - Telefoonnummer
-      - ApplicatieId
-    ContactgegevenRequest:
-      description: Request object voor het toevoegen van een contactgegeven aan een
-        partij
-      type: object
-      required:
-      - identificatieType
-      - identificatieNummer
-      - type
-      - waarde
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        type:
-          $ref: "#/components/schemas/ContactType"
-        waarde:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        scope:
-          $ref: "#/components/schemas/ScopeRequest"
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-    ContactgegevenResponse:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/UUID"
-        type:
-          $ref: "#/components/schemas/ContactType"
-        waarde:
-          type: string
-        isGeverifieerd:
-          type: boolean
-        isDefault:
-          type: boolean
-        createdAt:
-          $ref: "#/components/schemas/Instant"
-        lastUpdated:
-          $ref: "#/components/schemas/Instant"
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-        scopes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScopeResponse"
-    ContactgegevenUpdateRequest:
-      type: object
-      required:
-      - identificatieType
-      - identificatieNummer
-      - type
-      - waarde
-      - id
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        type:
-          $ref: "#/components/schemas/ContactType"
-        waarde:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        scope:
-          $ref: "#/components/schemas/ScopeRequest"
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-        id:
-          $ref: "#/components/schemas/UUID"
-        isDefault:
-          type: boolean
-    DienstRequest:
-      description: Request object voor het toevoegen van een dienst aan een dienstverlener
-      type: object
-      required:
-      - naam
-      properties:
-        naam:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        beschrijving:
-          type: string
-    DienstResponse:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/UUID"
-        naam:
-          type: string
-        beschrijving:
-          type: string
-    DienstverlenerRequest:
-      description: Request object voor het toevoegen van een dienstverlener
-      type: object
-      required:
-      - naam
-      properties:
-        naam:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        beschrijving:
-          type: string
-    DienstverlenerResponse:
-      type: object
-      properties:
-        naam:
-          type: string
-        beschrijving:
-          type: string
-        diensten:
-          type: array
-          items:
-            $ref: "#/components/schemas/DienstResponse"
-    EmailVerificatieCodeAanvraagRequest:
-      type: object
-      required:
-      - email
-      - identificatieNummer
-      - identificatieType
-      properties:
-        email:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-    EmailVerificatieRequest:
-      description: Request object voor het verifiëren van een emailadres
-      # De elfproef op BSN/RSIN en de lengtecontrole op KVK zijn niet in JSON Schema
-      # uit te drukken; de generator zet daarom deze class-level constraint op de DTO.
-      # Zie IdentificatieNummerValidator en EmailVerificatieValidatieIntegrationTest.
-      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
-      type: object
-      required:
-      - email
-      - identificatieNummer
-      - identificatieType
-      - verificatieCode
-      properties:
-        email:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        verificatieCode:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-    HttpProblem:
-      description: HTTP Problem Response according to RFC9457 and RFC7807
-      additionalProperties: true
-      type: object
-      properties:
-        type:
-          type: string
-          format: uri
-          description: A optional URI reference that identifies the problem type
-          examples:
-          - https://example.com/errors/not-found
-        title:
-          type: string
-          description: "A optional, short, human-readable summary of the problem type"
-          examples:
-          - Not Found
-        status:
-          type: integer
-          format: int32
-          description: The HTTP status code for this occurrence of the problem
-          examples:
-          - 404
-        detail:
-          type: string
-          description: A optional human-readable explanation specific to this occurrence
-            of the problem
-          examples:
-          - Record not found
-        instance:
-          type: string
-          format: uri
-          description: A URI reference that identifies the specific occurrence of
-            the problem
-          examples:
-          - https://api.example.com/errors/123
-    HttpValidationProblem:
-      description: HTTP Validation Problem Response according to RFC9457 and RFC7807
-      additionalProperties: true
-      type: object
-      properties:
-        type:
-          type: string
-          format: uri
-          description: A optional URI reference that identifies the problem type
-          examples:
-          - https://example.com/errors/not-found
-        title:
-          type: string
-          description: "A optional, short, human-readable summary of the problem type"
-          examples:
-          - Not Found
-        status:
-          type: integer
-          format: int32
-          description: The HTTP status code for this occurrence of the problem
-          examples:
-          - 404
-        detail:
-          type: string
-          description: A optional human-readable explanation specific to this occurrence
-            of the problem
-          examples:
-          - Record not found
-        instance:
-          type: string
-          format: uri
-          description: A URI reference that identifies the specific occurrence of
-            the problem
-          examples:
-          - https://api.example.com/errors/123
-        violations:
-          type: array
-          items:
-            $ref: "#/components/schemas/Violation"
-          description: List of validation constraint violations that occurred
-    IdentificatieResponse:
-      type: object
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-    IdentificatieType:
-      type: string
-      enum:
-      - BSN
-      - KVK
-      - RSIN
-    Instant:
-      type: string
-      format: date-time
-      examples:
-      - 2022-03-10T16:15:50Z
-    PartijBulkRequest:
-      type: object
-      required:
-      - identificaties
-      properties:
-        identificaties:
-          type: array
-          items:
-            $ref: "#/components/schemas/PartijIdentificatieRequest"
-          minItems: 1
-    PartijIdentificatieRequest:
-      type: object
-      required:
-      - identificatieType
-      - identificatieNummer
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-    PartijRequest:
-      description: Request object voor het ophalen van een Partij
-      type: object
-      required:
-      - identificatieType
-      - identificatieNummer
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        dienstverlener:
-          type: string
-        dienstNaam:
-          type: string
-    PartijResponse:
-      type: object
-      properties:
-        partijId:
-          $ref: "#/components/schemas/UUID"
-        identificaties:
-          type: array
-          items:
-            $ref: "#/components/schemas/IdentificatieResponse"
-        voorkeuren:
-          type: array
-          items:
-            $ref: "#/components/schemas/VoorkeurResponse"
-        contactgegevens:
-          type: array
-          items:
-            $ref: "#/components/schemas/ContactgegevenResponse"
-    ScopeRequest:
-      type: object
-      properties:
-        dienstverlenerNaam:
-          type: string
-        dienstNaam:
-          type: string
-    ScopeResponse:
-      type: object
-      properties:
-        dienstverlenerNaam:
-          type: string
-        dienstNaam:
-          type: string
-    TeVerwijderenOpRequest:
-      type: object
-      required:
-      - id
-      - identificatieType
-      - identificatieNummer
-      - dienstverlenerNaam
-      - teVerwijderenOp
-      properties:
-        id:
-          $ref: "#/components/schemas/UUID"
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        dienstverlenerNaam:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        dienstNaam:
-          type: string
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-    UUID:
-      type: string
-      format: uuid
-      pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
-    Violation:
-      type: object
-      description: Validation constraint violation details
-      properties:
-        field:
-          type: string
-          description: The field for which the validation failed
-          examples:
-          - "#/profile/email"
-        in:
-          type: string
-          description: "Part of the http request where the validation error occurred\
-            \ such as query, path, header, form, body"
-          examples:
-          - query
-          - path
-          - header
-          - form
-          - body
-        message:
-          type: string
-          description: Description of the validation error
-          examples:
-          - Invalid email format
-    VoorkeurRequest:
-      type: object
-      required:
-      - identificatieType
-      - identificatieNummer
-      - voorkeurType
-      - waarde
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        voorkeurType:
-          $ref: "#/components/schemas/VoorkeurType"
-        waarde:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        scope:
-          $ref: "#/components/schemas/ScopeRequest"
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-    VoorkeurResponse:
-      type: object
-      properties:
-        id:
-          $ref: "#/components/schemas/UUID"
-        voorkeurType:
-          $ref: "#/components/schemas/VoorkeurType"
-        waarde:
-          type: string
-        createdAt:
-          $ref: "#/components/schemas/Instant"
-        lastUpdated:
-          $ref: "#/components/schemas/Instant"
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-        scopes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ScopeResponse"
-    VoorkeurType:
-      type: string
-      enum:
-      - WebsiteTaal
-      - MagGebeldWorden
-      - WebsiteThema
-      - Aanhef
-      - OntvangViaBerichtenbox
-    VoorkeurUpdateRequest:
-      type: object
-      required:
-      - identificatieType
-      - identificatieNummer
-      - voorkeurType
-      - waarde
-      - id
-      properties:
-        identificatieType:
-          $ref: "#/components/schemas/IdentificatieType"
-        identificatieNummer:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        voorkeurType:
-          $ref: "#/components/schemas/VoorkeurType"
-        waarde:
-          type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
-        scope:
-          $ref: "#/components/schemas/ScopeRequest"
-        teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
-        id:
-          $ref: "#/components/schemas/UUID"
+info:
+  title: MOZa Profiel Service API
+  version: 1.0.0
+  description: "Profiel service voor MijnOverheid Zakelijk: beheer van contactgegevens
+    en communicatievoorkeuren van partijen."
+  contact:
+    name: MijnOverheid Zakelijk Team
+    email: moza@minbzk.nl
+    url: https://docs.mijnoverheidzakelijk.nl
+  license:
+    name: EUPL-1.2
+    url: https://joinup.ec.europa.eu/software/page/eupl
+servers:
+- url: https://api.mijnoverheidzakelijk.nl/profielservice
+  description: Productie
+- url: http://localhost:8080
+  description: Lokale ontwikkelomgeving
 tags:
 - name: Dienstverlener
   description: Endpoints voor het beheren van dienstverleners en diensten
@@ -1089,20 +657,452 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
-info:
-  title: MOZa Profiel Service API
-  version: 1.0.0
-  description: "Profiel service voor MijnOverheid Zakelijk: beheer van contactgegevens
-    en communicatievoorkeuren van partijen."
-  contact:
-    name: MijnOverheid Zakelijk Team
-    email: moza@minbzk.nl
-    url: https://docs.mijnoverheidzakelijk.nl
-  license:
-    name: EUPL-1.2
-    url: https://joinup.ec.europa.eu/software/page/eupl
-servers:
-- url: https://api.mijnoverheidzakelijk.nl/profielservice
-  description: Productie
-- url: http://localhost:8080
-  description: Lokale ontwikkelomgeving
+components:
+  schemas:
+    ContactType:
+      type: string
+      enum:
+      - Email
+      - Telefoonnummer
+      - ApplicatieId
+    ContactgegevenRequest:
+      description: Request object voor het toevoegen van een contactgegeven aan een
+        partij
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - type
+      - waarde
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        type:
+          $ref: "#/components/schemas/ContactType"
+        waarde:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+    ContactgegevenResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        type:
+          $ref: "#/components/schemas/ContactType"
+        waarde:
+          type: string
+        isGeverifieerd:
+          type: boolean
+        isDefault:
+          type: boolean
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        lastUpdated:
+          $ref: "#/components/schemas/Instant"
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScopeResponse"
+    ContactgegevenUpdateRequest:
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - type
+      - waarde
+      - id
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        type:
+          $ref: "#/components/schemas/ContactType"
+        waarde:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+        id:
+          $ref: "#/components/schemas/UUID"
+        isDefault:
+          type: boolean
+    DienstRequest:
+      description: Request object voor het toevoegen van een dienst aan een dienstverlener
+      type: object
+      required:
+      - naam
+      properties:
+        naam:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        beschrijving:
+          type: string
+    DienstResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        naam:
+          type: string
+        beschrijving:
+          type: string
+    DienstverlenerRequest:
+      description: Request object voor het toevoegen van een dienstverlener
+      type: object
+      required:
+      - naam
+      properties:
+        naam:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        beschrijving:
+          type: string
+    DienstverlenerResponse:
+      type: object
+      properties:
+        naam:
+          type: string
+        beschrijving:
+          type: string
+        diensten:
+          type: array
+          items:
+            $ref: "#/components/schemas/DienstResponse"
+    EmailVerificatieCodeAanvraagRequest:
+      type: object
+      required:
+      - email
+      - identificatieNummer
+      - identificatieType
+      properties:
+        email:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+    EmailVerificatieRequest:
+      description: Request object voor het verifiëren van een emailadres
+      # De elfproef op BSN/RSIN en de lengtecontrole op KVK zijn niet in JSON Schema
+      # uit te drukken; de generator zet daarom deze class-level constraint op de DTO.
+      # Zie IdentificatieNummerValidator en EmailVerificatieValidatieIntegrationTest.
+      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
+      type: object
+      required:
+      - email
+      - identificatieNummer
+      - identificatieType
+      - verificatieCode
+      properties:
+        email:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        verificatieCode:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+    HttpProblem:
+      description: HTTP Problem Response according to RFC9457 and RFC7807
+      additionalProperties: true
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A optional URI reference that identifies the problem type
+          examples:
+          - https://example.com/errors/not-found
+        title:
+          type: string
+          description: "A optional, short, human-readable summary of the problem type"
+          examples:
+          - Not Found
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code for this occurrence of the problem
+          examples:
+          - 404
+        detail:
+          type: string
+          description: A optional human-readable explanation specific to this occurrence
+            of the problem
+          examples:
+          - Record not found
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of
+            the problem
+          examples:
+          - https://api.example.com/errors/123
+    HttpValidationProblem:
+      description: HTTP Validation Problem Response according to RFC9457 and RFC7807
+      additionalProperties: true
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A optional URI reference that identifies the problem type
+          examples:
+          - https://example.com/errors/not-found
+        title:
+          type: string
+          description: "A optional, short, human-readable summary of the problem type"
+          examples:
+          - Not Found
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code for this occurrence of the problem
+          examples:
+          - 404
+        detail:
+          type: string
+          description: A optional human-readable explanation specific to this occurrence
+            of the problem
+          examples:
+          - Record not found
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of
+            the problem
+          examples:
+          - https://api.example.com/errors/123
+        violations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Violation"
+          description: List of validation constraint violations that occurred
+    IdentificatieResponse:
+      type: object
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+    IdentificatieType:
+      type: string
+      enum:
+      - BSN
+      - KVK
+      - RSIN
+    Instant:
+      type: string
+      format: date-time
+      examples:
+      - 2022-03-10T16:15:50Z
+    PartijBulkRequest:
+      type: object
+      required:
+      - identificaties
+      properties:
+        identificaties:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartijIdentificatieRequest"
+          minItems: 1
+    PartijIdentificatieRequest:
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+    PartijRequest:
+      description: Request object voor het ophalen van een Partij
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        dienstverlener:
+          type: string
+        dienstNaam:
+          type: string
+    PartijResponse:
+      type: object
+      properties:
+        partijId:
+          $ref: "#/components/schemas/UUID"
+        identificaties:
+          type: array
+          items:
+            $ref: "#/components/schemas/IdentificatieResponse"
+        voorkeuren:
+          type: array
+          items:
+            $ref: "#/components/schemas/VoorkeurResponse"
+        contactgegevens:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactgegevenResponse"
+    ScopeRequest:
+      type: object
+      properties:
+        dienstverlenerNaam:
+          type: string
+        dienstNaam:
+          type: string
+    ScopeResponse:
+      type: object
+      properties:
+        dienstverlenerNaam:
+          type: string
+        dienstNaam:
+          type: string
+    TeVerwijderenOpRequest:
+      type: object
+      required:
+      - id
+      - identificatieType
+      - identificatieNummer
+      - dienstverlenerNaam
+      - teVerwijderenOp
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        dienstverlenerNaam:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        dienstNaam:
+          type: string
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+    UUID:
+      type: string
+      format: uuid
+      pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+    Violation:
+      type: object
+      description: Validation constraint violation details
+      properties:
+        field:
+          type: string
+          description: The field for which the validation failed
+          examples:
+          - "#/profile/email"
+        in:
+          type: string
+          description: "Part of the http request where the validation error occurred\
+            \ such as query, path, header, form, body"
+          examples:
+          - query
+          - path
+          - header
+          - form
+          - body
+        message:
+          type: string
+          description: Description of the validation error
+          examples:
+          - Invalid email format
+    VoorkeurRequest:
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - voorkeurType
+      - waarde
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        voorkeurType:
+          $ref: "#/components/schemas/VoorkeurType"
+        waarde:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+    VoorkeurResponse:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        voorkeurType:
+          $ref: "#/components/schemas/VoorkeurType"
+        waarde:
+          type: string
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        lastUpdated:
+          $ref: "#/components/schemas/Instant"
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScopeResponse"
+    VoorkeurType:
+      type: string
+      enum:
+      - WebsiteTaal
+      - MagGebeldWorden
+      - WebsiteThema
+      - Aanhef
+      - OntvangViaBerichtenbox
+    VoorkeurUpdateRequest:
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - voorkeurType
+      - waarde
+      - id
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        voorkeurType:
+          $ref: "#/components/schemas/VoorkeurType"
+        waarde:
+          type: string
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+        teVerwijderenOp:
+          $ref: "#/components/schemas/Instant"
+        id:
+          $ref: "#/components/schemas/UUID"
