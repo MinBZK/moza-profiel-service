@@ -22,12 +22,12 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         type:
           $ref: "#/components/schemas/ContactType"
         waarde:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -62,17 +62,18 @@ components:
       - identificatieNummer
       - type
       - waarde
+      - id
       properties:
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         type:
           $ref: "#/components/schemas/ContactType"
         waarde:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -89,7 +90,7 @@ components:
       properties:
         naam:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         beschrijving:
           type: string
     DienstResponse:
@@ -109,7 +110,7 @@ components:
       properties:
         naam:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         beschrijving:
           type: string
     DienstverlenerResponse:
@@ -132,14 +133,18 @@ components:
       properties:
         email:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
     EmailVerificatieRequest:
       description: Request object voor het verifiëren van een emailadres
+      # De elfproef op BSN/RSIN en de lengtecontrole op KVK zijn niet in JSON Schema
+      # uit te drukken; de generator zet daarom deze class-level constraint op de DTO.
+      # Zie IdentificatieNummerValidator en EmailVerificatieValidatieIntegrationTest.
+      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
       type: object
       required:
       - email
@@ -149,15 +154,15 @@ components:
       properties:
         email:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
         verificatieCode:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
     HttpProblem:
       description: HTTP Problem Response according to RFC9457 and RFC7807
       additionalProperties: true
@@ -271,7 +276,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
     PartijRequest:
       description: Request object voor het ophalen van een Partij
       type: object
@@ -283,7 +288,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         dienstverlener:
           type: string
         dienstNaam:
@@ -334,10 +339,10 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         dienstverlenerNaam:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         dienstNaam:
           type: string
         teVerwijderenOp:
@@ -382,12 +387,12 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         voorkeurType:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -426,17 +431,18 @@ components:
       - identificatieNummer
       - voorkeurType
       - waarde
+      - id
       properties:
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         voorkeurType:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
           type: string
-          pattern: ".*\\S.*"
+          pattern: "[\\s\\S]*\\S[\\s\\S]*"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -765,11 +771,13 @@ paths:
             application/json:
               schema: {}
         "400":
-          description: Email verificatie mislukt
+          description: "Request body ontbreekt, is ongeldig (schemaviolatie of een\
+            \ identificatieNummer dat niet bij het identificatieType past; dan is\
+            \ `violations` gevuld), of de verificatie is mislukt."
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "500":
           description: Interne serverfout
           content:
@@ -798,11 +806,12 @@ paths:
             application/json:
               schema: {}
         "400":
-          description: Request body ontbreekt of is ongeldig
+          description: "Request body ontbreekt of is ongeldig. Bij bean-validatie is\
+            \ `violations` gevuld."
           content:
             application/problem+json:
               schema:
-                $ref: "#/components/schemas/HttpProblem"
+                $ref: "#/components/schemas/HttpValidationProblem"
         "404":
           description: Partij of Contactgegeven niet gevonden
           content:

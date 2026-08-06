@@ -2,6 +2,7 @@
 package nl.rijksoverheid.moz.controller;
 
 import io.quarkiverse.httpproblem.HttpProblem;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -35,7 +36,7 @@ public class EmailVerificatieController {
     @POST
     @Path("/emailverificatie/code")
     @RequireBody
-    public Response vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest aanvraag) {
+    public Response vraagEmailVerificatieCodeAan(@Valid EmailVerificatieCodeAanvraagRequest aanvraag) {
         int result = emailVerificatieService.vraagEmailVerificatieCodeAan(aanvraag);
 
         if (result == Response.Status.OK.getStatusCode()) {
@@ -59,7 +60,7 @@ public class EmailVerificatieController {
     @POST
     @Path("/emailverificatie")
     @RequireBody
-    public Response verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
+    public Response verifieerEmail(@Valid EmailVerificatieRequest emailVerificatieRequest) {
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
 
         if (succes) {

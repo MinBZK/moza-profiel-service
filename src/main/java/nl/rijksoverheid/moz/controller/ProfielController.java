@@ -49,10 +49,10 @@ import java.util.stream.Collectors;
 /**
  * REST controller voor partijen. Contract-first (#651): de request/response-DTO's
  * worden uit {@code META-INF/openapi.yaml} gegenereerd ({@code api.generated.model}).
- * De gegenereerde JAX-RS interface {@code api.generated.api.ProfielApi} dient als
- * contract-referentie; Quarkus REST (RESTEasy Reactive) ondersteunt echter geen
- * server-resources via een interface (parameter-binding gaat dan verloren), dus de
- * controller is een concrete resource die het contract-pad implementeert.
+ * Er worden geen JAX-RS interfaces gegenereerd ({@code generateApis=false}): Quarkus REST
+ * (RESTEasy Reactive) ondersteunt geen server-resources via een interface, want dan gaat
+ * de parameter-binding verloren. Deze controller is dus een concrete resource die de
+ * paden uit het contract implementeert.
  */
 @Path("/api/profielservice/v1")
 @Produces(MediaType.APPLICATION_JSON)
@@ -309,7 +309,7 @@ public class ProfielController {
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur of partij niet gevonden voor te-verwijderen-op update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);
@@ -332,7 +332,7 @@ public class ProfielController {
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven of partij niet gevonden voor te-verwijderen-op update");
-            return Response.status(Response.Status.NOT_FOUND).build();
+            throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
 
         logboekContext.setStatus(StatusCode.OK);

@@ -195,9 +195,10 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-orm-panache</artifactId>
         </dependency>
-        <!-- Quarkus-extensie i.p.v. de kale hibernate-validator: vereist door de
-             server-codegen (bean-validation) en de juiste manier om JSR-303 op
-             JAX-RS te activeren. Versie wordt door de quarkus-bom beheerd. -->
+        <!-- Quarkus-extensie i.p.v. de kale hibernate-validator: de generator zet
+             bean-validation-annotaties op de DTO's en deze extensie levert de
+             runtime-provider die ze op JAX-RS-parameters afdwingt. Versie wordt
+             door de quarkus-bom beheerd. -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-validator</artifactId>
@@ -245,10 +246,10 @@
 
     <build>
         <plugins>
-            <!-- Contract-first server-stub generatie (#651): JAX-RS interfaces (één per tag)
-                 + DTOs uit src/main/openapi-server/profiel-service.yaml. schemaMappings hergebruiken
-                 de bestaande domeintypes (common enums, java.time.Instant, java.util.UUID) zodat de
-                 gegenereerde DTOs naadloos aansluiten op entities/services zonder conversielaag. -->
+            <!-- Contract-first DTO-generatie (#651) uit src/main/resources/META-INF/openapi.yaml.
+                 schemaMappings hergebruiken de bestaande domeintypes (common enums, java.time.Instant,
+                 java.util.UUID) zodat de gegenereerde DTOs naadloos aansluiten op entities/services
+                 zonder conversielaag. -->
             <plugin>
                 <groupId>org.openapitools</groupId>
                 <artifactId>openapi-generator-maven-plugin</artifactId>
@@ -276,10 +277,9 @@
                             <generateApiDocumentation>false</generateApiDocumentation>
                             <generateModelDocumentation>false</generateModelDocumentation>
                             <generateSupportingFiles>false</generateSupportingFiles>
+                            <!-- interfaceOnly/returnResponse/useTags zijn hier weggelaten: die
+                                 sturen alleen de API-generatie aan, en die staat uit. -->
                             <configOptions>
-                                <interfaceOnly>true</interfaceOnly>
-                                <returnResponse>true</returnResponse>
-                                <useTags>true</useTags>
                                 <useJakartaEe>true</useJakartaEe>
                                 <useSwaggerAnnotations>false</useSwaggerAnnotations>
                                 <useBeanValidation>true</useBeanValidation>
