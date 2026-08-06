@@ -238,6 +238,14 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Architectuurregels; zie RequestDtoOnveranderbaarheidTest. -->
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit</artifactId>
+            <version>1.4.1</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-logging-json</artifactId>
