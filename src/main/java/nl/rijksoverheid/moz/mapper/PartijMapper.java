@@ -29,6 +29,14 @@ import java.util.List;
  * gebruikt wordt {@code lastUsedAt} bijgewerkt en een automatisch gezette verwijderdatum
  * teruggedraaid. Die business-logica is bewust handgeschreven en delegeert het kopiëren
  * naar de door MapStruct gegenereerde {@code map*}-methodes.
+ *
+ * <p>De {@code remove*Item}-doelen worden expliciet genegeerd. De generator zet bij elke
+ * lijst-property een {@code addXItem} en een {@code removeXItem} die de klasse zelf
+ * teruggeven; MapStruct leest zo'n methode als fluent setter en houdt er dus een
+ * doel-property {@code removeXItem} aan over die nergens vandaan te vullen is. De
+ * {@code addXItem}-variant valt wel binnen het adder-patroon en wordt aan de lijst zelf
+ * gekoppeld, vandaar dat alleen de remove-kant klaagt. Zonder deze regels levert elke
+ * build vier waarschuwingen op, en daarin gaat een échte niet-gemapte property verloren.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public abstract class PartijMapper {
@@ -43,6 +51,9 @@ public abstract class PartijMapper {
     @Mapping(target = "identificaties", source = "partij.identificaties")
     @Mapping(target = "contactgegevens", source = "contactgegevens", qualifiedByName = "contactgegevenMetGebruik")
     @Mapping(target = "voorkeuren", source = "voorkeuren", qualifiedByName = "voorkeurMetGebruik")
+    @Mapping(target = "removeIdentificatiesItem", ignore = true)
+    @Mapping(target = "removeContactgegevensItem", ignore = true)
+    @Mapping(target = "removeVoorkeurenItem", ignore = true)
     public abstract PartijResponse toResponse(
             Partij partij,
             List<Contactgegeven> contactgegevens,
@@ -76,8 +87,10 @@ public abstract class PartijMapper {
         return vr;
     }
 
+    @Mapping(target = "removeScopesItem", ignore = true)
     abstract ContactgegevenResponse mapContactgegeven(Contactgegeven cg);
 
+    @Mapping(target = "removeScopesItem", ignore = true)
     abstract VoorkeurResponse mapVoorkeur(Voorkeur voorkeur);
 
     @Mapping(target = "dienstverlenerNaam", source = "dienstverlenerDienst.dienstverlener.naam")

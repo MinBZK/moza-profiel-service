@@ -12,6 +12,9 @@ import java.util.List;
 
 /**
  * Mapt {@link Dienstverlener}- en {@link Dienst}-entiteiten naar hun response-DTO's.
+ *
+ * <p>Zie {@link PartijMapper} voor waarom de {@code remove*Item}-doelen expliciet worden
+ * genegeerd.
  */
 @Mapper(componentModel = MappingConstants.ComponentModel.CDI)
 public interface DienstMapper {
@@ -21,5 +24,6 @@ public interface DienstMapper {
     @Mapping(target = "naam", source = "dienstverlener.naam")
     @Mapping(target = "beschrijving", source = "dienstverlener.beschrijving")
     @Mapping(target = "diensten", source = "diensten")
+    @Mapping(target = "removeDienstenItem", ignore = true)
     DienstverlenerResponse toDienstverlenerResponse(Dienstverlener dienstverlener, List<Dienst> diensten);
 }
