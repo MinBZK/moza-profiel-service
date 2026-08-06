@@ -53,7 +53,7 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          $ref: "#/components/responses/ContactgegevenNietGevonden"
+          $ref: "#/components/responses/ContactgegevenOfScopeNietGevonden"
         "409":
           description: Combinatie van type en waarde bestaat al voor deze partij
           content:
@@ -416,7 +416,7 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          $ref: "#/components/responses/VoorkeurNietGevonden"
+          $ref: "#/components/responses/VoorkeurOfScopeNietGevonden"
         "409":
           description: Andere voorkeur bestaat al voor deze partij, type en scope
           content:
@@ -520,35 +520,49 @@ paths:
 components:
   responses:
     InterneServerfout:
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+      description: Interne serverfout
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
     OngeldigeRequestBody:
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+      description: Request body ontbreekt of is ongeldig
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpValidationProblem"
+    ContactgegevenOfScopeNietGevonden:
+      description: "Contactgegeven of partij niet gevonden, of de dienstverlener of\
+        \ dienst uit de opgegeven scope bestaat niet"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    VoorkeurOfScopeNietGevonden:
+      description: "Voorkeur of partij niet gevonden, of de dienstverlener of dienst\
+        \ uit de opgegeven scope bestaat niet"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
     ContactgegevenNietGevonden:
-          description: Contactgegeven of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+      description: Contactgegeven of partij niet gevonden
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
     VoorkeurNietGevonden:
-          description: Voorkeur of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+      description: Voorkeur of partij niet gevonden
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
     ScopeUitRequestNietGevonden:
-          description: Dienstverlener of dienst uit de scope bestaat niet
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+      description: Dienstverlener of dienst uit de scope bestaat niet
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
   schemas:
     ContactType:
       type: string
@@ -673,12 +687,12 @@ components:
           items:
             $ref: "#/components/schemas/DienstResponse"
     EmailVerificatieCodeAanvraagRequest:
-      # Zelfde elfproef als bij EmailVerificatieRequest: zonder deze regels accepteert
-      # dit endpoint een identificatieNummer dat het andere weigert, terwijl het contract
-      # voor beide dezelfde 400 belooft.
-      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
-      x-implements:
-      - nl.rijksoverheid.moz.validation.HeeftIdentificatie
+      # Bewust GEEN elfproef, in tegenstelling tot EmailVerificatieRequest. De
+      # schrijf-endpoints (POST /contactgegeven, /voorkeur, /partij) valideren het
+      # identificatieNummer evenmin, dus een profiel kan onder een nummer bestaan dat
+      # de elfproef niet doorstaat. Zou dit endpoint de controle wel doen, dan kon zo'n
+      # gebruiker nooit meer een vervangende code aanvragen. De controle overal
+      # gelijktrekken staat als MinBZK/MijnOverheidZakelijk#923.
       type: object
       required:
       - email
@@ -848,8 +862,10 @@ components:
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstverlener:
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     PartijResponse:
       type: object
       properties:
@@ -907,6 +923,7 @@ components:
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         teVerwijderenOp:
           $ref: "#/components/schemas/Instant"
     UUID:

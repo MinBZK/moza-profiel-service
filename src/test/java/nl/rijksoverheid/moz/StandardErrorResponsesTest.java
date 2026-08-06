@@ -22,13 +22,24 @@ import static io.restassured.RestAssured.given;
  * En elke 400 wijst naar {@code HttpValidationProblem}, want bij bean-validatie levert de
  * applicatie een {@code violations}-lijst; de twee schema's zijn structureel niet van elkaar
  * te onderscheiden (geen {@code required}, {@code additionalProperties: true}), dus de
- * contractvalidatie in {@link nl.rijksoverheid.moz.controller.OpenApiValidationTest} merkt
- * het niet als er per ongeluk naar {@code HttpProblem} verwezen wordt.
+ * contractvalidatie in {@code OpenApiValidationTest} merkt
+ * het niet als er per ongeluk naar {@code HttpProblem} verwezen wordt. De overige
+ * foutcodes horen andersom juist wél een kale {@code HttpProblem} te zijn.
  */
 @QuarkusTest
 class StandardErrorResponsesTest {
 
-    private static final List<String> HTTP_METHODEN = List.of("get", "post", "put", "patch", "delete");
+    private static final List<String> HTTP_METHODEN =
+            List.of("get", "post", "put", "patch", "delete", "head", "options", "trace");
+
+    /** Alles wat geen bean-validatiefout is, hoort een kale {@code HttpProblem} te zijn. */
+    private static final List<String> OVERIGE_FOUTCODES = List.of("403", "404", "409", "503");
+
+    /**
+     * Ondergrens in plaats van {@code > 0}: zakt het aantal operaties, dan is het contract
+     * uitgedund of loopt de sweep vast, en in beide gevallen dekt deze test minder dan hij lijkt.
+     */
+    private static final int MINIMAAL_AANTAL_OPERATIES = 15;
 
     @Test
     void elkeOperatieDocumenteertDeStandaardFoutresponses() throws Exception {
@@ -62,17 +73,24 @@ class StandardErrorResponsesTest {
                 String plek = methode.toUpperCase() + " " + pad;
                 controleer(document, operatie, "500", "HttpProblem", plek, bevindingen);
                 controleer(document, operatie, "400", "HttpValidationProblem", plek, bevindingen);
+
+                for (String foutcode : OVERIGE_FOUTCODES) {
+                    controleer(document, operatie, foutcode, "HttpProblem", plek, bevindingen);
+                }
             }
         }
 
-        Assertions.assertTrue(gecontroleerd > 0, "Geen operaties gevonden om te controleren");
+        Assertions.assertTrue(gecontroleerd >= MINIMAAL_AANTAL_OPERATIES,
+                "Slechts " + gecontroleerd + " operaties gecontroleerd, minimaal "
+                        + MINIMAAL_AANTAL_OPERATIES + " verwacht");
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
     }
 
     /**
-     * Een 400 is niet op elke operatie verplicht — een endpoint zonder request body en
-     * zonder parameters kan er geen produceren — maar staat hij er, dan moet hij naar het
-     * juiste schema wijzen. Een 500 is dat wel: die kan overal ontstaan.
+     * Alleen de 500 is verplicht: die kan overal ontstaan. De overige codes zijn optioneel —
+     * een operatie waarvan geen enkele parameter of body een bean-validatiefout kan opleveren
+     * documenteert terecht geen 400 — maar staan ze er, dan moeten ze naar het juiste schema
+     * wijzen.
      */
     private static void controleer(
             JsonNode document,

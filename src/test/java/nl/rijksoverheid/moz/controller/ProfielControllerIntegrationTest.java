@@ -47,6 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.FORBIDDEN;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
@@ -722,7 +723,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("id")));
+                .body("violations.field", hasItem("id"));
     }
 
     @Test
@@ -740,7 +741,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("id")));
+                .body("violations.field", hasItem("id"));
     }
 
     @Test
@@ -848,6 +849,53 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Voorkeur v = Voorkeur.findById(voorkeurId.get());
             Assertions.assertEquals(body.getTeVerwijderenOp(), v.getTeVerwijderenOp());
+        });
+    }
+
+    /**
+     * De autorisatiegrens waarvoor dit endpoint bestaat: een dienstverlener zonder scope op
+     * het contactgegeven mag er geen verwijderdatum op zetten. De voorkeur-tegenhanger had
+     * hier al dekking in PartijServiceTest, de contactgegeven-variant niet.
+     */
+    @Test
+    void updateContactgegevenTeVerwijderenOp_ZonderScope_Forbidden() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener eigenaar = new Dienstverlener();
+            eigenaar.setNaam("AndereDV");
+            eigenaar.persist();
+
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111122"));
+            p.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+
+            DienstverlenerDienst link = new DienstverlenerDienst(eigenaar, null);
+            link.persist();
+            new ScopeContactgegeven(c, link).persist();
+        });
+
+        var body = teVerwijderenOpRequest(contactId.get(), "111111122");
+        body.setDienstverlenerNaam("ScopeDV");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
+                .then()
+                .statusCode(FORBIDDEN)
+                .contentType("application/problem+json");
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven c = Contactgegeven.findById(contactId.get());
+            Assertions.assertNull(c.getTeVerwijderenOp(), "Zonder scope mag er niets gezet zijn");
         });
     }
 
