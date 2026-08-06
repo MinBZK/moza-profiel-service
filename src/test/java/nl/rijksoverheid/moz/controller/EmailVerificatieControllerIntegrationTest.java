@@ -68,7 +68,7 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
 
         var body = new EmailVerificatieCodeAanvraagRequest();
         body.setEmail("email@email.com");
-        body.setIdentificatieNummer("123");
+        body.setIdentificatieNummer("123456782");
         body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
@@ -87,7 +87,7 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
 
         var body = new EmailVerificatieCodeAanvraagRequest();
         body.setEmail("email@email.com");
-        body.setIdentificatieNummer("123");
+        body.setIdentificatieNummer("123456782");
         body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
@@ -108,7 +108,7 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
 
         var body = new EmailVerificatieCodeAanvraagRequest();
         body.setEmail("email@email.com");
-        body.setIdentificatieNummer("123");
+        body.setIdentificatieNummer("123456782");
         body.setIdentificatieType(IdentificatieType.BSN);
 
         given()

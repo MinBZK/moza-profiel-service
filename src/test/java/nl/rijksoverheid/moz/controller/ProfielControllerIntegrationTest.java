@@ -13,6 +13,7 @@ import nl.rijksoverheid.moz.api.generated.model.PartijBulkRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
 import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
+import nl.rijksoverheid.moz.api.generated.model.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
@@ -31,7 +32,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,6 +44,7 @@ import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NO_CONTENT;
@@ -701,5 +705,159 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
                 .body("title", equalTo("Voorkeur niet gevonden"));
+    }
+
+    @Test
+    void updateContactgegeven_ZonderId_BadRequest() {
+        var body = new ContactgegevenUpdateRequest();
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111111");
+        body.setType(ContactType.Email);
+        body.setWaarde("test@example.com");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .put("/api/profielservice/v1/contactgegeven")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem(containsString("id")));
+    }
+
+    @Test
+    void updateVoorkeur_ZonderId_BadRequest() {
+        var body = new VoorkeurUpdateRequest();
+        body.setIdentificatieType(BSN);
+        body.setIdentificatieNummer("111111111");
+        body.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        body.setWaarde("nl");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .put("/api/profielservice/v1/voorkeur")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem(containsString("id")));
+    }
+
+    @Test
+    void updateContactgegevenTeVerwijderenOp_NotFound() {
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(teVerwijderenOpRequest(UUID.randomUUID(), "999999999"))
+                .patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Contactgegeven niet gevonden"));
+    }
+
+    @Test
+    void updateVoorkeurTeVerwijderenOp_NotFound() {
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(teVerwijderenOpRequest(UUID.randomUUID(), "999999999"))
+                .patch("/api/profielservice/v1/voorkeur/te-verwijderen-op")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Voorkeur niet gevonden"));
+    }
+
+    @Test
+    void updateContactgegevenTeVerwijderenOp_Success() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("ScopeDV");
+            dv.persist();
+
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111120"));
+            p.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
+            link.persist();
+            new ScopeContactgegeven(c, link).persist();
+        });
+
+        var body = teVerwijderenOpRequest(contactId.get(), "111111120");
+        body.setDienstverlenerNaam("ScopeDV");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
+                .then()
+                .statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven c = Contactgegeven.findById(contactId.get());
+            Assertions.assertEquals(body.getTeVerwijderenOp(), c.getTeVerwijderenOp());
+        });
+    }
+
+    @Test
+    void updateVoorkeurTeVerwijderenOp_Success() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("ScopeDV");
+            dv.persist();
+
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111121"));
+            p.persist();
+
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+            voorkeurId.set(v.id);
+
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
+            link.persist();
+            new ScopeVoorkeur(v, link).persist();
+        });
+
+        var body = teVerwijderenOpRequest(voorkeurId.get(), "111111121");
+        body.setDienstverlenerNaam("ScopeDV");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .patch("/api/profielservice/v1/voorkeur/te-verwijderen-op")
+                .then()
+                .statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur v = Voorkeur.findById(voorkeurId.get());
+            Assertions.assertEquals(body.getTeVerwijderenOp(), v.getTeVerwijderenOp());
+        });
+    }
+
+    private static TeVerwijderenOpRequest teVerwijderenOpRequest(UUID id, String identificatieNummer) {
+        var request = new TeVerwijderenOpRequest();
+        request.setId(id);
+        request.setIdentificatieType(BSN);
+        request.setIdentificatieNummer(identificatieNummer);
+        request.setDienstverlenerNaam("OnbekendeDV");
+        request.setTeVerwijderenOp(Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS));
+        return request;
     }
 }

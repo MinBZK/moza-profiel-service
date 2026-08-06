@@ -12,8 +12,10 @@ import org.mockito.Mockito;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
 
 /**
@@ -45,6 +47,12 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
 
     /**
      * "111111111" doorstaat de elfproef niet (som 43, niet deelbaar door 11).
+     *
+     * <p>De statuscode en het content-type zijn hier niet onderscheidend: valt de constraint
+     * weg, dan komt het request bij de gemockte service, die {@code false} teruggeeft, en dat
+     * levert óók een 400 met {@code application/problem+json}. Wat deze test laat omvallen is
+     * het bestaan van een {@code violations}-lijst en de {@code verify(..., never())} eronder.
+     * Niet weghalen bij het opschonen.
      */
     @Test
     void emailVerificatieMetOngeldigBsnWordtAfgewezen() {
@@ -62,7 +70,7 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.message", hasItem(containsString("identificatieNummer")));
+                .body("violations", not(empty()));
 
         Mockito.verify(emailVerificatieService, Mockito.never()).verifieerEmail(Mockito.any());
     }
@@ -112,6 +120,31 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
                 .body("violations.field", hasItem(containsString("verificatieCode")));
 
         Mockito.verify(emailVerificatieService, Mockito.never()).verifieerEmail(Mockito.any());
+    }
+
+    /**
+     * De elfproef geldt op beide endpoints. Voorheen droeg alleen {@code EmailVerificatieRequest}
+     * de constraint, waardoor de code-aanvraag een identificatieNummer accepteerde dat de
+     * verificatie zelf zou weigeren — terwijl het contract voor beide dezelfde 400 belooft.
+     */
+    @Test
+    void codeAanvraagMetOngeldigBsnWordtAfgewezen() {
+        var body = new EmailVerificatieCodeAanvraagRequest();
+        body.setEmail("email@email.com");
+        body.setIdentificatieNummer("111111111");
+        body.setIdentificatieType(IdentificatieType.BSN);
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .when().post("/api/profielservice/v1/emailverificatie/code")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations", not(empty()));
+
+        Mockito.verify(emailVerificatieService, Mockito.never()).vraagEmailVerificatieCodeAan(Mockito.any());
     }
 
     @Test

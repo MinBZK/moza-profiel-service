@@ -7,16 +7,18 @@ import nl.rijksoverheid.moz.entity.Dienstverlener;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
+import org.mapstruct.ReportingPolicy;
 
 import java.util.List;
 
 /**
  * Mapt {@link Dienstverlener}- en {@link Dienst}-entiteiten naar hun response-DTO's.
  *
- * <p>Zie {@link PartijMapper} voor waarom de {@code remove*Item}-doelen expliciet worden
- * genegeerd.
+ * <p>Zie {@link PartijMapper} voor waarom {@code removeDienstenItem} expliciet wordt
+ * genegeerd en waarom {@code unmappedTargetPolicy} op {@code ERROR} staat.
  */
-@Mapper(componentModel = MappingConstants.ComponentModel.CDI)
+@Mapper(componentModel = MappingConstants.ComponentModel.CDI,
+        unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface DienstMapper {
 
     DienstResponse toDienstResponse(Dienst dienst);

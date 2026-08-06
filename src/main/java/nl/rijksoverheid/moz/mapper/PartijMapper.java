@@ -15,6 +15,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.Named;
+import org.mapstruct.ReportingPolicy;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -31,14 +32,20 @@ import java.util.List;
  * naar de door MapStruct gegenereerde {@code map*}-methodes.
  *
  * <p>De {@code remove*Item}-doelen worden expliciet genegeerd. De generator zet bij elke
- * lijst-property een {@code addXItem} en een {@code removeXItem} die de klasse zelf
+ * lijst-property een {@code addXItem} en een {@code removeXItem} neer die de klasse zelf
  * teruggeven; MapStruct leest zo'n methode als fluent setter en houdt er dus een
- * doel-property {@code removeXItem} aan over die nergens vandaan te vullen is. De
- * {@code addXItem}-variant valt wel binnen het adder-patroon en wordt aan de lijst zelf
- * gekoppeld, vandaar dat alleen de remove-kant klaagt. Zonder deze regels levert elke
- * build vier waarschuwingen op, en daarin gaat een échte niet-gemapte property verloren.
+ * doel-property {@code removeXItem} aan over die nergens vandaan te vullen is. Bij
+ * {@code addXItem} gebeurt dat niet, omdat de {@code add}-prefix hem als adder
+ * classificeert en daarmee diskwalificeert als fluent setter — gebruikt wordt hij
+ * evenmin, want de standaard {@code CollectionMappingStrategy} is {@code ACCESSOR_ONLY}
+ * en vult de lijst via de gewone setter. Vandaar dat alleen de remove-kant overblijft.
+ *
+ * <p>{@code unmappedTargetPolicy} staat op {@code ERROR}: zonder die instelling zouden de
+ * ignores alleen de waarschuwingen opruimen, en zou een échte niet-gemapte property nog
+ * steeds een regel ruis tussen de andere buildwaarschuwingen zijn.
  */
-@Mapper(componentModel = MappingConstants.ComponentModel.CDI)
+@Mapper(componentModel = MappingConstants.ComponentModel.CDI,
+        unmappedTargetPolicy = ReportingPolicy.ERROR)
 public abstract class PartijMapper {
 
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);

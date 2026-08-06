@@ -2,12 +2,11 @@ package nl.rijksoverheid.moz.validation;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
-import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 
-public class IdentificatieNummerValidator implements ConstraintValidator<ValidIdentificatieNummer, EmailVerificatieRequest> {
+public class IdentificatieNummerValidator implements ConstraintValidator<ValidIdentificatieNummer, HeeftIdentificatie> {
 
     @Override
-    public boolean isValid(EmailVerificatieRequest request, ConstraintValidatorContext context) {
+    public boolean isValid(HeeftIdentificatie request, ConstraintValidatorContext context) {
         if (request == null || request.getIdentificatieNummer() == null || request.getIdentificatieType() == null) {
             return true; // Let @NotNull handle null checks
         }

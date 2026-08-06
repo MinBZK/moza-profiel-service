@@ -51,17 +51,9 @@ paths:
             application/json:
               schema: {}
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          description: Contactgegeven of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/ContactgegevenNietGevonden"
         "409":
           description: Combinatie van type en waarde bestaat al voor deze partij
           content:
@@ -69,11 +61,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
     post:
       summary: Toevoegen nieuwe contactgegeven voor een partij
       operationId: addContactgegeven
@@ -101,23 +89,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ContactgegevenResponse"
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          description: Dienstverlener of dienst uit de scope bestaat niet
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/ScopeUitRequestNietGevonden"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/contactgegeven/te-verwijderen-op:
     patch:
       summary: Stel te-verwijderen-op in voor een contactgegeven (Dienstverlener)
@@ -139,11 +115,7 @@ paths:
             application/json:
               schema: {}
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "403":
           description: Dienstverlener heeft geen scope op dit contactgegeven
           content:
@@ -151,17 +123,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "404":
-          description: Contactgegeven of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/ContactgegevenNietGevonden"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/contactgegeven/{contactgegevenId}:
     delete:
       summary: Verwijder contactgegeven van een partij
@@ -185,23 +149,11 @@ paths:
         "204":
           description: Contactgegeven succesvol verwijderd
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          description: Contactgegeven of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/ContactgegevenNietGevonden"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/dienstverlener:
     post:
       summary: Voegt een dienstverlener toe
@@ -223,11 +175,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DienstverlenerResponse"
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
           description: Dienstverlener bestaat al met conflicterende waarden
           content:
@@ -235,11 +183,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/dienstverlener/{dienstverlenerNaam}/diensten:
     post:
       summary: Voegt een dienst toe aan een dienstverlener
@@ -268,11 +212,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DienstResponse"
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
           description: Dienst bestaat al met een andere beschrijving
           content:
@@ -280,11 +220,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/dienstverlener/{naam}:
     get:
       summary: Vraagt gegevens van dienstverlener
@@ -313,11 +249,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/emailverificatie:
     post:
       summary: Verifieer een email met een verificatie code
@@ -347,11 +279,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpValidationProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/emailverificatie/code:
     post:
       summary: (Opnieuw) aanvragen voor een code van een (al geverifieerde) mail adres
@@ -387,11 +315,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
         "503":
           description: Service tijdelijk niet beschikbaar
           content:
@@ -419,11 +343,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/PartijResponse"
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
           description: Partij niet gevonden of is verwijderd
           content:
@@ -431,11 +351,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/partijen/bulk:
     post:
       summary: Ophalen profielen van meerdere partijen
@@ -468,11 +384,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/PartijResponse"
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
           description: Geen enkel profiel gevonden
           content:
@@ -480,11 +392,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/voorkeur:
     put:
       summary: Update voorkeur van een partij
@@ -506,17 +414,9 @@ paths:
             application/json:
               schema: {}
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          description: Voorkeur of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/VoorkeurNietGevonden"
         "409":
           description: Andere voorkeur bestaat al voor deze partij, type en scope
           content:
@@ -524,11 +424,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
     post:
       summary: Toevoegen nieuwe voorkeur voor een partij
       operationId: addVoorkeur
@@ -556,23 +452,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/VoorkeurResponse"
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          description: Dienstverlener of dienst uit de scope bestaat niet
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/ScopeUitRequestNietGevonden"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/voorkeur/te-verwijderen-op:
     patch:
       summary: Stel te-verwijderen-op in voor een voorkeur (Dienstverlener)
@@ -594,11 +478,7 @@ paths:
             application/json:
               schema: {}
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "403":
           description: Dienstverlener heeft geen scope op deze voorkeur
           content:
@@ -606,17 +486,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
         "404":
-          description: Voorkeur of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/VoorkeurNietGevonden"
         "500":
-          description: Interne serverfout
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/voorkeur/{voorkeurId}:
     delete:
       summary: Verwijder voorkeur van een partij
@@ -640,24 +512,43 @@ paths:
         "204":
           description: Voorkeur succesvol verwijderd
         "400":
-          description: Request body ontbreekt of is ongeldig
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpValidationProblem"
+          $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
-          description: Voorkeur of partij niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/VoorkeurNietGevonden"
         "500":
+          $ref: "#/components/responses/InterneServerfout"
+components:
+  responses:
+    InterneServerfout:
           description: Interne serverfout
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/HttpProblem"
-components:
+    OngeldigeRequestBody:
+          description: Request body ontbreekt of is ongeldig
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
+    ContactgegevenNietGevonden:
+          description: Contactgegeven of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+    VoorkeurNietGevonden:
+          description: Voorkeur of partij niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+    ScopeUitRequestNietGevonden:
+          description: Dienstverlener of dienst uit de scope bestaat niet
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
   schemas:
     ContactType:
       type: string
@@ -679,12 +570,12 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         type:
           $ref: "#/components/schemas/ContactType"
         waarde:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -725,12 +616,12 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         type:
           $ref: "#/components/schemas/ContactType"
         waarde:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -747,7 +638,7 @@ components:
       properties:
         naam:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         beschrijving:
           type: string
     DienstResponse:
@@ -767,7 +658,7 @@ components:
       properties:
         naam:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         beschrijving:
           type: string
     DienstverlenerResponse:
@@ -782,6 +673,12 @@ components:
           items:
             $ref: "#/components/schemas/DienstResponse"
     EmailVerificatieCodeAanvraagRequest:
+      # Zelfde elfproef als bij EmailVerificatieRequest: zonder deze regels accepteert
+      # dit endpoint een identificatieNummer dat het andere weigert, terwijl het contract
+      # voor beide dezelfde 400 belooft.
+      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
+      x-implements:
+      - nl.rijksoverheid.moz.validation.HeeftIdentificatie
       type: object
       required:
       - email
@@ -790,10 +687,10 @@ components:
       properties:
         email:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
     EmailVerificatieRequest:
@@ -801,7 +698,10 @@ components:
       # De elfproef op BSN/RSIN en de lengtecontrole op KVK zijn niet in JSON Schema
       # uit te drukken; de generator zet daarom deze class-level constraint op de DTO.
       # Zie IdentificatieNummerValidator en EmailVerificatieValidatieIntegrationTest.
+      # De interface maakt de validator herbruikbaar over meerdere requests heen.
       x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
+      x-implements:
+      - nl.rijksoverheid.moz.validation.HeeftIdentificatie
       type: object
       required:
       - email
@@ -811,15 +711,15 @@ components:
       properties:
         email:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
         verificatieCode:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     HttpProblem:
       description: HTTP Problem Response according to RFC9457 and RFC7807
       additionalProperties: true
@@ -933,7 +833,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     PartijRequest:
       description: Request object voor het ophalen van een Partij
       type: object
@@ -945,7 +845,7 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstverlener:
           type: string
         dienstNaam:
@@ -968,12 +868,17 @@ components:
           items:
             $ref: "#/components/schemas/ContactgegevenResponse"
     ScopeRequest:
+      description: "Beperkt een contactgegeven of voorkeur tot een dienstverlener,\
+        \ eventueel tot een dienst daarbinnen. Een leeg object betekent geen scope.\
+        \ Een dienstNaam zonder dienstverlenerNaam levert een 400."
       type: object
       properties:
         dienstverlenerNaam:
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     ScopeResponse:
       type: object
       properties:
@@ -996,10 +901,10 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstverlenerNaam:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
           type: string
         teVerwijderenOp:
@@ -1044,12 +949,12 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         voorkeurType:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
@@ -1094,12 +999,12 @@ components:
           $ref: "#/components/schemas/IdentificatieType"
         identificatieNummer:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         voorkeurType:
           $ref: "#/components/schemas/VoorkeurType"
         waarde:
           type: string
-          pattern: "[\\s\\S]*\\S[\\s\\S]*"
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
