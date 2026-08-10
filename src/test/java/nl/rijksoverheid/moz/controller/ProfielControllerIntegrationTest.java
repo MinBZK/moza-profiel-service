@@ -854,13 +854,19 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
     /**
      * De autorisatiegrens waarvoor dit endpoint bestaat: een dienstverlener mag alleen een
-     * verwijderdatum zetten op een contactgegeven waar hij zelf scope op heeft. "ScopeDV"
-     * bestaat hier en heeft scope op een ánder contactgegeven van dezelfde partij, zodat de
-     * test onderscheidt tussen "dienstverlener bestaat niet" en "bestaat wel, maar niet hier".
+     * verwijderdatum zetten op een contactgegeven waar hij zelf scope op heeft.
      *
-     * <p>Dit is de enige plek waar de vertaling van {@code AuthorizationException} naar een
-     * 403 met problem-body wordt vastgelegd; op serviceniveau toetst PartijServiceTest alleen
-     * de exception zelf.
+     * <p>"ScopeDV" bestaat hier en heeft scope op een ánder contactgegeven van dezelfde partij.
+     * Dat maakt geen onderscheid in de response — {@code requireDienstverlenerAuthorized} loopt
+     * alleen de scopes van het doel-contactgegeven af en zoekt de dienstverlener nooit op naam
+     * op, dus een onbekende naam levert exact hetzelfde antwoord. De fixture vangt wél een
+     * regressie waarbij de scope-controle van contactgegeven naar partij zou verbreden: dan
+     * telt de scope op dat andere contactgegeven ineens mee en verdwijnt de 403.
+     *
+     * <p>{@code DomainExceptionMapperTest} toetst de mapper los en {@code PartijServiceTest}
+     * alleen de exception, en die laatste dekt bovendien alleen de voorkeur-variant. Wat hier
+     * uniek wordt vastgelegd is dat Quarkus de {@code @ServerExceptionMapper} daadwerkelijk
+     * oppikt en het geheel over HTTP een 403 met problem-body oplevert.
      */
     @Test
     void updateContactgegevenTeVerwijderenOp_ZonderScope_Forbidden() {

@@ -18,20 +18,30 @@ import java.util.List;
  * <ul>
  *   <li>Alleen {@code x-class-extra-annotation} en niet {@code x-implements}: Hibernate Validator
  *       vindt geen toepasbare validator en gooit bij de eerste validatie van dat type een
- *       {@code UnexpectedTypeException}. Die valt buiten de violation-afhandeling en komt via de
- *       catch-all uit op een 500, waar een 400 hoort. Het gebeurt lazy, dus de build en de
- *       deploy blijven groen.</li>
+ *       {@code UnexpectedTypeException}. Dat is een {@code ValidationException}, en Quarkus'
+ *       eigen {@code ExceptionMapper<ValidationException>} wint van onze catch-all — de
+ *       aanroeper krijgt dus een kale 500 zonder problem-body, waar een 400 hoort. Het gebeurt
+ *       lazy, bij de eerste validatie van dat type, dus build en deploy blijven groen.</li>
  *   <li>Alleen {@code x-implements} en niet de annotatie: er wordt stilzwijgend niets
  *       gevalideerd, precies het gat dat MinBZK/MijnOverheidZakelijk#923 beschrijft.</li>
  * </ul>
+ *
+ * <p>De ondergrens is er met opzet. Zonder die controle zou het verwijderen van bééide extensies
+ * — de meest waarschijnlijke manier waarop de elfproef sneuvelt — deze test groen laten, want dan
+ * is er simpelweg niets meer om over te klagen. Dezelfde reden waarom
+ * {@code StandardErrorResponsesTest} een minimaal aantal operaties eist.
+ *
+ * <p>De sweep kijkt alleen naar {@code components/schemas} op het hoogste niveau. Vandaag
+ * verwijst elke requestBody daarheen, maar een schema dat via {@code allOf} is samengesteld of
+ * inline in een operatie staat, valt buiten beeld.
  *
  * <p>Deze test leest het contract rechtstreeks — niet het gepubliceerde document — omdat het de
  * bron is die de codegen voedt. Dat de twee gelijk zijn bewaakt {@code OpenApiContractDriftTest}.
  */
 class ValidatieExtensiesTest {
 
-    private static final String ANNOTATIE = "ValidIdentificatieNummer";
-    private static final String INTERFACE = "HeeftIdentificatie";
+    private static final String ANNOTATIE = "nl.rijksoverheid.moz.validation.ValidIdentificatieNummer";
+    private static final String INTERFACE = "nl.rijksoverheid.moz.validation.HeeftIdentificatie";
 
     @Test
     void annotatieEnInterfaceStaanAltijdSamen() throws Exception {
@@ -42,30 +52,42 @@ class ValidatieExtensiesTest {
             schemas = new ObjectMapper(new YAMLFactory()).readTree(in).path("components").path("schemas");
         }
 
-        Assertions.assertFalse(schemas.isMissingNode() || schemas.isEmpty(),
-                "Geen schema's gevonden om te controleren");
+        Assertions.assertTrue(schemas.isObject() && !schemas.isEmpty(),
+                "components/schemas ontbreekt of is geen object");
 
         List<String> bevindingen = new ArrayList<>();
+        int gekoppeld = 0;
         var namen = schemas.fieldNames();
 
         while (namen.hasNext()) {
             String naam = namen.next();
             JsonNode schema = schemas.get(naam);
 
-            boolean heeftAnnotatie = schema.path("x-class-extra-annotation").asText("").contains(ANNOTATIE);
+            // toString() op beide, want de generator staat voor x-class-extra-annotation zowel
+            // een enkele waarde als een lijst toe; asText() zou op een lijst leeg teruggeven en
+            // daarmee precies het omgekeerde melden van wat er aan de hand is.
+            boolean heeftAnnotatie = schema.path("x-class-extra-annotation").toString().contains(ANNOTATIE);
             boolean heeftInterface = schema.path("x-implements").toString().contains(INTERFACE);
 
+            if (heeftAnnotatie && heeftInterface) {
+                gekoppeld++;
+            }
+
             if (heeftAnnotatie && !heeftInterface) {
-                bevindingen.add(naam + " draagt @" + ANNOTATIE + " maar implementeert " + INTERFACE
-                        + " niet; dat levert bij de eerste validatie een 500 op in plaats van een 400");
+                bevindingen.add(naam + " draagt @ValidIdentificatieNummer maar implementeert"
+                        + " HeeftIdentificatie niet; dat levert bij de eerste validatie een 500 op"
+                        + " in plaats van een 400");
             }
 
             if (heeftInterface && !heeftAnnotatie) {
-                bevindingen.add(naam + " implementeert " + INTERFACE + " maar draagt @" + ANNOTATIE
-                        + " niet; er wordt dan stilzwijgend niets gevalideerd");
+                bevindingen.add(naam + " implementeert HeeftIdentificatie maar draagt"
+                        + " @ValidIdentificatieNummer niet; er wordt dan stilzwijgend niets gevalideerd");
             }
         }
 
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
+        Assertions.assertTrue(gekoppeld > 0,
+                "Geen enkel schema draagt de elfproef meer; verwijderen van beide vendor-extensies"
+                        + " hoort deze test te laten falen en niet stilzwijgend te passeren");
     }
 }

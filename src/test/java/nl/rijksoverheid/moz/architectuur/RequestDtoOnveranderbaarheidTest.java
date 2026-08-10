@@ -34,9 +34,10 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  *       de gegenereerde mapper-implementatie zou de regel per definitie overtreden.</li>
  *   <li>Tests vallen erbuiten omdat die hun request-bodies juist mét setters opbouwen.</li>
  *   <li>De gegenereerde modellen zelf vallen erbuiten. Sinds {@code accessTargetWhere}
- *       tellen ook veldtoegangen mee, en hun {@code equals}, {@code hashCode},
- *       {@code toString} en adders komen rechtstreeks bij de privévelden; daarnaast
- *       roept {@code toString} de private {@code toIndentedString} aan.</li>
+ *       tellen ook veldtoegangen mee, en de naam van een veld matcht de allow-list nooit —
+ *       élke methode van zo'n model leest of schrijft zijn privévelden rechtstreeks, tot en
+ *       met de getters. Daar komt bij dat {@code toString} de private
+ *       {@code toIndentedString} aanroept.</li>
  * </ul>
  *
  * <p>Eén gat dat de regel niet kan dichten: een lijst-getter geeft de levende collectie

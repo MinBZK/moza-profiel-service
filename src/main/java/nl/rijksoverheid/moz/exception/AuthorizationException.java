@@ -5,7 +5,8 @@ import java.util.Objects;
 
 /**
  * Thrown for authorization failures (e.g. missing write access, invalid JWT scope).
- * Not yet used; wired into DomainExceptionMapper for future use.
+ * Wordt gegooid door PartijService.requireDienstverlenerAuthorized en door
+ * DomainExceptionMapper vertaald naar een 403 met problem-body.
  */
 public class AuthorizationException extends RuntimeException {
 
