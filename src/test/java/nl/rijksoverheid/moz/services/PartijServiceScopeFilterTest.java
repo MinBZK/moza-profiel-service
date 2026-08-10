@@ -352,7 +352,7 @@ class PartijServiceScopeFilterTest {
 
     @Test
     void alleenDienstNaamZonderDienstverlener_FiltertOpDienst() {
-        // PartijRequest.isEmpty() moet ook false zijn als alléén dienstNaam is gezet.
+        // getPartijResponse mag de ongefilterde tak niet kiezen als alléén dienstNaam is gezet.
         scenarioMetDrieScopes();
 
         PartijResponse response = partijService.getPartijResponse(
