@@ -921,6 +921,57 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .body("detail", containsString("niet bevoegd"));
     }
 
+    /**
+     * De dienst-specifieke autorisatie: een scope op precies deze dienst geeft wél toegang. De
+     * overige te-verwijderen-op tests gebruiken een DV-brede scope ({@code dienst == null}), die
+     * de dienstnaam-vergelijking in {@code requireDienstverlenerAuthorized} afkort. Zonder deze
+     * test blijft de suite groen als die vergelijking wordt omgedraaid.
+     */
+    @Test
+    void updateContactgegevenTeVerwijderenOp_MetDienstSpecifiekeScope_Success() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("ScopeDV");
+            dv.persist();
+            Dienst dienst = new Dienst();
+            dienst.setNaam("Parkeervergunning");
+            dienst.persist();
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, dienst);
+            link.persist();
+
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111123"));
+            p.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+
+            new ScopeContactgegeven(c, link).persist();
+        });
+
+        var body = teVerwijderenOpRequest(contactId.get(), "111111123");
+        body.setDienstverlenerNaam("ScopeDV");
+        body.setDienstNaam("Parkeervergunning");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
+                .then()
+                .statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven c = Contactgegeven.findById(contactId.get());
+            Assertions.assertEquals(body.getTeVerwijderenOp(), c.getTeVerwijderenOp());
+        });
+    }
+
     private static TeVerwijderenOpRequest teVerwijderenOpRequest(UUID id, String identificatieNummer) {
         var request = new TeVerwijderenOpRequest();
         request.setId(id);

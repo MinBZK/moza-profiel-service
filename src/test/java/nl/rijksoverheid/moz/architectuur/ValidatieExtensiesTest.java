@@ -26,14 +26,15 @@ import java.util.List;
  *       gevalideerd, precies het gat dat MinBZK/MijnOverheidZakelijk#923 beschrijft.</li>
  * </ul>
  *
- * <p>De ondergrens is er met opzet. Zonder die controle zou het verwijderen van bééide extensies
- * — de meest waarschijnlijke manier waarop de elfproef sneuvelt — deze test groen laten, want dan
- * is er simpelweg niets meer om over te klagen. Dezelfde reden waarom
- * {@code StandardErrorResponsesTest} een minimaal aantal operaties eist.
+ * <p>De test pint vast wélk schema de elfproef draagt. Alleen tellen zou groen blijven als de
+ * constraint naar een ánder schema verhuist — de koppeling klopt dan nog, de plaats niet — en zou
+ * bovendien nietszeggend worden zodra MinBZK/MijnOverheidZakelijk#923 een tweede drager toevoegt.
+ * Uitbreiden hoort een bewuste bewerking van deze lijst te zijn.
  *
- * <p>De sweep kijkt alleen naar {@code components/schemas} op het hoogste niveau. Vandaag
- * verwijst elke requestBody daarheen, maar een schema dat via {@code allOf} is samengesteld of
- * inline in een operatie staat, valt buiten beeld.
+ * <p>De sweep kijkt alleen naar {@code components/schemas} op het hoogste niveau. Vandaag verwijst
+ * elke requestBody daarheen. Een top-level schema dat {@code allOf} gebruikt wordt gewoon
+ * meegenomen; alleen inline sub-schema's — allOf-leden en bodies die direct in een operatie
+ * staan — vallen buiten beeld.
  *
  * <p>Deze test leest het contract rechtstreeks — niet het gepubliceerde document — omdat het de
  * bron is die de codegen voedt. Dat de twee gelijk zijn bewaakt {@code OpenApiContractDriftTest}.
@@ -42,6 +43,9 @@ class ValidatieExtensiesTest {
 
     private static final String ANNOTATIE = "nl.rijksoverheid.moz.validation.ValidIdentificatieNummer";
     private static final String INTERFACE = "nl.rijksoverheid.moz.validation.HeeftIdentificatie";
+
+    /** De schema's die de elfproef horen te dragen, in de volgorde waarin het contract ze opsomt. */
+    private static final List<String> DRAGERS = List.of("EmailVerificatieRequest");
 
     @Test
     void annotatieEnInterfaceStaanAltijdSamen() throws Exception {
@@ -56,21 +60,22 @@ class ValidatieExtensiesTest {
                 "components/schemas ontbreekt of is geen object");
 
         List<String> bevindingen = new ArrayList<>();
-        int gekoppeld = 0;
+        List<String> dragers = new ArrayList<>();
         var namen = schemas.fieldNames();
 
         while (namen.hasNext()) {
             String naam = namen.next();
             JsonNode schema = schemas.get(naam);
 
-            // toString() op beide, want de generator staat voor x-class-extra-annotation zowel
-            // een enkele waarde als een lijst toe; asText() zou op een lijst leeg teruggeven en
-            // daarmee precies het omgekeerde melden van wat er aan de hand is.
+            // toString() op beide: x-implements is per definitie een lijst, x-class-extra-annotation
+            // een enkele string. Symmetrisch lezen houdt de twee takken gelijk en blijft werken als
+            // een van de vormen ooit verandert; asText() geeft op een lijst leeg terug en zou dan
+            // precies het omgekeerde melden van wat er aan de hand is.
             boolean heeftAnnotatie = schema.path("x-class-extra-annotation").toString().contains(ANNOTATIE);
             boolean heeftInterface = schema.path("x-implements").toString().contains(INTERFACE);
 
             if (heeftAnnotatie && heeftInterface) {
-                gekoppeld++;
+                dragers.add(naam);
             }
 
             if (heeftAnnotatie && !heeftInterface) {
@@ -86,8 +91,9 @@ class ValidatieExtensiesTest {
         }
 
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
-        Assertions.assertTrue(gekoppeld > 0,
-                "Geen enkel schema draagt de elfproef meer; verwijderen van beide vendor-extensies"
-                        + " hoort deze test te laten falen en niet stilzwijgend te passeren");
+        Assertions.assertEquals(DRAGERS, dragers,
+                "De elfproef hoort precies op " + DRAGERS + " te staan. Verhuist of verdwijnt hij,"
+                        + " dan is dat een gedragswijziging aan de buitenkant; zie"
+                        + " MinBZK/MijnOverheidZakelijk#923");
     }
 }

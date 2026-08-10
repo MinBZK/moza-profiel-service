@@ -7,7 +7,9 @@ import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequ
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import static io.restassured.RestAssured.given;
@@ -151,8 +153,13 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(OK);
 
-        Mockito.verify(emailVerificatieService).vraagEmailVerificatieCodeAan(
-                Mockito.argThat(r -> "111111111".equals(r.getIdentificatieNummer())));
+        // Captor en niet argThat: verify telt met een matcher alleen de mátchende aanroepen, dus
+        // een tweede aanroep met een andere payload — een tweede verificatiemail — zou erdoor
+        // glippen. Bovendien toont Mockito bij een mismatch alleen "custom argument matcher".
+        var captor = ArgumentCaptor.forClass(EmailVerificatieCodeAanvraagRequest.class);
+        Mockito.verify(emailVerificatieService).vraagEmailVerificatieCodeAan(captor.capture());
+        Assertions.assertEquals("111111111", captor.getValue().getIdentificatieNummer(),
+                "De service hoort het nummer uit het request te zien, niet een genormaliseerde waarde");
     }
 
     @Test

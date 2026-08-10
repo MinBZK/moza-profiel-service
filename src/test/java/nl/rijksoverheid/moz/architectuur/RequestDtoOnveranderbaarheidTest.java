@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.architectuur;
 
+import com.tngtech.archunit.core.domain.JavaCall;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -12,6 +13,7 @@ import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPac
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
 import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.nameMatching;
 import static com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner;
+import static com.tngtech.archunit.core.domain.properties.HasParameterTypes.Predicates.rawParameterTypes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
@@ -34,10 +36,9 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  *       de gegenereerde mapper-implementatie zou de regel per definitie overtreden.</li>
  *   <li>Tests vallen erbuiten omdat die hun request-bodies juist mét setters opbouwen.</li>
  *   <li>De gegenereerde modellen zelf vallen erbuiten. Sinds {@code accessTargetWhere}
- *       tellen ook veldtoegangen mee, en de naam van een veld matcht de allow-list nooit —
- *       élke methode van zo'n model leest of schrijft zijn privévelden rechtstreeks, tot en
- *       met de getters. Daar komt bij dat {@code toString} de private
- *       {@code toIndentedString} aanroept.</li>
+ *       tellen ook veldtoegangen mee, en vrijwel elke methode van zo'n model leest of schrijft
+ *       zijn privévelden rechtstreeks, tot en met de getters. Daar komt bij dat
+ *       {@code toString} de private {@code toIndentedString} aanroept.</li>
  * </ul>
  *
  * <p>Eén gat dat de regel niet kan dichten: een lijst-getter geeft de levende collectie
@@ -55,6 +56,9 @@ class RequestDtoOnveranderbaarheidTest {
      * {@code <init>} staat erbij omdat een request aanmaken uiteraard mag.
      */
     private static final String TOEGESTAAN = "get[A-Z].*|is[A-Z].*|equals|hashCode|toString|<init>";
+
+    /** {@code equals} en de constructor zijn de enige toegestane aanroepen mét parameters. */
+    private static final String TOEGESTAAN_MET_PARAMETERS = "equals|<init>";
 
     /**
      * Een allow-list in plaats van een verbod op {@code set*}: de generator maakt naast
@@ -82,6 +86,33 @@ class RequestDtoOnveranderbaarheidTest {
                                 .and(not(target(nameMatching(TOEGESTAAN)))))
                 .because("een binnenkomend request hoort te blijven wat de aanroeper heeft gestuurd; "
                         + "lees het uit en bouw een eigen object als er iets afgeleid moet worden");
+
+        regel.check(productieklassen);
+    }
+
+    /**
+     * De naam-allow-list alleen is niet genoeg. Een boolean-property levert een fluent setter op
+     * die zijn eigen naam draagt: {@code ContactgegevenUpdateRequest.isDefault(Boolean)} matcht
+     * {@code is[A-Z].*} en zou dus als lezen worden aangemerkt, terwijl hij muteert.
+     *
+     * <p>Ariteit maakt het onderscheid dat de naam niet kan maken: lezen gebeurt zonder
+     * parameters. {@code equals} en de constructor zijn de twee uitzonderingen.
+     */
+    @Test
+    void productiecodeRoeptGeenParameterdragendeMethodeAanOpEenRequest() {
+        JavaClasses productieklassen = new ClassFileImporter()
+                .withImportOption(new ImportOption.DoNotIncludeTests())
+                .importPackages("nl.rijksoverheid.moz");
+
+        ArchRule regel = noClasses()
+                .that().resideOutsideOfPackage(GEGENEREERDE_MODELLEN)
+                .should().callCodeUnitWhere(
+                        JavaCall.Predicates.target(owner(resideInAPackage(GEGENEREERDE_MODELLEN)
+                                .and(simpleNameEndingWith("Request"))))
+                                .and(not(JavaCall.Predicates.target(nameMatching(TOEGESTAAN_MET_PARAMETERS))))
+                                .and(not(JavaCall.Predicates.target(rawParameterTypes(new Class<?>[0])))))
+                .because("een methode met parameters op een binnenkomend request schrijft, ook als "
+                        + "zijn naam op een getter lijkt");
 
         regel.check(productieklassen);
     }

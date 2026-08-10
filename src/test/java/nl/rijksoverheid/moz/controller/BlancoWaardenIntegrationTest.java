@@ -152,9 +152,11 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
 
     /**
      * De scope-velden op PartijRequest zaten eerder zonder pattern. Een blanco waarde gold
-     * daar als "wel opgegeven", waarna erop werd gefilterd en de aanroeper een 200 kreeg met
-     * een profiel waaruit alle gescopete contactgegevens en voorkeuren waren weggevallen —
-     * de partij en haar identificaties bleven wel staan, dus de fout was moeilijk te zien.
+     * daar als "wel opgegeven", waarna erop werd gefilterd en de aanroeper een 200 kreeg met een
+     * uitgedund profiel: bij een blanco {@code dienstverlener} vielen alle gescopete gegevens weg,
+     * bij een blanco {@code dienstNaam} alleen de dienst-specifieke — DV-brede scopes overleven
+     * die filter. De partij en haar identificaties bleven in beide gevallen staan, dus de fout
+     * was moeilijk te zien.
      */
     @ParameterizedTest
     @ValueSource(strings = {"dienstverlener", "dienstNaam"})
@@ -178,9 +180,9 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
      * dienst-specifieke scope een 403 op, terwijl er niets mis was met de bevoegdheid. Een
      * DV-brede scope kortte die vergelijking af en had het probleem niet.
      *
-     * <p>De fixture is er om die reden: zonder bestaande partij met een dienst-specifieke
-     * scope zou het wegvallen van de pattern op een 404 stranden, en dan bewijst de test niet
-     * wat hij beweert.
+     * <p>De fixture is er voor de diagnose, niet voor het onderscheid: ook zonder fixture faalt
+     * deze test als de pattern wegvalt, maar dan op een 404 die niets zegt over de
+     * bevoegdheidscontrole. Met fixture komt het antwoord uit op de 403 die de bug beschrijft.
      */
     @Test
     void teVerwijderenOpMetBlancoDienstNaamWordtAfgewezen() {
@@ -222,6 +224,49 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
                 .body("violations.field", hasItem("dienstNaam"));
+    }
+
+    /**
+     * Positieve tegenhanger voor de scope-velden op PartijRequest. Zonder deze test zou een te
+     * strenge pattern — bijvoorbeeld {@code ^\S+$}, dat geen spaties toestaat — alle blanco-tests
+     * groen laten terwijl "Gemeente Amsterdam" als scope voortaan een 400 oplevert.
+     */
+    @Test
+    void partijMetGevuldeScopeVeldenWordtGeaccepteerd() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("Gemeente Amsterdam");
+            dv.persist();
+            Dienst dienst = new Dienst();
+            dienst.setNaam("Parkeervergunning");
+            dienst.persist();
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, dienst);
+            link.persist();
+
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111104"));
+            p.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Email);
+            c.setWaarde("scope@example.com");
+            c.setPartij(p);
+            c.persist();
+
+            new ScopeContactgegeven(c, link).persist();
+        });
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"identificatieType":"BSN","identificatieNummer":"111111104",
+                         "dienstverlener":"Gemeente Amsterdam","dienstNaam":"Parkeervergunning"}
+                        """)
+                .when().post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(200)
+                .body("contactgegevens[0].waarde", equalTo("scope@example.com"));
     }
 
     /**
