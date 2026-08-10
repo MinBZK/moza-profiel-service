@@ -24,9 +24,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 /**
  * Verplichte tekstvelden moeten één regel zijn en mogen niet uit alleen witruimte bestaan.
@@ -180,9 +182,10 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
      * dienst-specifieke scope een 403 op, terwijl er niets mis was met de bevoegdheid. Een
      * DV-brede scope kortte die vergelijking af en had het probleem niet.
      *
-     * <p>De fixture is er voor de diagnose, niet voor het onderscheid: ook zonder fixture faalt
-     * deze test als de pattern wegvalt, maar dan op een 404 die niets zegt over de
-     * bevoegdheidscontrole. Met fixture komt het antwoord uit op de 403 die de bug beschrijft.
+     * <p>De fixture is er voor de diagnose, niet voor het onderscheid: met een willekeurige id in
+     * plaats van de fixture faalt deze test óók als de pattern wegvalt, maar dan op een 404 die
+     * niets zegt over de bevoegdheidscontrole. Met fixture komt het antwoord uit op de 403 die de
+     * bug beschrijft.
      */
     @Test
     void teVerwijderenOpMetBlancoDienstNaamWordtAfgewezen() {
@@ -227,9 +230,15 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
     }
 
     /**
-     * Positieve tegenhanger voor de scope-velden op PartijRequest. Zonder deze test zou een te
-     * strenge pattern — bijvoorbeeld {@code ^\S+$}, dat geen spaties toestaat — alle blanco-tests
-     * groen laten terwijl "Gemeente Amsterdam" als scope voortaan een 400 oplevert.
+     * Positieve tegenhanger voor de scope-velden op PartijRequest. Een tot {@code ^\S+$}
+     * aangescherpte pattern op precies deze twee velden zou alle blanco-tests groen laten terwijl
+     * "Gemeente Amsterdam" als scope voortaan een 400 oplevert. Een globale aanscherping valt al
+     * om over {@code dienstverlenerMetNormaleNaamWordtGeaccepteerd}; deze test dekt de variant
+     * die alleen PartijRequest raakt.
+     *
+     * <p>De fixture bevat bewust twee contactgegevens onder verschillende dienstverleners, en de
+     * assertie eist er precies één terug. Met één rij zou over-inclusie onzichtbaar zijn: de
+     * filter volledig weghalen leverde dan hetzelfde antwoord op.
      */
     @Test
     void partijMetGevuldeScopeVeldenWordtGeaccepteerd() {
@@ -254,6 +263,20 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
             c.persist();
 
             new ScopeContactgegeven(c, link).persist();
+
+            Dienstverlener andereDv = new Dienstverlener();
+            andereDv.setNaam("Gemeente Rotterdam");
+            andereDv.persist();
+            DienstverlenerDienst andereLink = new DienstverlenerDienst(andereDv, null);
+            andereLink.persist();
+
+            Contactgegeven buiten = new Contactgegeven();
+            buiten.setType(ContactType.Telefoonnummer);
+            buiten.setWaarde("0612345678");
+            buiten.setPartij(p);
+            buiten.persist();
+
+            new ScopeContactgegeven(buiten, andereLink).persist();
         });
 
         given()
@@ -265,8 +288,8 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                         """)
                 .when().post("/api/profielservice/v1/partij")
                 .then()
-                .statusCode(200)
-                .body("contactgegevens[0].waarde", equalTo("scope@example.com"));
+                .statusCode(OK)
+                .body("contactgegevens.waarde", contains("scope@example.com"));
     }
 
     /**

@@ -142,7 +142,7 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
 
         var body = new EmailVerificatieCodeAanvraagRequest();
         body.setEmail("email@email.com");
-        body.setIdentificatieNummer("111111111");
+        body.setIdentificatieNummer(" 111111111 ");
         body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
@@ -155,10 +155,15 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
 
         // Captor en niet argThat: verify telt met een matcher alleen de mátchende aanroepen, dus
         // een tweede aanroep met een andere payload — een tweede verificatiemail — zou erdoor
-        // glippen. Bovendien toont Mockito bij een mismatch alleen "custom argument matcher".
+        // glippen. Bovendien toont Mockito bij een mismatch "custom argument matcher" aan de
+        // Wanted-kant, waar een captor een echte waardevergelijking geeft.
+        //
+        // De spaties in het nummer zijn er met opzet: "111111111" is een vast punt van elke
+        // plausibele normalisatie — trim, alleen cijfers, nullen aanvullen — en zou dus niets
+        // bewijzen. " 111111111 " verandert wél als er onderweg genormaliseerd wordt.
         var captor = ArgumentCaptor.forClass(EmailVerificatieCodeAanvraagRequest.class);
         Mockito.verify(emailVerificatieService).vraagEmailVerificatieCodeAan(captor.capture());
-        Assertions.assertEquals("111111111", captor.getValue().getIdentificatieNummer(),
+        Assertions.assertEquals(" 111111111 ", captor.getValue().getIdentificatieNummer(),
                 "De service hoort het nummer uit het request te zien, niet een genormaliseerde waarde");
     }
 

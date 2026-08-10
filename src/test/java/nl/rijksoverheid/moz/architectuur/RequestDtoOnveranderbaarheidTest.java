@@ -1,20 +1,9 @@
 package nl.rijksoverheid.moz.architectuur;
 
-import com.tngtech.archunit.core.domain.JavaCall;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
-import com.tngtech.archunit.lang.ArchRule;
 import org.junit.jupiter.api.Test;
-
-import static com.tngtech.archunit.base.DescribedPredicate.not;
-import static com.tngtech.archunit.core.domain.JavaAccess.Predicates.target;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
-import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
-import static com.tngtech.archunit.core.domain.properties.HasName.Predicates.nameMatching;
-import static com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner;
-import static com.tngtech.archunit.core.domain.properties.HasParameterTypes.Predicates.rawParameterTypes;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
  * Een binnenkomend request is niets anders dan wat de aanroeper heeft gestuurd. Wie het
@@ -29,6 +18,9 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * een architectuurregel de manier om de eigenschap vast te leggen. Bij een upgrade van de
  * generator is die aanname het narekenen waard.
  *
+ * <p>De regels staan in {@link RequestOnveranderbaarheidRegels}; hun dekking wordt bewezen in
+ * {@link RegelDekkingTest}. Deze klasse past ze alleen toe op de productiecode.
+ *
  * <p>Drie uitzonderingen, alle drie bewust:
  *
  * <ul>
@@ -41,7 +33,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  *       {@code toString} de private {@code toIndentedString} aanroept.</li>
  * </ul>
  *
- * <p>Eén gat dat de regel niet kan dichten: een lijst-getter geeft de levende collectie
+ * <p>Eén gat dat de regels niet kunnen dichten: een lijst-getter geeft de levende collectie
  * terug, dus {@code request.getIdentificaties().clear()} muteert het request terwijl het
  * aanroepdoel {@code java.util.List} is en daarmee buiten de eigenaarsfilter valt. Groen
  * betekent dus "niet via de DTO gemuteerd", niet "onveranderlijk". Wie een lijst uit een
@@ -49,71 +41,19 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  */
 class RequestDtoOnveranderbaarheidTest {
 
-    private static final String GEGENEREERDE_MODELLEN = "nl.rijksoverheid.moz.api.generated.model";
-
-    /**
-     * Lezen is {@code get*}/{@code is*} plus de drie methodes van {@link Object};
-     * {@code <init>} staat erbij omdat een request aanmaken uiteraard mag.
-     */
-    private static final String TOEGESTAAN = "get[A-Z].*|is[A-Z].*|equals|hashCode|toString|<init>";
-
-    /** {@code equals} en de constructor zijn de enige toegestane aanroepen mét parameters. */
-    private static final String TOEGESTAAN_MET_PARAMETERS = "equals|<init>";
-
-    /**
-     * Een allow-list in plaats van een verbod op {@code set*}: de generator maakt naast
-     * {@code setWaarde(...)} ook een fluent {@code waarde(...)} die net zo goed muteert.
-     * Die tweede vorm draagt de naam van de property en is dus niet aan zijn naam te
-     * herkennen. Andersom kan wel: alles wat niet leest, muteert.
-     *
-     * <p>{@code accessTargetWhere} en niet {@code callMethodWhere}: dat laatste dekt alleen
-     * echte aanroepen, terwijl ArchUnit een method reference als een eigen toegangssoort
-     * modelleert. Een mutatie in de vorm
-     * {@code Consumer<String> c = request::setIdentificatieNummer; c.accept("x");} kwam er
-     * met {@code callMethodWhere} ongemerkt doorheen.
-     */
-    @Test
-    void productiecodeMuteertGeenBinnenkomendRequest() {
-        JavaClasses productieklassen = new ClassFileImporter()
+    private static JavaClasses productieklassen() {
+        return new ClassFileImporter()
                 .withImportOption(new ImportOption.DoNotIncludeTests())
                 .importPackages("nl.rijksoverheid.moz");
-
-        ArchRule regel = noClasses()
-                .that().resideOutsideOfPackage(GEGENEREERDE_MODELLEN)
-                .should().accessTargetWhere(
-                        target(owner(resideInAPackage(GEGENEREERDE_MODELLEN)
-                                .and(simpleNameEndingWith("Request"))))
-                                .and(not(target(nameMatching(TOEGESTAAN)))))
-                .because("een binnenkomend request hoort te blijven wat de aanroeper heeft gestuurd; "
-                        + "lees het uit en bouw een eigen object als er iets afgeleid moet worden");
-
-        regel.check(productieklassen);
     }
 
-    /**
-     * De naam-allow-list alleen is niet genoeg. Een boolean-property levert een fluent setter op
-     * die zijn eigen naam draagt: {@code ContactgegevenUpdateRequest.isDefault(Boolean)} matcht
-     * {@code is[A-Z].*} en zou dus als lezen worden aangemerkt, terwijl hij muteert.
-     *
-     * <p>Ariteit maakt het onderscheid dat de naam niet kan maken: lezen gebeurt zonder
-     * parameters. {@code equals} en de constructor zijn de twee uitzonderingen.
-     */
+    @Test
+    void productiecodeMuteertGeenBinnenkomendRequest() {
+        RequestOnveranderbaarheidRegels.GEEN_MUTERENDE_NAAM.check(productieklassen());
+    }
+
     @Test
     void productiecodeRoeptGeenParameterdragendeMethodeAanOpEenRequest() {
-        JavaClasses productieklassen = new ClassFileImporter()
-                .withImportOption(new ImportOption.DoNotIncludeTests())
-                .importPackages("nl.rijksoverheid.moz");
-
-        ArchRule regel = noClasses()
-                .that().resideOutsideOfPackage(GEGENEREERDE_MODELLEN)
-                .should().callCodeUnitWhere(
-                        JavaCall.Predicates.target(owner(resideInAPackage(GEGENEREERDE_MODELLEN)
-                                .and(simpleNameEndingWith("Request"))))
-                                .and(not(JavaCall.Predicates.target(nameMatching(TOEGESTAAN_MET_PARAMETERS))))
-                                .and(not(JavaCall.Predicates.target(rawParameterTypes(new Class<?>[0])))))
-                .because("een methode met parameters op een binnenkomend request schrijft, ook als "
-                        + "zijn naam op een getter lijkt");
-
-        regel.check(productieklassen);
+        RequestOnveranderbaarheidRegels.GEEN_AANROEP_MET_PARAMETERS.check(productieklassen());
     }
 }

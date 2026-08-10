@@ -36,8 +36,8 @@ class StandardErrorResponsesTest {
     private static final List<String> HTTP_METHODEN = List.of("get", "post", "put", "patch", "delete");
 
     /**
-     * De foutcodes die dit contract vandaag gebruikt, buiten de 400 en de 500 die in
-     * {@link #elkeOperatieDocumenteertDeStandaardFoutresponses()} apart worden gecontroleerd. Bewust een vaste lijst en
+     * De foutcodes die dit contract vandaag gebruikt, buiten de 400 en de 500 die in de test
+     * hieronder apart worden gecontroleerd. Bewust een vaste lijst en
      * geen universele regel: komt er ooit een 401, 415 of 429 bij, dan staat die er niet
      * automatisch tussen en moet hij hier worden toegevoegd.
      */

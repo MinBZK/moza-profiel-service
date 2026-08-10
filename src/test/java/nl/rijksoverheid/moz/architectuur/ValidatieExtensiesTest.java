@@ -28,8 +28,10 @@ import java.util.List;
  *
  * <p>De test pint vast wélk schema de elfproef draagt. Alleen tellen zou groen blijven als de
  * constraint naar een ánder schema verhuist — de koppeling klopt dan nog, de plaats niet — en zou
- * bovendien nietszeggend worden zodra MinBZK/MijnOverheidZakelijk#923 een tweede drager toevoegt.
- * Uitbreiden hoort een bewuste bewerking van deze lijst te zijn.
+ * bovendien zwakker worden zodra MinBZK/MijnOverheidZakelijk#923 een tweede drager toevoegt.
+ * Uitbreiden hoort een bewuste bewerking van deze lijst te zijn. De vergelijking is
+ * volgorde-onafhankelijk, zodat het herschikken van {@code components/schemas} — zoals eerder in
+ * deze branch al eens gebeurde — deze test niet om laat vallen.
  *
  * <p>De sweep kijkt alleen naar {@code components/schemas} op het hoogste niveau. Vandaag verwijst
  * elke requestBody daarheen. Een top-level schema dat {@code allOf} gebruikt wordt gewoon
@@ -44,7 +46,7 @@ class ValidatieExtensiesTest {
     private static final String ANNOTATIE = "nl.rijksoverheid.moz.validation.ValidIdentificatieNummer";
     private static final String INTERFACE = "nl.rijksoverheid.moz.validation.HeeftIdentificatie";
 
-    /** De schema's die de elfproef horen te dragen, in de volgorde waarin het contract ze opsomt. */
+    /** De schema's die de elfproef horen te dragen. Volgorde doet niet ter zake. */
     private static final List<String> DRAGERS = List.of("EmailVerificatieRequest");
 
     @Test
@@ -71,7 +73,11 @@ class ValidatieExtensiesTest {
             // een enkele string. Symmetrisch lezen houdt de twee takken gelijk en blijft werken als
             // een van de vormen ooit verandert; asText() geeft op een lijst leeg terug en zou dan
             // precies het omgekeerde melden van wat er aan de hand is.
-            boolean heeftAnnotatie = schema.path("x-class-extra-annotation").toString().contains(ANNOTATIE);
+            // Het aanhalingsteken hoort bij de match: zonder anker zou een uitgecommentarieerde
+            // waarde als "# @nl...ValidIdentificatieNummer" hier nog steeds als drager tellen,
+            // terwijl de generator er een comment van maakt en de elfproef stilzwijgend verdwijnt.
+            boolean heeftAnnotatie = schema.path("x-class-extra-annotation").toString()
+                    .contains("\"@" + ANNOTATIE);
             boolean heeftInterface = schema.path("x-implements").toString().contains(INTERFACE);
 
             if (heeftAnnotatie && heeftInterface) {
@@ -91,7 +97,11 @@ class ValidatieExtensiesTest {
         }
 
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
-        Assertions.assertEquals(DRAGERS, dragers,
+        dragers.sort(String::compareTo);
+        List<String> verwacht = new ArrayList<>(DRAGERS);
+        verwacht.sort(String::compareTo);
+
+        Assertions.assertEquals(verwacht, dragers,
                 "De elfproef hoort precies op " + DRAGERS + " te staan. Verhuist of verdwijnt hij,"
                         + " dan is dat een gedragswijziging aan de buitenkant; zie"
                         + " MinBZK/MijnOverheidZakelijk#923");

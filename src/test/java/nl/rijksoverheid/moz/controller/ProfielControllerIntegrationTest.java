@@ -922,10 +922,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     /**
-     * De dienst-specifieke autorisatie: een scope op precies deze dienst geeft wél toegang. De
-     * overige te-verwijderen-op tests gebruiken een DV-brede scope ({@code dienst == null}), die
-     * de dienstnaam-vergelijking in {@code requireDienstverlenerAuthorized} afkort. Zonder deze
-     * test blijft de suite groen als die vergelijking wordt omgedraaid.
+     * De dienst-specifieke autorisatie: een scope op precies deze dienst geeft wél toegang.
+     *
+     * <p>De overige te-verwijderen-op tests laten {@code dienstNaam} weg, waardoor
+     * {@code requireDienstverlenerAuthorized} al teruggeeft op de eerste controle en de
+     * dienstnaam-vergelijking nooit bereikt wordt. Het níet-matchende geval is elders wel gedekt,
+     * door {@code PartijServiceTest.updateVoorkeurTeVerwijderenOpByDienstverlener_WithWrongDienstNaam_ThrowsForbidden};
+     * wat deze test toevoegt is het matchende geval, end-to-end over HTTP en voor de
+     * contactgegeven-variant.
      */
     @Test
     void updateContactgegevenTeVerwijderenOp_MetDienstSpecifiekeScope_Success() {
@@ -957,6 +961,54 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         var body = teVerwijderenOpRequest(contactId.get(), "111111123");
         body.setDienstverlenerNaam("ScopeDV");
         body.setDienstNaam("Parkeervergunning");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
+                .then()
+                .statusCode(OK);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven c = Contactgegeven.findById(contactId.get());
+            Assertions.assertEquals(body.getTeVerwijderenOp(), c.getTeVerwijderenOp());
+        });
+    }
+
+    /**
+     * De andere kant van dezelfde vergelijking: een DV-brede scope ({@code dienst == null}) geeft
+     * toegang ongeacht welke dienstNaam het request noemt. Zonder deze test kan die kortsluiting
+     * wegvallen zonder dat er iets faalt, en krijgt elke houder van een brede scope die een
+     * dienstNaam meestuurt voortaan een 403.
+     */
+    @Test
+    void updateContactgegevenTeVerwijderenOp_BredeScopeMetDienstNaam_Success() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("BredeDV");
+            dv.persist();
+
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111124"));
+            p.persist();
+
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+
+            DienstverlenerDienst link = new DienstverlenerDienst(dv, null);
+            link.persist();
+            new ScopeContactgegeven(c, link).persist();
+        });
+
+        var body = teVerwijderenOpRequest(contactId.get(), "111111124");
+        body.setDienstverlenerNaam("BredeDV");
+        body.setDienstNaam("WelkeDienstDanOok");
 
         given()
                 .filter(validationFilter)
