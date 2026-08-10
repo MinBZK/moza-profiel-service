@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
+    # Weekly, Monday 03:27 UTC. Off-the-hour minute is deliberate: avoids the
+    # load spike GitHub's scheduler sees on round times (e.g. 03:00).
     - cron: '27 3 * * 1'
 
 permissions: read-all
