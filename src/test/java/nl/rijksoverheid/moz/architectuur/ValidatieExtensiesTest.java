@@ -73,12 +73,16 @@ class ValidatieExtensiesTest {
             // een enkele string. Symmetrisch lezen houdt de twee takken gelijk en blijft werken als
             // een van de vormen ooit verandert; asText() geeft op een lijst leeg terug en zou dan
             // precies het omgekeerde melden van wat er aan de hand is.
-            // Het aanhalingsteken hoort bij de match: zonder anker zou een uitgecommentarieerde
-            // waarde als "# @nl...ValidIdentificatieNummer" hier nog steeds als drager tellen,
-            // terwijl de generator er een comment van maakt en de elfproef stilzwijgend verdwijnt.
+            // De aanhalingstekens horen bij de match, aan beide kanten: zonder anker zou een
+            // uitgecommentarieerde waarde als "# @nl...ValidIdentificatieNummer" hier nog steeds
+            // als drager tellen, terwijl de generator er een comment van maakt en de elfproef
+            // stilzwijgend verdwijnt. Om dezelfde reden staat het sluitende aanhalingsteken erbij:
+            // anders telt een langere naam met dezelfde prefix — of een gelijknamige klasse in een
+            // ander pakket — even hard mee.
             boolean heeftAnnotatie = schema.path("x-class-extra-annotation").toString()
-                    .contains("\"@" + ANNOTATIE);
-            boolean heeftInterface = schema.path("x-implements").toString().contains(INTERFACE);
+                    .contains("\"@" + ANNOTATIE + "\"");
+            boolean heeftInterface = schema.path("x-implements").toString()
+                    .contains("\"" + INTERFACE + "\"");
 
             if (heeftAnnotatie && heeftInterface) {
                 dragers.add(naam);

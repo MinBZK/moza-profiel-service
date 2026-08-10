@@ -57,10 +57,17 @@ public final class RequestMutaties {
         }
     }
 
-    /** Negatieve controle: puur lezen hoort door geen enkele regel te worden gevlagd. */
+    /**
+     * Negatieve controle: puur lezen hoort door geen enkele regel te worden gevlagd.
+     *
+     * <p>De {@code equals}-aanroep staat er met opzet bij. Hij is de enige uitzondering in de
+     * allow-list van de ariteitsregel, en zonder een aanroeper zou een kapotte allow-list
+     * onzichtbaar blijven: geen enkele fixture en geen productiecode raakt hem anders.
+     */
     public static final class AlleenLezen {
-        public String lees(ContactgegevenUpdateRequest request) {
-            return request.getWaarde() + request.getIsDefault() + request.hashCode();
+        public String lees(ContactgegevenUpdateRequest request, ContactgegevenUpdateRequest andere) {
+            return request.getWaarde() + request.getIsDefault() + request.hashCode()
+                    + request.equals(andere);
         }
     }
 }
