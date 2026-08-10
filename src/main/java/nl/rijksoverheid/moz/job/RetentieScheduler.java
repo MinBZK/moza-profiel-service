@@ -92,6 +92,9 @@ public class RetentieScheduler {
         laatsteRunEpochSeconds.set(Instant.now().getEpochSecond());
     }
 
+    // Niet private: @Transactional is een CDI interceptor binding, en ArC intercepteert door een
+    // subclass te genereren die de methode overridet. Dat kan niet bij een private methode,
+    // @Transactional zou dan niets doen, zonder dat dat uit de code zelf blijkt.
     @Transactional
     void verwijderInactieveVoorkeuren() {
         Instant nu = Instant.now();
@@ -119,6 +122,7 @@ public class RetentieScheduler {
         LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
     }
 
+    // Niet private: zie toelichting bij verwijderInactieveVoorkeuren.
     @Transactional
     void verwijderInactieveContactgegevens() {
         Instant nu = Instant.now();
@@ -137,9 +141,6 @@ public class RetentieScheduler {
             }
 
             contact.setVerwijderdOp(nu);
-            // Net als bij handmatig verwijderen (PartijService.verwijderContactgegeven): mag het
-            // default-slot van de partiële index niet blijven bezetten.
-            contact.setIsDefault(false);
             verwijderd++;
         }
 
@@ -170,6 +171,9 @@ public class RetentieScheduler {
 
     // Per rij overslaan i.p.v. de ontbrekende identificatie te laten throwen: een throw zou de hele
     // batch terugdraaien, en de corrupte rij zou elke volgende run opnieuw de anderen blokkeren.
+    // ProfielController.setDataSubjectFromPartij gooit voor dezelfde conditie wél een exception —
+    // bewust anders: één HTTP-request afbreken kost weinig, een hele nachtelijke batch afbreken
+    // (en daarmee alle andere kandidaten blokkeren) weegt hier zwaarder.
     private boolean logVerwijderingOfSlaOver(String naam, String processingActivityId, Partij partij, UUID entityId, String type) {
         Identificatie identificatie = partij.primaireIdentificatie();
 

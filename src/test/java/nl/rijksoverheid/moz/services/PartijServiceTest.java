@@ -748,6 +748,59 @@ public class PartijServiceTest {
     }
 
     @Test
+    void updateContactgegeven_isDefaultTrue_LaatZachtverwijderdeDefaultOngemoeid() {
+        AtomicReference<UUID> verwijderdId = new AtomicReference<>();
+        AtomicReference<UUID> secondId = new AtomicReference<>();
+        AtomicReference<Instant> verwijderdLastUpdated = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven verwijderd = new Contactgegeven();
+            verwijderd.setType(ContactType.Email);
+            verwijderd.setWaarde("a@test.com");
+            verwijderd.setIsDefault(true);
+            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.setPartij(partij);
+            verwijderd.persist();
+            verwijderdId.set(verwijderd.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            // Pas na een verse read teruglezen: de DB-kolom rondt tijdstempels af op een grovere
+            // eenheid dan Java's in-memory Instant (zie soortgelijke toelichting elders in dit bestand).
+            verwijderdLastUpdated.set(Contactgegeven.<Contactgegeven>findById(verwijderdId.get()).getLastUpdated());
+
+            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
+            Contactgegeven second = new Contactgegeven();
+            second.setType(ContactType.Email);
+            second.setWaarde("b@test.com");
+            second.setPartij(partij);
+            second.persist();
+            secondId.set(second.id);
+        });
+
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+
+        ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
+        request.id = secondId.get();
+        request.type = ContactType.Email;
+        request.waarde = "b@test.com";
+        request.isDefault = true;
+
+        Assertions.assertTrue(partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven verwijderd = Contactgegeven.findById(verwijderdId.get());
+            Assertions.assertTrue(verwijderd.isIsDefault(),
+                    "een zachtverwijderde rij zit al buiten de partiële index en mag niet gedemote worden");
+            Assertions.assertEquals(verwijderdLastUpdated.get(), verwijderd.getLastUpdated(),
+                    "de zachtverwijderde rij mag door de demote-update niet aangeraakt worden");
+        });
+    }
+
+    @Test
     void updateContactgegeven_isDefaultNull_leavesDefaultUnchanged() {
         AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
@@ -1071,7 +1124,7 @@ public class PartijServiceTest {
     }
 
     @Test
-    void verwijderContactgegeven_ZetIsDefaultOpFalse() {
+    void verwijderContactgegeven_LaatIsDefaultOngemoeid() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -1090,8 +1143,8 @@ public class PartijServiceTest {
         partijService.verwijderContactgegeven(contactId.get());
 
         QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertFalse(Contactgegeven.<Contactgegeven>findById(contactId.get()).isIsDefault(),
-                        "een zachtverwijderd contactgegeven mag het default-slot niet blijven bezetten"));
+                Assertions.assertTrue(Contactgegeven.<Contactgegeven>findById(contactId.get()).isIsDefault(),
+                        "isDefault blijft staan zoals het was op het moment van verwijderen"));
     }
 
     @Test
@@ -1181,7 +1234,7 @@ public class PartijServiceTest {
 
     /**
      * Herhaald toevoegen/verwijderen van dezelfde (partij, type, waarde) mag niet vastlopen op de
-     * findActief-lookup in addContactgegeven: elke cyclus moet een nieuwe rij aanmaken, ook als er
+     * find-lookup in addContactgegeven: elke cyclus moet een nieuwe rij aanmaken, ook als er
      * al meerdere soft deleted rijen met dezelfde waarde bestaan.
      * <p>
      * Dit toetst de servicelaag, niet de partiële unique index zelf (uk_contactgegeven_dedup,

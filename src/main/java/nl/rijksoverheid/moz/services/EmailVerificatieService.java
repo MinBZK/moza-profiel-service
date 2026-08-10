@@ -50,7 +50,7 @@ public class EmailVerificatieService {
             return false;
         }
 
-        Contactgegeven contact = Contactgegeven.findActiefEmail(partij, emailVerificatieRequest.email);
+        Contactgegeven contact = Contactgegeven.findEmail(partij, emailVerificatieRequest.email);
 
         if (contact == null || contact.getGeverifieerdAt() != null) {
             LOG.warn("Verificatie mislukt: Contact niet gevonden of al geverifieerd");
@@ -98,7 +98,7 @@ public class EmailVerificatieService {
             return Response.Status.NOT_FOUND.getStatusCode();
         }
 
-        Contactgegeven contact = Contactgegeven.findActiefEmail(partij, aanvraag.email);
+        Contactgegeven contact = Contactgegeven.findEmail(partij, aanvraag.email);
 
         if (contact == null) {
             LOG.warn("Verificatie code aanvraag mislukt: Contact niet gevonden");

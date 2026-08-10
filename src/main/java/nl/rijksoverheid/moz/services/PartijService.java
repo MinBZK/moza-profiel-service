@@ -77,7 +77,7 @@ public class PartijService {
                 ? request.waarde.toLowerCase(Locale.ROOT)
                 : request.waarde;
 
-        Contactgegeven existing = Contactgegeven.findActief(partij, request.type, normalisedWaarde);
+        Contactgegeven existing = Contactgegeven.find(partij, request.type, normalisedWaarde);
 
         if (existing != null) {
             LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
@@ -138,7 +138,7 @@ public class PartijService {
         // WHERE verwijderd_op IS NULL). Let op: deze invariant wordt uitsluitend in applicatiecode
         // afgedwongen, er is geen unieke DB-index op (partij, voorkeurType, scope); twee gelijktijdige
         // POSTs op dezelfde sleutel kunnen dus beide hier voorbij komen en twee actieve rijen invoegen.
-        Voorkeur existing = Voorkeur.findActief(partij, request.voorkeurType, link);
+        Voorkeur existing = Voorkeur.find(partij, request.voorkeurType, link);
 
         if (existing != null) {
             if (!Objects.equals(existing.getWaarde(), request.waarde)) {
@@ -234,7 +234,7 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Contactgegeven contact = Contactgegeven.findActiefById(partij, request.id);
+        Contactgegeven contact = Contactgegeven.findById(partij, request.id);
 
         if (contact == null) {
             return false;
@@ -253,7 +253,7 @@ public class PartijService {
         boolean valueChanged = !Objects.equals(oldType, request.type)
                 || !Objects.equals(oldWaarde, newWaarde);
 
-        if (valueChanged && newWaarde != null && existingDuplicateExists(partij, request.type, newWaarde, contact.id)) {
+        if (valueChanged && newWaarde != null && duplicateExists(partij, request.type, newWaarde, contact.id)) {
             throw new BusinessException(Kind.CONFLICT,
                     "Combinatie (type, waarde) bestaat al voor deze partij");
         }
@@ -292,10 +292,10 @@ public class PartijService {
         return true;
     }
 
-    private boolean existingDuplicateExists(Partij partij, ContactType type, String waarde, UUID exceptId) {
+    private boolean duplicateExists(Partij partij, ContactType type, String waarde, UUID exceptId) {
         // Alleen actieve rows tellen mee: uk_contactgegeven_dedup is partieel,
         // dus een PUT die botst met een soft deleted row is geen conflict
-        return Contactgegeven.existsActief(partij, type, waarde, exceptId);
+        return Contactgegeven.exists(partij, type, waarde, exceptId);
     }
 
     private void demoteCurrentDefault(Partij partij, ContactType type, UUID exceptId) {
@@ -306,10 +306,11 @@ public class PartijService {
         // FlushModeType.AUTO) vóór een JPQL bulk-update tegen dezelfde tabel, dus deze volgorde
         // werkt; bij flushmode=COMMIT zou de partiële index alsnog kunnen breken.
         // lastUpdated wordt expliciet meegebumped omdat een bulk-update @PreUpdate bypasst.
-        // Filtert bewust niet op verwijderdOp: een zachtverwijderde rij heeft isDefault al op
-        // false staan (verwijderContactgegeven zet die mee), dus kan hier toch nooit matchen.
+        // Filtert wél op verwijderdOp: een zachtverwijderde rij behoudt haar isDefault-waarde
+        // zoals die was op het moment van verwijderen (zie verwijderContactgegeven) en mag daarom
+        // hier niet aangeraakt worden — die rij zit toch al buiten de partiële index.
         Contactgegeven.update(
-                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND id <> ?4",
+                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND verwijderdOp IS NULL AND id <> ?4",
                 Instant.now(), partij, type, exceptId);
     }
 
@@ -318,14 +319,14 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Voorkeur voorkeur = Voorkeur.findActiefById(partij, request.id);
+        Voorkeur voorkeur = Voorkeur.findById(partij, request.id);
 
         if (voorkeur == null) {
             return false;
         }
 
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.scope);
-        Voorkeur collision = Voorkeur.findActief(partij, request.voorkeurType, targetLink);
+        Voorkeur collision = Voorkeur.find(partij, request.voorkeurType, targetLink);
 
         if (collision != null && !collision.id.equals(voorkeur.id)) {
             throw new BusinessException(Kind.CONFLICT,
@@ -357,7 +358,7 @@ public class PartijService {
 
     @Transactional
     public Voorkeur verwijderVoorkeur(UUID id) {
-        Voorkeur voorkeur = Voorkeur.findActiefById(id);
+        Voorkeur voorkeur = Voorkeur.findNietVerwijderdById(id);
 
         if (voorkeur != null) {
             voorkeur.setVerwijderdOp(Instant.now());
@@ -366,15 +367,14 @@ public class PartijService {
         return voorkeur;
     }
 
-    // isDefault wordt hier gewist: een soft deleted contactgegeven
-    // mag het slot van de partiële index contactgegeven_default_per_type niet blijven bezetten.
+    // isDefault blijft ongemoeid: de rij behoudt haar staat op het moment van verwijderen.
+    // Waarom dat geen probleem is voor de partiële index: zie demoteCurrentDefault.
     @Transactional
     public Contactgegeven verwijderContactgegeven(UUID id) {
-        Contactgegeven contact = Contactgegeven.findActiefById(id);
+        Contactgegeven contact = Contactgegeven.findNietVerwijderdById(id);
 
         if (contact != null) {
             contact.setVerwijderdOp(Instant.now());
-            contact.setIsDefault(false);
         }
 
         return contact;
@@ -397,8 +397,8 @@ public class PartijService {
                     return found.stream();
                 })
                 .map(partij -> {
-                    List<Contactgegeven> contactgegevens = Contactgegeven.findActief(partij);
-                    List<Voorkeur> voorkeuren = Voorkeur.findActief(partij);
+                    List<Contactgegeven> contactgegevens = Contactgegeven.find(partij);
+                    List<Voorkeur> voorkeuren = Voorkeur.find(partij);
                     contactgegevens.forEach(this::touchIfStale);
                     voorkeuren.forEach(this::touchIfStale);
 
@@ -416,8 +416,8 @@ public class PartijService {
         List<Voorkeur> voorkeuren;
 
         if (partijRequest.isEmpty()) {
-            contactgegevens = Contactgegeven.findActief(partij);
-            voorkeuren = Voorkeur.findActief(partij);
+            contactgegevens = Contactgegeven.find(partij);
+            voorkeuren = Voorkeur.find(partij);
         } else {
             contactgegevens = findFilteredContactgegevens(partij, partijRequest);
             voorkeuren = findFilteredVoorkeuren(partij, partijRequest);

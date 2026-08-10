@@ -137,33 +137,34 @@ public class Voorkeur extends PanacheEntityBase {
     }
 
     @Nullable
-    public static Voorkeur findActiefById(Partij partij, UUID id) {
+    public static Voorkeur findById(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
     }
 
+    // Naam wijkt bewust af van findById: die zou Panache's inherited findById(Object) shadowen.
+    // Bestaande, ongefilterde aanroepen met een UUID zouden dan stilzwijgend deze gefilterde variant raken.
     @Nullable
-    public static Voorkeur findActiefById(UUID id) {
+    public static Voorkeur findNietVerwijderdById(UUID id) {
         return find("id = ?1 AND verwijderdOp IS NULL", id).firstResult();
     }
 
-    public static List<Voorkeur> findActief(Partij partij) {
+    public static List<Voorkeur> find(Partij partij) {
         return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }
 
-    /** Actieve, scope-loze voorkeur voor dit (partij, type): maximaal één per sleutel. */
+    // Alleen de scope-loze voorkeur voor dit (partij, type); maximaal één per sleutel.
     @Nullable
-    public static Voorkeur findActief(Partij partij, VoorkeurType voorkeurType) {
+    public static Voorkeur find(Partij partij, VoorkeurType voorkeurType) {
         return find(
                 "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NULL",
                 partij, voorkeurType
         ).firstResult();
     }
 
-    /** Actieve voorkeur voor dit (partij, type, scope); zonder scope gelijk aan de scope-loze variant. */
     @Nullable
-    public static Voorkeur findActief(Partij partij, VoorkeurType voorkeurType, @Nullable DienstverlenerDienst scope) {
+    public static Voorkeur find(Partij partij, VoorkeurType voorkeurType, @Nullable DienstverlenerDienst scope) {
         if (scope == null) {
-            return findActief(partij, voorkeurType);
+            return find(partij, voorkeurType);
         }
 
         return find(

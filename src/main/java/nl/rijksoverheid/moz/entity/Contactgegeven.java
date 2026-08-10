@@ -188,34 +188,36 @@ public class Contactgegeven extends PanacheEntityBase {
     }
 
     @Nullable
-    public static Contactgegeven findActiefById(Partij partij, UUID id) {
+    public static Contactgegeven findById(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
     }
 
+    // Naam wijkt bewust af van findById: die zou Panache's inherited findById(Object) shadowen.
+    // Bestaande, ongefilterde aanroepen met een UUID zouden dan stilzwijgend deze gefilterde variant raken.
     @Nullable
-    public static Contactgegeven findActiefById(UUID id) {
+    public static Contactgegeven findNietVerwijderdById(UUID id) {
         return find("id = ?1 AND verwijderdOp IS NULL", id).firstResult();
     }
 
     @Nullable
-    public static Contactgegeven findActief(Partij partij, ContactType type, String waarde) {
+    public static Contactgegeven find(Partij partij, ContactType type, String waarde) {
         return find("partij = ?1 AND type = ?2 AND waarde = ?3 AND verwijderdOp IS NULL", partij, type, waarde).firstResult();
     }
 
-    public static List<Contactgegeven> findActief(Partij partij) {
+    public static List<Contactgegeven> find(Partij partij) {
         return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }
 
-    public static boolean existsActief(Partij partij, ContactType type, String waarde, UUID exceptId) {
+    public static boolean exists(Partij partij, ContactType type, String waarde, UUID exceptId) {
         return find(
                 "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4 AND verwijderdOp IS NULL",
                 partij, type, waarde, exceptId
         ).firstResultOptional().isPresent();
     }
 
-    /** Case-insensitieve match op e-mailadres, voor verificatie-lookups. */
+    // Case-insensitieve match op e-mailadres, voor verificatie-lookups.
     @Nullable
-    public static Contactgegeven findActiefEmail(Partij partij, String email) {
+    public static Contactgegeven findEmail(Partij partij, String email) {
         return find(
                 "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3) AND verwijderdOp IS NULL",
                 partij, ContactType.Email, email
