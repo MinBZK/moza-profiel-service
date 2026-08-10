@@ -22,12 +22,14 @@ import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
+import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationApplicationRequest;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.time.Instant;
@@ -224,6 +226,26 @@ public class EmailVerificatieServiceTest {
         Assertions.assertNull(result);
     }
 
+    /**
+     * apiKey and templateId are two consecutive String parameters of the same constructor,
+     * so swapping them compiles without complaint. This test asserts that each value ends up
+     * in the correct field of the outgoing request.
+     */
+    @Test
+    void requestEmailVerificationCode_SendsConfiguredApiKeyAndTemplateId() {
+        Mockito.doReturn("reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
+
+        service.requestEmailVerificationCode("email@email.com");
+
+        ArgumentCaptor<VerificationApplicationRequest> captor = ArgumentCaptor.forClass(VerificationApplicationRequest.class);
+        Mockito.verify(emailVerificatieApi).requestPost(captor.capture());
+
+        VerificationApplicationRequest sentRequest = captor.getValue();
+        Assertions.assertEquals("mock-key", sentRequest.getApiKey());
+        Assertions.assertEquals("mock-template", sentRequest.getTemplateId());
+        Assertions.assertEquals("email@email.com", sentRequest.getEmail());
+    }
+
     @Test
     void verifieerEmail_ContactNotFound() {
         QuarkusTransaction.requiringNew().run(() -> {
@@ -240,6 +262,78 @@ public class EmailVerificatieServiceTest {
 
         boolean result = service.verifieerEmail(request);
         Assertions.assertFalse(result);
+    }
+
+    @Test
+    void verifieerEmail_SameValueButDifferentType_NotVerified() {
+        // The contact is looked up by type AND value. Matching on value alone would let a
+        // Telefoonnummer row holding an email-like value end up as a verified email address.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111102"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("ref");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Assertions.assertFalse(service.verifieerEmail(makeVerifyRequest("111111102")));
+        Mockito.verify(emailVerificatieApi, Mockito.never()).verifyPost(Mockito.any());
+    }
+
+    @Test
+    void verifieerEmail_DifferentEmailOnSamePartij_NotVerified() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111103"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("iemand.anders@test.com");
+            contact.setVerificatieReferentieId("ref");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        Assertions.assertFalse(service.verifieerEmail(makeVerifyRequest("111111103")));
+        Mockito.verify(emailVerificatieApi, Mockito.never()).verifyPost(Mockito.any());
+    }
+
+    @Test
+    void vraagEmailVerificatieCodeAan_ContactWithDifferentType_Returns404() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111104"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("test@test.com");
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        EmailVerificatieCodeAanvraagRequest aanvraag = new EmailVerificatieCodeAanvraagRequest();
+        aanvraag.identificatieType = IdentificatieType.BSN;
+        aanvraag.identificatieNummer = "111111104";
+        aanvraag.email = "test@test.com";
+
+        Assertions.assertEquals(404, service.vraagEmailVerificatieCodeAan(aanvraag));
+    }
+
+    @Test
+    void verifieerEmail_EmailMatchIsCaseInsensitive() {
+        seedPartijWithUnverifiedContact("111111105");
+        VerificationResponse ok = new VerificationResponse();
+        ok.setSuccess(true);
+        Mockito.doReturn(ok).when(emailVerificatieApi).verifyPost(Mockito.any());
+
+        EmailVerificatieRequest request = makeVerifyRequest("111111105");
+        request.email = "TEST@TEST.COM";
+
+        Assertions.assertTrue(service.verifieerEmail(request));
     }
 
     @Test

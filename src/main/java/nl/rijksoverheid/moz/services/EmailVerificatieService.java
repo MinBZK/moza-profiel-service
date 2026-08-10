@@ -1,7 +1,6 @@
 package nl.rijksoverheid.moz.services;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -27,18 +26,21 @@ public class EmailVerificatieService {
 
     private static final Logger LOG = Logger.getLogger(EmailVerificatieService.class);
 
-    @Inject
-    @RestClient
-    VerificationControllerApi emailVerificatieApi;
+    private final VerificationControllerApi emailVerificatieApi;
+    private final VerificatieServiceGuard verificatieServiceGuard;
+    private final String apiKey;
+    private final String templateId;
 
-    @Inject
-    VerificatieServiceGuard verificatieServiceGuard;
-
-    @ConfigProperty(name = "notifynl.emailverificatie.api-key")
-    String apiKey;
-
-    @ConfigProperty(name = "notifynl.emailverificatie.template-id")
-    String templateId;
+    public EmailVerificatieService(
+            @RestClient VerificationControllerApi emailVerificatieApi,
+            VerificatieServiceGuard verificatieServiceGuard,
+            @ConfigProperty(name = "notifynl.emailverificatie.api-key") String apiKey,
+            @ConfigProperty(name = "notifynl.emailverificatie.template-id") String templateId) {
+        this.emailVerificatieApi = emailVerificatieApi;
+        this.verificatieServiceGuard = verificatieServiceGuard;
+        this.apiKey = apiKey;
+        this.templateId = templateId;
+    }
 
     @Transactional
     public boolean verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {

@@ -81,7 +81,16 @@
         }
       },
       "response": {
-        "status": 404
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": {
+          "title": "Partij niet gevonden",
+          "status": 404,
+          "detail": "Geen partij gevonden voor het opgegeven identificatienummer.",
+          "instance": "/api/profielservice/v1/partij"
+        }
       }
     },
     {
@@ -317,7 +326,16 @@
         "path": "/api/profielservice/v1/dienstverlener/Onbekend"
       },
       "response": {
-        "status": 404
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/problem+json"
+        },
+        "body": {
+          "title": "Dienstverlener niet gevonden",
+          "status": 404,
+          "detail": "Geen dienstverlener gevonden met de opgegeven naam.",
+          "instance": "/api/profielservice/v1/dienstverlener/Onbekend"
+        }
       }
     }
   ],
