@@ -145,6 +145,48 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
     }
 
     /**
+     * De scope-velden op PartijRequest zaten eerder zonder pattern. Een blanco waarde gold
+     * daar als "wel opgegeven", waarna er op een lege dienstverlenernaam werd gefilterd en de
+     * aanroeper een 200 kreeg met een leeg profiel voor een partij die gewoon bestaat.
+     */
+    @Test
+    void partijMetBlancoDienstverlenerWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"identificatieType":"BSN","identificatieNummer":"111111104",
+                         "dienstverlener":"   "}
+                        """)
+                .when().post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("dienstverlener"));
+    }
+
+    /**
+     * Zelfde klasse fout op TeVerwijderenOpRequest: een blanco dienstNaam haalde de
+     * naamvergelijking in requireDienstverlenerAuthorized niet en leverde een 403 op, terwijl
+     * er niets mis was met de bevoegdheid.
+     */
+    @Test
+    void teVerwijderenOpMetBlancoDienstNaamWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"id":"00000000-0000-0000-0000-000000000001",
+                         "identificatieType":"BSN","identificatieNummer":"111111104",
+                         "dienstverlenerNaam":"Gemeente Amsterdam","dienstNaam":"   ",
+                         "teVerwijderenOp":"2099-01-01T00:00:00Z"}
+                        """)
+                .when().patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("dienstNaam"));
+    }
+
+    /**
      * Positieve tegenhanger: een gewone waarde met een spatie erin hoort door de pattern te
      * komen. Zonder deze test zou een expressie die alles weigert er net zo groen uitzien.
      */

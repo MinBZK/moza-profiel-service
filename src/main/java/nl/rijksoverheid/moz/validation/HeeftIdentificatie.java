@@ -8,7 +8,7 @@ import nl.rijksoverheid.moz.common.IdentificatieType;
  * <p>Bestaat zodat {@link IdentificatieNummerValidator} niet aan één DTO vastzit. Op dit
  * moment implementeert alleen {@code EmailVerificatieRequest} hem, via {@code x-implements}
  * in het contract, naast de {@code x-class-extra-annotation} die de constraint zelf oplevert.
- * Zeven andere requests dragen hetzelfde veldenpaar maar worden bewust niet gevalideerd; zie
+ * De overige requests dragen hetzelfde veldenpaar maar worden bewust niet gevalideerd; zie
  * MinBZK/MijnOverheidZakelijk#923.
  *
  * <p>Let op dat die twee vendor-extensies bij elkaar horen. Alleen de annotatie levert bij de

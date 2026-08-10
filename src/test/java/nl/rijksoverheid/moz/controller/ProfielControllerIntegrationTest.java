@@ -853,9 +853,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     /**
-     * De autorisatiegrens waarvoor dit endpoint bestaat: een dienstverlener zonder scope op
-     * het contactgegeven mag er geen verwijderdatum op zetten. De voorkeur-tegenhanger had
-     * hier al dekking in PartijServiceTest, de contactgegeven-variant niet.
+     * De autorisatiegrens waarvoor dit endpoint bestaat: een dienstverlener mag alleen een
+     * verwijderdatum zetten op een contactgegeven waar hij zelf scope op heeft. "ScopeDV"
+     * bestaat hier en heeft scope op een ánder contactgegeven van dezelfde partij, zodat de
+     * test onderscheidt tussen "dienstverlener bestaat niet" en "bestaat wel, maar niet hier".
+     *
+     * <p>Dit is de enige plek waar de vertaling van {@code AuthorizationException} naar een
+     * 403 met problem-body wordt vastgelegd; op serviceniveau toetst PartijServiceTest alleen
+     * de exception zelf.
      */
     @Test
     void updateContactgegevenTeVerwijderenOp_ZonderScope_Forbidden() {
@@ -865,20 +870,34 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
             eigenaar.setNaam("AndereDV");
             eigenaar.persist();
 
+            Dienstverlener buitenstaander = new Dienstverlener();
+            buitenstaander.setNaam("ScopeDV");
+            buitenstaander.persist();
+
             Partij p = new Partij();
             p.addIdentificatie(new Identificatie(BSN, "111111122"));
             p.persist();
 
-            Contactgegeven c = new Contactgegeven();
-            c.setType(ContactType.Telefoonnummer);
-            c.setWaarde("0612345678");
-            c.setPartij(p);
-            c.persist();
-            contactId.set(c.id);
+            Contactgegeven doelwit = new Contactgegeven();
+            doelwit.setType(ContactType.Telefoonnummer);
+            doelwit.setWaarde("0612345678");
+            doelwit.setPartij(p);
+            doelwit.persist();
+            contactId.set(doelwit.id);
 
-            DienstverlenerDienst link = new DienstverlenerDienst(eigenaar, null);
-            link.persist();
-            new ScopeContactgegeven(c, link).persist();
+            DienstverlenerDienst eigenaarLink = new DienstverlenerDienst(eigenaar, null);
+            eigenaarLink.persist();
+            new ScopeContactgegeven(doelwit, eigenaarLink).persist();
+
+            Contactgegeven ander = new Contactgegeven();
+            ander.setType(ContactType.Email);
+            ander.setWaarde("ander@example.com");
+            ander.setPartij(p);
+            ander.persist();
+
+            DienstverlenerDienst buitenstaanderLink = new DienstverlenerDienst(buitenstaander, null);
+            buitenstaanderLink.persist();
+            new ScopeContactgegeven(ander, buitenstaanderLink).persist();
         });
 
         var body = teVerwijderenOpRequest(contactId.get(), "111111122");
@@ -891,12 +910,9 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
                 .then()
                 .statusCode(FORBIDDEN)
-                .contentType("application/problem+json");
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Contactgegeven c = Contactgegeven.findById(contactId.get());
-            Assertions.assertNull(c.getTeVerwijderenOp(), "Zonder scope mag er niets gezet zijn");
-        });
+                .contentType("application/problem+json")
+                .body("title", equalTo("Forbidden"))
+                .body("detail", containsString("niet bevoegd"));
     }
 
     private static TeVerwijderenOpRequest teVerwijderenOpRequest(UUID id, String identificatieNummer) {

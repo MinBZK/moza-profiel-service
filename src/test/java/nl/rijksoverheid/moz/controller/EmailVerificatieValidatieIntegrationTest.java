@@ -15,6 +15,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 /**
  * Bewaakt dat de bean-validatie op de e-mailverificatie-endpoints daadwerkelijk in de
@@ -124,6 +125,33 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
                 .body("violations.field", hasItem(containsString("verificatieCode")));
 
         Mockito.verify(emailVerificatieService, Mockito.never()).verifieerEmail(Mockito.any());
+    }
+
+    /**
+     * Legt de asymmetrie vast die MinBZK/MijnOverheidZakelijk#923 beschrijft. De schrijfpaden
+     * controleren het identificatienummer niet, dus er kan een profiel bestaan onder een nummer
+     * dat de elfproef niet doorstaat — "111111111" is zo'n nummer (som 43). Zou dit endpoint de
+     * controle wél doen, dan kon die gebruiker nooit meer een vervangende code aanvragen. Het
+     * request hoort dus gewoon bij de service aan te komen.
+     */
+    @Test
+    void codeAanvraagMetElfproefOngeldigBsnBereiktDeService() {
+        Mockito.doReturn(OK).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
+
+        var body = new EmailVerificatieCodeAanvraagRequest();
+        body.setEmail("email@email.com");
+        body.setIdentificatieNummer("111111111");
+        body.setIdentificatieType(IdentificatieType.BSN);
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(body)
+                .when().post("/api/profielservice/v1/emailverificatie/code")
+                .then()
+                .statusCode(OK);
+
+        Mockito.verify(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
     }
 
     @Test

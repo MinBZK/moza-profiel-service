@@ -18,7 +18,7 @@ import static io.restassured.RestAssured.given;
  * te lezen: een operatie verwijst met een {@code $ref} en de inhoud staat één keer centraal.
  * Deze test volgt die verwijzing en controleert waar hij uitkomt.
  *
- * <p>Twee invarianten. Elke operatie documenteert een 500 die naar {@code HttpProblem} wijst.
+ * <p>Drie invarianten. Elke operatie documenteert een 500 die naar {@code HttpProblem} wijst.
  * En elke 400 wijst naar {@code HttpValidationProblem}, want bij bean-validatie levert de
  * applicatie een {@code violations}-lijst; de twee schema's zijn structureel niet van elkaar
  * te onderscheiden (geen {@code required}, {@code additionalProperties: true}), dus de
@@ -29,15 +29,19 @@ import static io.restassured.RestAssured.given;
 @QuarkusTest
 class StandardErrorResponsesTest {
 
-    private static final List<String> HTTP_METHODEN =
-            List.of("get", "post", "put", "patch", "delete", "head", "options", "trace");
+    private static final List<String> HTTP_METHODEN = List.of("get", "post", "put", "patch", "delete");
 
-    /** Alles wat geen bean-validatiefout is, hoort een kale {@code HttpProblem} te zijn. */
+    /**
+     * De foutcodes die dit contract vandaag gebruikt, buiten de 400. Bewust een vaste lijst en
+     * geen universele regel: komt er ooit een 401, 415 of 429 bij, dan staat die er niet
+     * automatisch tussen en moet hij hier worden toegevoegd.
+     */
     private static final List<String> OVERIGE_FOUTCODES = List.of("403", "404", "409", "503");
 
     /**
-     * Ondergrens in plaats van {@code > 0}: zakt het aantal operaties, dan is het contract
-     * uitgedund of loopt de sweep vast, en in beide gevallen dekt deze test minder dan hij lijkt.
+     * Gelijk aan het huidige aantal operaties, dus zonder speling: elke verwijdering valt hierop
+     * om en moet bewust worden bijgesteld. Zonder ondergrens zou een sweep die vastloopt op één
+     * operatie er hetzelfde uitzien als een volledige controle.
      */
     private static final int MINIMAAL_AANTAL_OPERATIES = 15;
 

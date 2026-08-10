@@ -688,7 +688,7 @@ components:
             $ref: "#/components/schemas/DienstResponse"
     EmailVerificatieCodeAanvraagRequest:
       # Bewust GEEN elfproef, in tegenstelling tot EmailVerificatieRequest. De
-      # schrijf-endpoints (POST /contactgegeven, /voorkeur, /partij) valideren het
+      # schrijf-endpoints (POST /contactgegeven en POST /voorkeur) valideren het
       # identificatieNummer evenmin, dus een profiel kan onder een nummer bestaan dat
       # de elfproef niet doorstaat. Zou dit endpoint de controle wel doen, dan kon zo'n
       # gebruiker nooit meer een vervangende code aanvragen. De controle overal

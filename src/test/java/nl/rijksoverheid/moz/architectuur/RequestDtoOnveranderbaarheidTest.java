@@ -33,8 +33,10 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  *   <li>De {@code *Response}-typen vallen erbuiten omdat MapStruct ze via setters vult;
  *       de gegenereerde mapper-implementatie zou de regel per definitie overtreden.</li>
  *   <li>Tests vallen erbuiten omdat die hun request-bodies juist mét setters opbouwen.</li>
- *   <li>De gegenereerde modellen zelf vallen erbuiten: hun fluent setters en
- *       {@code add*}/{@code remove*Item}-methodes roepen elkaar aan.</li>
+ *   <li>De gegenereerde modellen zelf vallen erbuiten. Sinds {@code accessTargetWhere}
+ *       tellen ook veldtoegangen mee, en hun {@code equals}, {@code hashCode},
+ *       {@code toString} en adders komen rechtstreeks bij de privévelden; daarnaast
+ *       roept {@code toString} de private {@code toIndentedString} aan.</li>
  * </ul>
  *
  * <p>Eén gat dat de regel niet kan dichten: een lijst-getter geeft de levende collectie
