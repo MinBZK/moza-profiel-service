@@ -23,7 +23,6 @@ import nl.rijksoverheid.moz.services.DienstverlenerService;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
-import java.util.List;
 
 /**
  * REST controller voor dienstverleners. Contract-first (#651): DTO's gegenereerd uit
@@ -65,17 +64,21 @@ public class DienstverlenerController {
     @RequireBody
     public Response addDienstverlener(
             @Valid DienstverlenerRequest dienstverlenerRequest) {
-        if (dienstverlenerRequest == null) {
-            LOG.warn("Request body mag niet leeg zijn bij addDienstverlener");
-            throw Problems.missingBody();
-        }
+        // Geen null-check op de body: @RequireBody laat RequireBodyReaderInterceptor die al
+        // afvangen vóórdat deze methode draait. ProfielController en EmailVerificatieController
+        // leunen daar als enige op, en hun *_BadRequest-tests zijn groen. Een tweede check hier
+        // is dus onbereikbaar; DienstverlenerControllerIntegrationTest asserteert op de
+        // problem-body zodat zichtbaar blijft wélk mechanisme antwoordt.
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)
                 .path("dienstverlener").path("{naam}")
                 .build(created.getNaam());
-        DienstverlenerResponse body = dienstMapper.toDienstverlenerResponse(created, List.of());
+        // Niet List.of(): bestond de dienstverlener al, dan zou het antwoord beweren dat hij
+        // geen diensten heeft terwijl GET op dezelfde resource ze wel teruggeeft.
+        DienstverlenerResponse body = dienstMapper.toDienstverlenerResponse(
+                created, dienstverlenerService.getDienstenVoorDienstverlener(created));
         return Response.created(uri).entity(body).build();
     }
 
@@ -87,10 +90,7 @@ public class DienstverlenerController {
             @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
             @Valid DienstRequest request
     ) {
-        if (request == null) {
-            LOG.warn("Request body mag niet leeg zijn bij addDienstToDienstverlener");
-            throw Problems.missingBody();
-        }
+        // Zie addDienstverlener: de lege body wordt door de interceptor afgevangen.
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
         LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = UriBuilder.fromResource(DienstverlenerController.class)

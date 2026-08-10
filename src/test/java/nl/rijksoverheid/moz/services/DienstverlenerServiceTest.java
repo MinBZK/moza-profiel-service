@@ -74,6 +74,54 @@ public class DienstverlenerServiceTest {
         });
     }
 
+    /**
+     * De beschrijving van een bestaande dienstverlener werd stil genegeerd: de aanroeper kreeg
+     * een 201 met de oude waarde terug. Dat is dezelfde afweging als bij een dienst met een
+     * andere beschrijving, en het contract documenteerde de 409 al.
+     */
+    @Test
+    void addDienstverlener_ExistingDienstverlenerMetAndereBeschrijving_Conflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dienstverlener = new Dienstverlener();
+            dienstverlener.setNaam("ExistingDV");
+            dienstverlener.setBeschrijving("originele beschrijving");
+            dienstverlener.persist();
+        });
+
+        DienstverlenerRequest request = new DienstverlenerRequest();
+        request.setNaam("ExistingDV");
+        request.setBeschrijving("andere beschrijving");
+
+        BusinessException fout = Assertions.assertThrows(BusinessException.class,
+                () -> dienstverlenerService.addDienstverlener(request));
+
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, fout.getKind());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener onveranderd = Dienstverlener.find("naam", "ExistingDV").firstResult();
+            Assertions.assertEquals("originele beschrijving", onveranderd.getBeschrijving());
+        });
+    }
+
+    /**
+     * {@code addDienstToDienstverlener} maakt de dienstverlener aan met een lege beschrijving.
+     * Een {@code null} legt dus niets vast en mag nooit botsen, ook niet als er al een
+     * beschrijving staat.
+     */
+    @Test
+    void findOrCreateDienstverlener_ZonderBeschrijving_GeenConflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dienstverlener = new Dienstverlener();
+            dienstverlener.setNaam("ExistingDV");
+            dienstverlener.setBeschrijving("originele beschrijving");
+            dienstverlener.persist();
+        });
+
+        Dienstverlener gevonden = dienstverlenerService.findOrCreateDienstverlener("ExistingDV", null);
+
+        Assertions.assertEquals("originele beschrijving", gevonden.getBeschrijving());
+    }
+
     @Test
     void getDienstverlener_Found() {
         QuarkusTransaction.requiringNew().run(() -> {

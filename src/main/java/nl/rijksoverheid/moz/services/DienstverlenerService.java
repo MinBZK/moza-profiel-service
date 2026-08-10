@@ -58,10 +58,26 @@ public class DienstverlenerService {
                 .toList();
     }
 
+    /**
+     * Zoekt de dienstverlener op naam en maakt hem aan als hij nog niet bestaat.
+     *
+     * <p>Bestaat hij al, dan botst een afwijkende {@code beschrijving} met een 409 in plaats
+     * van stil te verdwijnen: de aanroeper zou anders een 201 krijgen met de oude beschrijving
+     * erin. Een {@code null}-beschrijving legt niets vast en botst dus nooit — dat is de manier
+     * waarop {@link #addDienstToDienstverlener} de dienstverlener laat aanmaken zonder er een
+     * beschrijving aan toe te kennen. Dezelfde afweging als bij de dienst hierboven.
+     */
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {
         Dienstverlener dienstverlener = Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
+
         if (dienstverlener != null) {
+            if (beschrijving != null
+                    && !Objects.equals(dienstverlener.getBeschrijving(), beschrijving)) {
+                throw new BusinessException(Kind.CONFLICT,
+                        "Dienstverlener bestaat al met een andere beschrijving. Laat 'beschrijving' weg of stuur dezelfde waarde.");
+            }
+
             return dienstverlener;
         }
 
