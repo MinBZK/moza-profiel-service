@@ -34,8 +34,10 @@ paths:
     put:
       summary: Update contactgegeven van een partij
       operationId: updateContactgegeven
-      description: "Werk type, waarde en scope van een contactgegeven bij. Identificatie\
-        \ kan niet aangepast worden."
+      description: "Werk type, waarde, scope, isDefault en teVerwijderenOp van een contactgegeven\
+        \ bij. Identificatie kan niet aangepast worden. isDefault weglaten of op null zetten\
+        \ laat de huidige waarde staan; op true zetten degradeert het contactgegeven dat nu\
+        \ default is voor hetzelfde type."
       tags:
       - Profiel
       requestBody:
@@ -47,9 +49,6 @@ paths:
       responses:
         "200":
           description: Contactgegeven succesvol bijgewerkt
-          content:
-            application/json:
-              schema: {}
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
@@ -65,8 +64,10 @@ paths:
     post:
       summary: Toevoegen nieuwe contactgegeven voor een partij
       operationId: addContactgegeven
-      description: Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende
-        partijen.
+      description: "Voegt een contactgegeven toe. Creëert automatisch ontbrekende partijen.\
+        \ Bestaat de combinatie (partij, type, waarde) al, dan volgt een 200 en wordt hooguit\
+        \ de scope uitgebreid. Een meegestuurde teVerwijderenOp moet in de toekomst liggen en\
+        \ hooguit 7 jaar na de referentiedatum; buiten dat bereik volgt een 400."
       tags:
       - Profiel
       requestBody:
@@ -92,6 +93,8 @@ paths:
           $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
           $ref: "#/components/responses/ScopeUitRequestNietGevonden"
+        "409":
+          $ref: "#/components/responses/GelijktijdigeWrite"
         "500":
           $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/contactgegeven/te-verwijderen-op:
@@ -111,9 +114,6 @@ paths:
       responses:
         "200":
           description: Te-verwijderen-op succesvol bijgewerkt
-          content:
-            application/json:
-              schema: {}
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "403":
@@ -158,7 +158,9 @@ paths:
     post:
       summary: Voegt een dienstverlener toe
       operationId: addDienstverlener
-      description: Voegt een nieuwe dienstverlener toe met optionele beschrijving.
+      description: "Voegt een dienstverlener toe met optionele beschrijving. Bestaat de naam\
+        \ al, dan wordt de bestaande dienstverlener teruggegeven; een afwijkende beschrijving\
+        \ levert een 409 in plaats van een stille overschrijving."
       tags:
       - Dienstverlener
       requestBody:
@@ -169,7 +171,8 @@ paths:
         required: true
       responses:
         "201":
-          description: Dienstverlener succesvol toegevoegd
+          description: Dienstverlener succesvol toegevoegd of al aanwezig met dezelfde
+            beschrijving
           content:
             application/json:
               schema:
@@ -177,7 +180,7 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
-          description: Dienstverlener bestaat al met conflicterende waarden
+          description: Dienstverlener bestaat al met een andere beschrijving
           content:
             application/problem+json:
               schema:
@@ -188,8 +191,9 @@ paths:
     post:
       summary: Voegt een dienst toe aan een dienstverlener
       operationId: addDienstToDienstverlener
-      description: Voegt een nieuwe dienst toe met beschrijving aan een bestaande
-        dienstverlener.
+      description: "Voegt een dienst toe aan een dienstverlener. Bestaat de dienstverlener\
+        \ nog niet, dan wordt hij aangemaakt zonder beschrijving; vandaar dat deze operatie\
+        \ geen 404 kent."
       tags:
       - Dienstverlener
       parameters:
@@ -267,9 +271,6 @@ paths:
       responses:
         "200":
           description: Email verificatie succesvol
-          content:
-            application/json:
-              schema: {}
         "400":
           description: "Request body ontbreekt, is ongeldig (schemaviolatie of een\
             \ identificatieNummer dat niet bij het identificatieType past; dan is\
@@ -298,9 +299,6 @@ paths:
       responses:
         "200":
           description: Email verificatie code aanvraag succesvol
-          content:
-            application/json:
-              schema: {}
         "400":
           description: "Request body ontbreekt of is ongeldig. Bij bean-validatie is\
             \ `violations` gevuld."
@@ -397,8 +395,8 @@ paths:
     put:
       summary: Update voorkeur van een partij
       operationId: updateVoorkeur
-      description: "Werk type, waarde en scope van een voorkeur bij. Identificatie\
-        \ kan niet aangepast worden."
+      description: "Werk type, waarde, scope en teVerwijderenOp van een voorkeur bij.\
+        \ Identificatie kan niet aangepast worden."
       tags:
       - Profiel
       requestBody:
@@ -410,9 +408,6 @@ paths:
       responses:
         "200":
           description: Voorkeur succesvol bijgewerkt
-          content:
-            application/json:
-              schema: {}
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
@@ -428,8 +423,10 @@ paths:
     post:
       summary: Toevoegen nieuwe voorkeur voor een partij
       operationId: addVoorkeur
-      description: Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende
-        partijen.
+      description: "Voegt een voorkeur toe. Creëert automatisch ontbrekende partijen.\
+        \ Per (partij, voorkeurType, scope) bestaat er hooguit één voorkeur, dus dit is een\
+        \ upsert: bestaat de combinatie al, dan overschrijft een afwijkende waarde de\
+        \ bestaande in plaats van een tweede rij aan te maken."
       tags:
       - Profiel
       requestBody:
@@ -440,7 +437,8 @@ paths:
         required: true
       responses:
         "200":
-          description: Voorkeur was al geregistreerd voor deze partij en scope
+          description: Voorkeur was al geregistreerd voor deze partij en scope; een
+            afwijkende waarde is overschreven
           content:
             application/json:
               schema:
@@ -455,6 +453,8 @@ paths:
           $ref: "#/components/responses/OngeldigeRequestBody"
         "404":
           $ref: "#/components/responses/ScopeUitRequestNietGevonden"
+        "409":
+          $ref: "#/components/responses/GelijktijdigeWrite"
         "500":
           $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/voorkeur/te-verwijderen-op:
@@ -474,9 +474,6 @@ paths:
       responses:
         "200":
           description: Te-verwijderen-op succesvol bijgewerkt
-          content:
-            application/json:
-              schema: {}
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "403":
@@ -563,7 +560,23 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/HttpProblem"
+    GelijktijdigeWrite:
+      # Deze endpoints doen eerst een lookup en persisteren daarna; twee gelijktijdige
+      # writes kunnen die voorcontrole passeren en pas bij flush op een unique index
+      # botsen (uk_identificatie op de partij, uk_contactgegeven_dedup op het
+      # contactgegeven). DatabaseConstraintViolationMapper vertaalt dat naar deze 409.
+      description: Gelijktijdige write botste op een unique constraint
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
   schemas:
+    # De pattern "^[^\r\n]*\S[^\r\n]*$" op de verplichte tekstvelden wijst lege en
+    # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
+    # geschreven en niet als ".*\S.*": Jakarta @Pattern doet een full match waarbij "."
+    # geen newline matcht, en de inline-vlag "(?s)" die dat repareert bestaat niet in
+    # ECMA 262 — daarmee wordt het contract ongeldig en valt de contractvalidatie op elk
+    # endpoint om. Zie BlancoWaardenIntegrationTest voor de volledige afweging.
     ContactType:
       type: string
       enum:
@@ -595,7 +608,21 @@ components:
         teVerwijderenOp:
           $ref: "#/components/schemas/Instant"
     ContactgegevenResponse:
+      # De velden die de server altijd meestuurt staan als required. Zonder die lijst
+      # zegt het contract dat élk veld mag ontbreken, moet een consumer defensief tegen
+      # nulls coderen die niet kunnen optreden, en kan de contractvalidatie in
+      # OpenApiValidationTest een mapper die een veld laat vallen niet zien.
+      # teVerwijderenOp is bewust optioneel: die is leeg zolang er geen verwijderdatum is.
       type: object
+      required:
+      - id
+      - type
+      - waarde
+      - isGeverifieerd
+      - isDefault
+      - createdAt
+      - lastUpdated
+      - scopes
       properties:
         id:
           $ref: "#/components/schemas/UUID"
@@ -644,6 +671,8 @@ components:
           $ref: "#/components/schemas/UUID"
         isDefault:
           type: boolean
+          description: "Weglaten of op null zetten laat de huidige waarde staan; true maakt\
+            \ dit het standaard-contactgegeven voor zijn type en degradeert het vorige."
     DienstRequest:
       description: Request object voor het toevoegen van een dienst aan een dienstverlener
       type: object
@@ -656,7 +685,12 @@ components:
         beschrijving:
           type: string
     DienstResponse:
+      # Zie ContactgegevenResponse voor waarom required hier staat. beschrijving is
+      # optioneel omdat een dienst zonder beschrijving aangemaakt kan worden.
       type: object
+      required:
+      - id
+      - naam
       properties:
         id:
           $ref: "#/components/schemas/UUID"
@@ -676,7 +710,12 @@ components:
         beschrijving:
           type: string
     DienstverlenerResponse:
+      # Zie ContactgegevenResponse. beschrijving is optioneel; diensten is altijd
+      # aanwezig en hooguit leeg.
       type: object
+      required:
+      - naam
+      - diensten
       properties:
         naam:
           type: string
@@ -714,6 +753,11 @@ components:
       # uit te drukken; de generator zet daarom deze class-level constraint op de DTO.
       # Zie IdentificatieNummerValidator en EmailVerificatieValidatieIntegrationTest.
       # De interface maakt de validator herbruikbaar over meerdere requests heen.
+      # Bewust geaccepteerd: dit bestand ís het gepubliceerde document, dus deze twee
+      # extensies — en daarmee twee interne Java-klassenamen — staan ook op /openapi.json.
+      # Ze zeggen niets over het gedrag van de API en een consumer negeert onbekende
+      # x-velden. Ze eruit filteren zou een aparte publicatiebron vragen, en daarmee precies
+      # de tweede bron terugbrengen die #651 heeft opgeruimd.
       x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
       x-implements:
       - nl.rijksoverheid.moz.validation.HeeftIdentificatie
@@ -811,7 +855,11 @@ components:
             $ref: "#/components/schemas/Violation"
           description: List of validation constraint violations that occurred
     IdentificatieResponse:
+      # Zie ContactgegevenResponse.
       type: object
+      required:
+      - identificatieType
+      - identificatieNummer
       properties:
         identificatieType:
           $ref: "#/components/schemas/IdentificatieType"
@@ -834,10 +882,14 @@ components:
       - identificaties
       properties:
         identificaties:
+          # maxItems begrenst wat één aanroep aan partij-lookups kan aanvragen. Ongebonden zou
+          # één POST willekeurig veel joins in getPartijResponseBulk kunnen triggeren. 100 ligt
+          # ruim boven het normale gebruik; overschrijding levert een 400 op.
           type: array
           items:
             $ref: "#/components/schemas/PartijIdentificatieRequest"
           minItems: 1
+          maxItems: 100
     PartijIdentificatieRequest:
       type: object
       required:
@@ -850,7 +902,14 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     PartijRequest:
-      description: Request object voor het ophalen van een Partij
+      description: "Request object voor het ophalen van een Partij. dienstverlener en\
+        \ dienstNaam filteren de contactgegevens en voorkeuren in het antwoord; laat je beide\
+        \ weg, dan komt het hele profiel terug. Gegevens zonder scope komen altijd mee.\
+        \ dienstverlener houdt daarnaast de gegevens over die op die dienstverlener gescoped\
+        \ zijn. dienstNaam houdt de gegevens over die op een dienst met die naam gescoped\
+        \ zijn, plus de dienstverlener-brede scopes (een scope zonder dienst). De twee velden\
+        \ zijn onafhankelijk: dienstNaam zonder dienstverlener filtert dus op dienstnaam over\
+        \ alle dienstverleners heen."
       type: object
       required:
       - identificatieType
@@ -868,7 +927,13 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     PartijResponse:
+      # Zie ContactgegevenResponse. De drie lijsten zijn altijd aanwezig en hooguit leeg.
       type: object
+      required:
+      - partijId
+      - identificaties
+      - voorkeuren
+      - contactgegevens
       properties:
         partijId:
           $ref: "#/components/schemas/UUID"
@@ -897,13 +962,21 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     ScopeResponse:
+      # Zie ContactgegevenResponse. dienstNaam is bewust optioneel: een dienstverlener-brede
+      # scope heeft geen dienst (dd.dienst IS NULL) en laat het veld dus weg.
       type: object
+      required:
+      - dienstverlenerNaam
       properties:
         dienstverlenerNaam:
           type: string
         dienstNaam:
           type: string
     TeVerwijderenOpRequest:
+      description: "Request object voor het zetten van een verwijderdatum. teVerwijderenOp\
+        \ moet in de toekomst liggen en mag hooguit 7 jaar na de referentiedatum liggen\
+        \ (lastUsedAt van het gegeven, of createdAt als het nog nooit is opgehaald). Buiten\
+        \ dat bereik volgt een 400."
       type: object
       required:
       - id
@@ -978,7 +1051,15 @@ components:
         teVerwijderenOp:
           $ref: "#/components/schemas/Instant"
     VoorkeurResponse:
+      # Zie ContactgegevenResponse voor waarom required hier staat.
       type: object
+      required:
+      - id
+      - voorkeurType
+      - waarde
+      - createdAt
+      - lastUpdated
+      - scopes
       properties:
         id:
           $ref: "#/components/schemas/UUID"

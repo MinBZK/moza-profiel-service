@@ -21,10 +21,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
@@ -227,6 +230,71 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
                 .body("violations.field", hasItem("dienstNaam"));
+    }
+
+    /**
+     * De bulk-lijst had op {@code main} een {@code @NotEmpty} en staat nu als {@code required} met
+     * {@code minItems: 1} in het contract, waar de generator {@code @NotNull} plus
+     * {@code @Size(min=1)} van maakt. Dat is de enige constraint in deze overstap die van
+     * annotatie-familie wisselt, dus de lege lijst hoort over HTTP vastgelegd te worden en niet
+     * alleen in het gegenereerde bestand te staan.
+     */
+    @Test
+    void bulkMetLegeLijstWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"identificaties\":[]}")
+                .when().post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem(containsString("identificaties")));
+    }
+
+    /**
+     * De bovengrens hoort net zo goed over HTTP vast te liggen als de ondergrens. Een limiet die
+     * alleen in het contract staat en niet blijkt te werken is erger dan geen limiet: het
+     * document belooft dan een begrenzing die er niet is.
+     */
+    @Test
+    void bulkBovenDeMaximumLengteWordtAfgewezen() {
+        String teVeel = IntStream.rangeClosed(0, 100)
+                .mapToObj(i -> "{\"identificatieType\":\"BSN\",\"identificatieNummer\":\"1111111%02d\"}"
+                        .formatted(i))
+                .collect(Collectors.joining(",", "{\"identificaties\":[", "]}"));
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(teVeel)
+                .when().post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem(containsString("identificaties")));
+    }
+
+    /**
+     * De element-constraints van de bulk-lijst draaiden op {@code main} nooit: daar stond
+     * {@code @NotEmpty} zonder {@code @Valid}, dus een lijstelement kwam ongevalideerd door. Het
+     * contract levert nu {@code List<@Valid PartijIdentificatieRequest>} op, maar of die
+     * type-use-annotatie werkelijk cascadeert hangt van de generator- en Hibernate
+     * Validator-versie af. Valt hij stil weg, dan komt een meerregelig identificatienummer in de
+     * groepering van {@code getPartijResponseBulk} terecht — precies wat
+     * {@link #contactgegevenMetMeerregeligIdentificatieNummerWordtAfgewezen()} voor het
+     * enkelvoudige pad afvangt.
+     */
+    @Test
+    void bulkMetBlancoIdentificatieNummerWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"identificaties":[{"identificatieType":"BSN","identificatieNummer":"   "}]}
+                        """)
+                .when().post("/api/profielservice/v1/partijen/bulk")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem(containsString("identificatieNummer")));
     }
 
     /**
