@@ -7,9 +7,14 @@
   -Dlogboekdataverwerking.enabled=false \
   -B
 
-# Copy all dependencies to $OUT/lib
+# Copy all dependencies to $OUT/lib. The Windows/macOS/Alpine PostgreSQL bundles
+# can never run in this container; excluding them keeps them off the uploaded
+# artifact and the jazzer classpath. linux-amd64 stays: the server is unpacked
+# from it below. Scope cannot be narrowed here, as the fuzzers and jazzer are
+# themselves test-scoped.
 mkdir -p $OUT/lib
-./mvnw dependency:copy-dependencies -DoutputDirectory=$OUT/lib -B
+./mvnw dependency:copy-dependencies -DoutputDirectory=$OUT/lib -B \
+  -DexcludeArtifactIds=embedded-postgres-binaries-windows-amd64,embedded-postgres-binaries-darwin-amd64,embedded-postgres-binaries-linux-amd64-alpine
 
 # Copy compiled application and test classes
 cp -r target/classes $OUT/classes
@@ -70,12 +75,9 @@ mkdir -p "$PGDATA"
 if [ "$(id -u)" = "0" ]; then
   id -u pgfuzz >/dev/null 2>&1 || useradd -m pgfuzz
   # The harness runs fuzzers from a mkdtemp directory (mode 0700, owned by root),
-  # which pgfuzz cannot traverse. Only adds bits, and only in a throwaway container.
-  d="$this_dir"
-  while [ "$d" != "/" ]; do
-    chmod a+rx "$d" 2>/dev/null || true
-    d=$(dirname "$d")
-  done
+  # which pgfuzz cannot traverse. Widen that one directory only: walking up the
+  # ancestors would strip 0700 from whatever else happens to be on the path.
+  chmod o+rx "$this_dir" 2>/dev/null || true
   chown -R pgfuzz "$PGDATA" "$PGDIR"
   as_postgres() { su pgfuzz -c "$1"; }
 else
@@ -105,18 +107,17 @@ JAVA_HOME="$this_dir/open-jdk-25" \
 LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server" \
 "$this_dir/open-jdk-25/bin/java" \
   -Dquarkus.http.port=8081 \
-  -Dquarkus.log.level=INFO \
+  -Dquarkus.log.level=WARN \
   -Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:$PGPORT/postgres \
   -Dquarkus.datasource.username=profiel \
   -Dquarkus.datasource.password=profiel \
-  -Dquarkus.rest-client.basisprofiel-api.url=http://localhost:9999 \
-  -Dquarkus.rest-client.email-api.url=http://localhost:9999 \
+  -Dquarkus.rest-client.verificatie-service.url=http://localhost:9999 \
   -Dlogboekdataverwerking.enabled=false \
   -Dlogboekdataverwerking.service-name=profiel-service-fuzz \
   -Dnotifynl.emailverificatie.api-key=fuzz \
   -Dnotifynl.emailverificatie.template-id=fuzz \
   -Dnotifynl.emailverificatie.reference=fuzz \
-  -jar "$this_dir/quarkus-app/quarkus-run.jar" > "$this_dir/quarkus.log" 2>&1 &
+  -jar "$this_dir/quarkus-app/quarkus-run.jar" &
 QUARKUS_PID=$!
 trap 'kill $QUARKUS_PID 2>/dev/null || true; stop_postgres' EXIT
 
@@ -134,7 +135,6 @@ done
 
 if [ -z "$quarkus_up" ]; then
   echo "EndpointFuzzer: Quarkus did not come up on port 8081" >&2
-  cat "$this_dir/quarkus.log" >&2 || true
   exit 1
 fi
 
