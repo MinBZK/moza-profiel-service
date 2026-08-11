@@ -69,6 +69,13 @@ mkdir -p "$PGDATA"
 # initdb and postgres refuse to run as root, which is what the fuzz runner uses.
 if [ "$(id -u)" = "0" ]; then
   id -u pgfuzz >/dev/null 2>&1 || useradd -m pgfuzz
+  # The harness runs fuzzers from a mkdtemp directory (mode 0700, owned by root),
+  # which pgfuzz cannot traverse. Only adds bits, and only in a throwaway container.
+  d="$this_dir"
+  while [ "$d" != "/" ]; do
+    chmod a+rx "$d" 2>/dev/null || true
+    d=$(dirname "$d")
+  done
   chown -R pgfuzz "$PGDATA" "$PGDIR"
   as_postgres() { su pgfuzz -c "$1"; }
 else
@@ -81,9 +88,11 @@ as_postgres "$PGDIR/bin/initdb -D $PGDATA -U profiel --auth=trust -E UTF8" || {
   echo "EndpointFuzzer: initdb failed" >&2
   exit 1
 }
-as_postgres "$PGDIR/bin/pg_ctl -D $PGDATA -o '-p $PGPORT -k /tmp' -l $this_dir/postgres.log -w start" || {
+# Log inside PGDATA: after the chmod above $this_dir is traversable but not
+# writable by pgfuzz, while PGDATA belongs to it.
+as_postgres "$PGDIR/bin/pg_ctl -D $PGDATA -o '-p $PGPORT -k /tmp' -l $PGDATA/postgres.log -w start" || {
   echo "EndpointFuzzer: PostgreSQL failed to start" >&2
-  cat "$this_dir/postgres.log" >&2 || true
+  cat "$PGDATA/postgres.log" >&2 || true
   exit 1
 }
 
