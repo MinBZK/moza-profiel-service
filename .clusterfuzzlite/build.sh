@@ -112,6 +112,10 @@ LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server" \
   -Dquarkus.rest-client.basisprofiel-api.url=http://localhost:9999 \
   -Dquarkus.rest-client.email-api.url=http://localhost:9999 \
   -Dlogboekdataverwerking.enabled=false \
+  -Dlogboekdataverwerking.service-name=profiel-service-fuzz \
+  -Dnotifynl.emailverificatie.api-key=fuzz \
+  -Dnotifynl.emailverificatie.template-id=fuzz \
+  -Dnotifynl.emailverificatie.reference=fuzz \
   -jar "$this_dir/quarkus-app/quarkus-run.jar" &
 QUARKUS_PID=$!
 trap 'kill $QUARKUS_PID 2>/dev/null || true; stop_postgres' EXIT
