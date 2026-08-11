@@ -105,7 +105,7 @@ JAVA_HOME="$this_dir/open-jdk-25" \
 LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server" \
 "$this_dir/open-jdk-25/bin/java" \
   -Dquarkus.http.port=8081 \
-  -Dquarkus.log.level=WARN \
+  -Dquarkus.log.level=INFO \
   -Dquarkus.datasource.jdbc.url=jdbc:postgresql://localhost:$PGPORT/postgres \
   -Dquarkus.datasource.username=profiel \
   -Dquarkus.datasource.password=profiel \
@@ -116,15 +116,16 @@ LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server" \
   -Dnotifynl.emailverificatie.api-key=fuzz \
   -Dnotifynl.emailverificatie.template-id=fuzz \
   -Dnotifynl.emailverificatie.reference=fuzz \
-  -jar "$this_dir/quarkus-app/quarkus-run.jar" &
+  -jar "$this_dir/quarkus-app/quarkus-run.jar" > "$this_dir/quarkus.log" 2>&1 &
 QUARKUS_PID=$!
 trap 'kill $QUARKUS_PID 2>/dev/null || true; stop_postgres' EXIT
 
 # Wait for Quarkus to accept connections (up to 60 seconds; Flyway migrates first).
 # Fail loudly rather than let jazzer fuzz an application that never came up.
+# No -f: nothing is mapped to /, so a 404 already proves the HTTP layer is up.
 quarkus_up=
 for i in $(seq 1 240); do
-  if curl -sf -o /dev/null http://localhost:8081/ 2>/dev/null; then
+  if curl -s -o /dev/null http://localhost:8081/ 2>/dev/null; then
     quarkus_up=1
     break
   fi
@@ -133,6 +134,7 @@ done
 
 if [ -z "$quarkus_up" ]; then
   echo "EndpointFuzzer: Quarkus did not come up on port 8081" >&2
+  cat "$this_dir/quarkus.log" >&2 || true
   exit 1
 fi
 
