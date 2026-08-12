@@ -6,8 +6,8 @@ Bedankt voor je interesse in deze repository. Bekijk eerst de overkoepelende ric
 
 - **Branching**: feature branches off `main`, PR voor merge. Tijdens initiële buildout van een greenfield repo kan ook direct op `main` worden gewerkt.
 - **Commits**: korte, beschrijvende messages in het Nederlands of Engels.
-- **Tests**: `./mvnw verify` moet groen draaien. Unit + component (cucumber) + fuzz (jazzer). JaCoCo-drempel is 50% line en 50% branch.
-- **API Design Rules**: nieuwe of gewijzigde endpoints moeten door de Spectral lint heen tegen de NLGov ADR ruleset (`https://static.developer.overheid.nl/adr/ruleset.yaml`). Zie [`audit/consolidated-findings.md`](../profiel-service/audit/consolidated-findings.md) voor de bekende bevindingen.
+- **Tests**: `./mvnw verify` moet groen draaien. Unit + integratie (`@QuarkusTest`) + contract (Pact en OpenAPI-schemavalidatie) + fuzz (jazzer). JaCoCo-drempel is 85% line en 80% branch.
+- **API Design Rules**: nieuwe of gewijzigde endpoints moeten door de Spectral lint heen tegen de NLGov ADR ruleset (`https://static.developer.overheid.nl/adr/ruleset.yaml`).
 - **Schema-changes**: voeg een nieuwe Flyway migratie toe in `src/main/resources/db/migration/`. Tests draaien de migraties tegen een embedded PostgreSQL, dus een fout in een migratie of drift met de entities (`validate`) breekt `./mvnw verify`.
 - **Secrets**: nooit committen. Lokale dev-config in `src/main/resources/application-dev.properties` (gitignored). Productie-secrets via de deployment-repo `moz/profiel-service/config/`.
 

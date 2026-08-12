@@ -72,7 +72,7 @@ De Profiel Service maakt gebruik van contracttesting om te waarborgen dat wijzig
 
 ### Hoe het werkt
 
-- **OpenAPI-schemavalidatie**: elke integratietest valideert automatisch dat verzoeken en antwoorden overeenkomen met de live OpenAPI-specificatie van de service (`/q/openapi`).
+- **OpenAPI-schemavalidatie**: elke integratietest valideert automatisch dat verzoeken en antwoorden overeenkomen met de live OpenAPI-specificatie van de service (`/openapi.json`).
 - **Pact-providerverificatie**: pact-bestanden (JSON) in `src/test/resources/pacts/` beschrijven de verwachte contracten. De provider test verifieert dat de service hieraan voldoet. Het huidige bestand `moza-profiel-service.json` is een zelftestcontract van de provider zelf.
 
 ### Contracten bijdragen als consument
