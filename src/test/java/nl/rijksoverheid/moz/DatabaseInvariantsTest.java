@@ -2,7 +2,6 @@ package nl.rijksoverheid.moz;
 
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
-import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -27,12 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class DatabaseInvariantsTest {
 
     @AfterEach
-    @Transactional
     void tearDown() {
-        Contactgegeven.deleteAll();
-        DienstverlenerDienst.deleteAll();
-        Dienstverlener.deleteAll();
-        Partij.deleteAll();
+        DatabaseCleanup.wipe();
     }
 
     @Test

@@ -236,6 +236,7 @@
             <groupId>io.quarkiverse.wiremock</groupId>
             <artifactId>quarkus-wiremock</artifactId>
             <version>1.6.1</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Contract testing -->
