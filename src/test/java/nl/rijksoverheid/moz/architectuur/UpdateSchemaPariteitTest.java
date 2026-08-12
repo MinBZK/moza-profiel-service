@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -36,18 +37,32 @@ import java.util.stream.Stream;
  */
 class UpdateSchemaPariteitTest {
 
+    /**
+     * De id-property staat er letterlijk bij. Alleen op naam pinnen zou de zwakste plek van deze
+     * test op de enige plek leggen waar afwijking is toegestaan: {@code id: {$ref: UUID}} kon dan
+     * ongemerkt {@code type: string} worden, terwijl de gedeelde velden wél op volledige
+     * node-gelijkheid gaan. isDefault draagt beschrijvende tekst en wordt daarom alleen op naam
+     * en verplichtheid gecontroleerd; die tekst mag wijzigen zonder deze test te raken.
+     */
+    private static final String ID_NODE = "{\"$ref\":\"#/components/schemas/UUID\"}";
+
     private static Stream<Arguments> schemaParen() {
         return Stream.of(
                 Arguments.of("ContactgegevenRequest", "ContactgegevenUpdateRequest",
-                        Set.of("id", "isDefault")),
+                        Map.of("id", ID_NODE, "isDefault", ""), Set.of("id")),
                 Arguments.of("VoorkeurRequest", "VoorkeurUpdateRequest",
-                        Set.of("id")));
+                        Map.of("id", ID_NODE), Set.of("id")));
     }
 
     @ParameterizedTest(name = "{1}")
     @MethodSource("schemaParen")
     void updateSchemaHerhaaltHetCreateSchemaEnVoegtAlleenHetBekendeToe(
-            String createNaam, String updateNaam, Set<String> verwachteExtras) throws Exception {
+            String createNaam,
+            String updateNaam,
+            Map<String, String> verwachteExtrasMetNode,
+            Set<String> verplichteExtras) throws Exception {
+
+        Set<String> verwachteExtras = verwachteExtrasMetNode.keySet();
 
         JsonNode schemas;
 
@@ -90,9 +105,24 @@ class UpdateSchemaPariteitTest {
             }
         });
 
-        Assertions.assertEquals(new TreeSet<>(verwachteExtras), extras,
-                updateNaam + " hoort naast de properties van " + createNaam + " precies "
-                        + verwachteExtras + " te dragen");
+        if (!new TreeSet<>(verwachteExtras).equals(extras)) {
+            bevindingen.add(updateNaam + " hoort naast de properties van " + createNaam
+                    + " precies " + new TreeSet<>(verwachteExtras) + " te dragen, maar draagt "
+                    + extras);
+        }
+
+        // De extras waarvan de vorm vastligt worden op node-gelijkheid vergeleken, net als de
+        // gedeelde velden. Een lege verwachting betekent "alleen op naam en verplichtheid".
+        verwachteExtrasMetNode.forEach((veld, verwachteNode) -> {
+            if (verwachteNode.isEmpty() || !update.has(veld)) {
+                return;
+            }
+
+            if (!verwachteNode.equals(update.get(veld).toString())) {
+                bevindingen.add("'" + veld + "' in " + updateNaam + " is " + update.get(veld)
+                        + " in plaats van " + verwachteNode);
+            }
+        });
 
         // Wat bij het aanmaken verplicht is, blijft dat bij het bijwerken: het update-request
         // vervangt de waarden en stuurt dus een volledig gegeven mee, geen patch.
@@ -103,6 +133,16 @@ class UpdateSchemaPariteitTest {
             if (!updateVerplicht.contains(veld)) {
                 bevindingen.add("'" + veld + "' is verplicht in " + createNaam + " maar niet in "
                         + updateNaam);
+            }
+        }
+
+        // De reden dat deze twee schema's geen overerving meer delen is dat een update-request een
+        // verplichte id draagt. Zonder deze controle stond die reden alleen in de javadoc en kon
+        // 'id' uit required verdwijnen zonder dat iets omviel.
+        for (String veld : verplichteExtras) {
+            if (!updateVerplicht.contains(veld)) {
+                bevindingen.add("'" + veld + "' hoort verplicht te zijn in " + updateNaam
+                        + "; dat is de invariant waarvoor dit schema los staat van " + createNaam);
             }
         }
 

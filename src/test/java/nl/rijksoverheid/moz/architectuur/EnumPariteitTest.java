@@ -7,14 +7,19 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -79,6 +84,46 @@ class EnumPariteitTest {
                 schemaNaam + ": de waarden in META-INF/openapi.yaml wijken af van"
                         + " nl.rijksoverheid.moz.common." + schemaNaam + ". Omdat schemaMappings dit"
                         + " schema niet laat genereren, merkt de build het verschil verder nergens.");
+    }
+
+    /**
+     * Houdt de lijst hierboven gelijk aan {@code schemaMappings} in {@code pom.xml}. Zonder deze
+     * controle is "elk gemapt enum wordt getoetst" een belofte die afhangt van of de auteur van een
+     * vierde mapping ook aan {@link #enums()} denkt — precies het gat dat
+     * {@code RegelDekkingTest.elkeFixtureIsGedekt} voor zijn zusterlijst dicht.
+     *
+     * <p>De mapping wijst niet alleen naar enums: {@code Instant}, {@code UUID} en
+     * {@code HttpProblem} staan er ook in. Daarom bepaalt de test per doeltype of het een enum is,
+     * in plaats van op pakketnaam te filteren.
+     */
+    @Test
+    void elkGemaptEnumWordtGetoetst() throws Exception {
+        String pom = Files.readString(Path.of("pom.xml"));
+        Matcher blok = Pattern.compile("<schemaMappings>(.*?)</schemaMappings>", Pattern.DOTALL)
+                .matcher(pom);
+
+        Assertions.assertTrue(blok.find(), "Geen <schemaMappings> gevonden in pom.xml");
+
+        List<String> gemapteEnums = new ArrayList<>();
+
+        for (String mapping : blok.group(1).trim().split(",")) {
+            String[] delen = mapping.trim().split("=", 2);
+
+            if (delen.length != 2) {
+                continue;
+            }
+
+            if (Class.forName(delen[1].trim()).isEnum()) {
+                gemapteEnums.add(delen[0].trim());
+            }
+        }
+
+        List<String> getoetst = enums().map(argumenten -> (String) argumenten.get()[0]).sorted().toList();
+        gemapteEnums.sort(String::compareTo);
+
+        Assertions.assertEquals(gemapteEnums, getoetst,
+                "Elk enum-schema uit schemaMappings hoort in deze test te staan: de generator maakt"
+                        + " er geen klasse voor, dus niets anders vergelijkt de waarden.");
     }
 
     private static List<String> namen(Enum<?>[] waarden) {

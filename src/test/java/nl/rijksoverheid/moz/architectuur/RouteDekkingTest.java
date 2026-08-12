@@ -84,14 +84,25 @@ class RouteDekkingTest {
     }
 
     private static List<String> routesUitDeCode() {
+        // Het hele applicatiepakket, niet alleen .controller: een resource die ooit elders komt te
+        // staan zou anders buiten de sweep vallen zonder dat iets dat meldt.
         JavaClasses klassen = new ClassFileImporter()
                 .withImportOption(new ImportOption.DoNotIncludeTests())
-                .importPackages("nl.rijksoverheid.moz.controller");
+                .importPackages("nl.rijksoverheid.moz");
 
         List<String> routes = new ArrayList<>();
 
         for (JavaClass klasse : klassen) {
             if (!klasse.isAnnotatedWith(Path.class)) {
+                continue;
+            }
+
+            // Interfaces overslaan. @Path staat in deze codebase ook op REST-clients — de
+            // gegenereerde VerificationControllerApi voor de externe verificatieservice draagt
+            // @Path("/request") en @Path("/verify") — en die beschrijven wat wij áánroepen, niet
+            // wat wij aanbieden. Serverresources zijn hier per definitie concrete klassen: er
+            // worden geen JAX-RS interfaces gegenereerd (generateApis=false in pom.xml).
+            if (klasse.isInterface()) {
                 continue;
             }
 

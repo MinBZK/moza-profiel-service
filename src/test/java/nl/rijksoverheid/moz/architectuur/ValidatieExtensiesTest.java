@@ -73,14 +73,18 @@ class ValidatieExtensiesTest {
             // een enkele string. Symmetrisch lezen houdt de twee takken gelijk en blijft werken als
             // een van de vormen ooit verandert; asText() geeft op een lijst leeg terug en zou dan
             // precies het omgekeerde melden van wat er aan de hand is.
-            // De aanhalingstekens horen bij de match, aan beide kanten: zonder anker zou een
+            // Het openende aanhalingsteken hoort bij de match: zonder anker zou een
             // uitgecommentarieerde waarde als "# @nl...ValidIdentificatieNummer" hier nog steeds
             // als drager tellen, terwijl de generator er een comment van maakt en de elfproef
-            // stilzwijgend verdwijnt. Om dezelfde reden staat het sluitende aanhalingsteken erbij:
-            // anders telt een langere naam met dezelfde prefix — of een gelijknamige klasse in een
-            // ander pakket — even hard mee.
-            boolean heeftAnnotatie = schema.path("x-class-extra-annotation").toString()
-                    .contains("\"@" + ANNOTATIE + "\"");
+            // stilzwijgend verdwijnt.
+            //
+            // Aan de achterkant kan geen vast aanhalingsteken staan: een constraint mag attributen
+            // dragen, en "@...ValidIdentificatieNummer(groups = {})" is een geldige drager. Met een
+            // sluitend anker zou die als "annotatie ontbreekt" gemeld worden — een valse melding
+            // met precies de omgekeerde diagnose. Daarom eindigt de naam op een aanhalingsteken of
+            // op een haakje. De interface-kant kent dat probleem niet en blijft aan beide kanten
+            // geankerd.
+            boolean heeftAnnotatie = draagtAnnotatie(schema.path("x-class-extra-annotation").toString());
             boolean heeftInterface = schema.path("x-implements").toString()
                     .contains("\"" + INTERFACE + "\"");
 
@@ -109,5 +113,29 @@ class ValidatieExtensiesTest {
                 "De elfproef hoort precies op " + DRAGERS + " te staan. Verhuist of verdwijnt hij,"
                         + " dan is dat een gedragswijziging aan de buitenkant; zie"
                         + " MinBZK/MijnOverheidZakelijk#923");
+    }
+
+    /**
+     * Zoekt de annotatie in de ruwe JSON-weergave van {@code x-class-extra-annotation}. De naam
+     * moet direct na {@code "@} beginnen en direct erna hoort het einde van de annotatie te komen:
+     * een aanhalingsteken, of een haakje wanneer er attributen volgen. Zo telt een langere naam met
+     * dezelfde prefix niet mee, terwijl een drager mét attributen dat wel doet.
+     */
+    private static boolean draagtAnnotatie(String ruweWaarde) {
+        int begin = ruweWaarde.indexOf("\"@" + ANNOTATIE);
+
+        if (begin < 0) {
+            return false;
+        }
+
+        int na = begin + 2 + ANNOTATIE.length();
+
+        if (na >= ruweWaarde.length()) {
+            return false;
+        }
+
+        char volgend = ruweWaarde.charAt(na);
+
+        return volgend == '"' || volgend == '(';
     }
 }
