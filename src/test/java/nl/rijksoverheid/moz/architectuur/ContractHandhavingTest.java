@@ -11,25 +11,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Legt vast dat het contract de regels die het declareert ook werkelijk afdwingt.
+ * Legt vast dat het contract de regels die het declareert ook werkelijk afdwingt, door bodies
+ * rechtstreeks tegen het document te valideren.
  *
- * <p>Aanleiding: {@code scope} en {@code teVerwijderenOp} zijn een tijdlang als
- * {@code anyOf: [$ref X, type: "null"]} geschreven om hun nullbaarheid uit te drukken. De
- * validator laat het type op de {@code "null"}-tak vallen — dat is 3.1-gedrag dat elders in het
- * contract is toegelicht — waardoor die tak een leeg schema wordt dat alles matcht. {@code anyOf}
- * slaagt dan altijd en de {@code $ref}-tak komt nooit aan bod: een blanco
- * {@code scope.dienstverlenerNaam} en een onzin-timestamp kwamen er ongehinderd doorheen. De
- * bean-validatie in productie ving het nog wel, dus het bleef bij een verzwakt contract, maar
- * niets in de suite merkte het.
- *
- * <p>Waarom hier en niet in {@code BlancoWaardenIntegrationTest}: die hangt de validatiefilter
- * bewust alleen aan contract-gelde requests, omdat de filter het request client-side keurt en een
- * opzettelijk ongeldige body de server anders nooit bereikt. Precies daardoor kan die klasse niet
- * vastleggen dát het contract iets afwijst. Deze test doet dat rechtstreeks op het document, zonder
- * server.
- *
- * <p>De positieve tegenhangers staan er met opzet bij: zonder die zou een contract dat álles
- * afwijst — of een validator die stukloopt op het document — er net zo groen uitzien.
+ * <p>{@code BlancoWaardenIntegrationTest} kan dit niet: die hangt de validatiefilter bewust alleen
+ * aan contract-geldige requests, omdat de filter client-side keurt. De positieve tegenhangers
+ * horen erbij, anders ziet een contract dat álles afwijst er net zo groen uit.
  */
 class ContractHandhavingTest {
 

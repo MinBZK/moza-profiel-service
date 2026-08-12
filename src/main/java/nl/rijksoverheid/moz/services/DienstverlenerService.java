@@ -61,11 +61,9 @@ public class DienstverlenerService {
     /**
      * Zoekt de dienstverlener op naam en maakt hem aan als hij nog niet bestaat.
      *
-     * <p>Bestaat hij al, dan botst een afwijkende {@code beschrijving} met een 409 in plaats
-     * van stil te verdwijnen: de aanroeper zou anders een 201 krijgen met de oude beschrijving
-     * erin. Een {@code null}-beschrijving legt niets vast en botst dus nooit — dat is de manier
-     * waarop {@link #addDienstToDienstverlener} de dienstverlener laat aanmaken zonder er een
-     * beschrijving aan toe te kennen. Dezelfde afweging als bij de dienst hierboven.
+     * <p>Bestaat hij al, dan botst een afwijkende {@code beschrijving} met een 409 in plaats van
+     * stil te verdwijnen. Een {@code null}-beschrijving legt niets vast en botst nooit; zo maakt
+     * {@link #addDienstToDienstverlener} een dienstverlener zonder beschrijving aan.
      */
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {

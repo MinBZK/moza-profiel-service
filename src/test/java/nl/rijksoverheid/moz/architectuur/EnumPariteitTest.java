@@ -25,27 +25,10 @@ import java.util.stream.Stream;
 /**
  * Bewaakt dat de enum-waarden in het contract gelijk zijn aan die in de domeintypes.
  *
- * <p>De {@code schemaMappings} in {@code pom.xml} laten de generator deze drie schema's
- * overslaan en verwijzen naar de bestaande enums in {@code nl.rijksoverheid.moz.common}. Dat
- * scheelt een conversielaag, maar het haalt tegelijk de enige koppeling weg die er tussen de
- * twee lijsten was: niets in de build vergelijkt ze nog, in geen van beide richtingen.
- *
- * <ul>
- *   <li>Een waarde die alleen in Java staat wordt door Jackson gewoon geaccepteerd — er is
- *       server-side geen schemavalidatie op de request-body — terwijl het gepubliceerde contract
- *       hem niet noemt.</li>
- *   <li>Een waarde die alleen in het contract staat wordt geadverteerd, waarna Jackson hem bij
- *       de eerste aanroep afwijst met een 400.</li>
- * </ul>
- *
- * <p>Beide gaan vandaag stil voorbij. {@code OpenApiContractDriftTest} helpt hier niet: die
- * vergelijkt het contract met het gepubliceerde document, en dat is sinds
- * {@code mp.openapi.scan.disable=true} hetzelfde bestand.
- *
- * <p>{@code IdentificatieType} is toevallig deels beschermd doordat de {@code switch} in
- * {@code IdentificatieNummerValidator} geen {@code default} heeft en dus niet meer compileert
- * zodra er een waarde bij komt. Voor de andere twee bestaat zo'n vangnet niet, en op toeval
- * hoort deze eigenschap sowieso niet te rusten.
+ * <p>{@code schemaMappings} laat de generator deze schema's overslaan en naar de bestaande enums
+ * verwijzen. Daarmee vergelijkt niets in de build de twee lijsten nog: een waarde die alleen in
+ * Java staat wordt stil geaccepteerd, een waarde die alleen in het contract staat wordt
+ * geadverteerd en bij aanroep afgewezen.
  */
 class EnumPariteitTest {
 
@@ -76,10 +59,8 @@ class EnumPariteitTest {
         List<String> contractWaarden = new ArrayList<>();
         enumKnoop.forEach(waarde -> contractWaarden.add(waarde.asText()));
 
-        // Op volgorde vergelijken: die is voor de werking betekenisloos, maar het contract en de
-        // enum staan vandaag in dezelfde volgorde en dat is de goedkoopste manier om ze naast
-        // elkaar leesbaar te houden. Klopt de volgorde niet meer, dan is dat een bewuste
-        // aanpassing van een van de twee.
+        // Ook op volgorde: die is functioneel betekenisloos, maar houdt de twee lijsten naast
+        // elkaar leesbaar.
         Assertions.assertEquals(javaWaarden, contractWaarden,
                 schemaNaam + ": de waarden in META-INF/openapi.yaml wijken af van"
                         + " nl.rijksoverheid.moz.common." + schemaNaam + ". Omdat schemaMappings dit"
@@ -87,14 +68,9 @@ class EnumPariteitTest {
     }
 
     /**
-     * Houdt de lijst hierboven gelijk aan {@code schemaMappings} in {@code pom.xml}. Zonder deze
-     * controle is "elk gemapt enum wordt getoetst" een belofte die afhangt van of de auteur van een
-     * vierde mapping ook aan {@link #enums()} denkt — precies het gat dat
-     * {@code RegelDekkingTest.elkeFixtureIsGedekt} voor zijn zusterlijst dicht.
-     *
-     * <p>De mapping wijst niet alleen naar enums: {@code Instant}, {@code UUID} en
-     * {@code HttpProblem} staan er ook in. Daarom bepaalt de test per doeltype of het een enum is,
-     * in plaats van op pakketnaam te filteren.
+     * Houdt {@link #enums()} gelijk aan {@code schemaMappings}, zodat een vierde enum-mapping niet
+     * ongetoetst blijft. {@code isEnum()} in plaats van een pakketfilter, want de mapping wijst ook
+     * naar {@code Instant}, {@code UUID} en {@code HttpProblem}.
      */
     @Test
     void elkGemaptEnumWordtGetoetst() throws Exception {

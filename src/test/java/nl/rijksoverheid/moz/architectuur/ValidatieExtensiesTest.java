@@ -27,20 +27,13 @@ import java.util.regex.Pattern;
  *       gevalideerd, precies het gat dat MinBZK/MijnOverheidZakelijk#923 beschrijft.</li>
  * </ul>
  *
- * <p>De test pint vast wélk schema de elfproef draagt. Alleen tellen zou groen blijven als de
- * constraint naar een ánder schema verhuist — de koppeling klopt dan nog, de plaats niet — en zou
- * bovendien zwakker worden zodra MinBZK/MijnOverheidZakelijk#923 een tweede drager toevoegt.
- * Uitbreiden hoort een bewuste bewerking van deze lijst te zijn. De vergelijking is
- * volgorde-onafhankelijk, zodat het herschikken van {@code components/schemas} — zoals eerder in
- * deze branch al eens gebeurde — deze test niet om laat vallen.
+ * <p>De test pint vast wélk schema de elfproef draagt, niet alleen hoevéél er zijn: verhuizen naar
+ * een ander schema is ook een gedragswijziging. Uitbreiden hoort een bewuste bewerking van
+ * {@link #DRAGERS} te zijn; zie MinBZK/MijnOverheidZakelijk#923.
  *
- * <p>De sweep kijkt alleen naar {@code components/schemas} op het hoogste niveau. Vandaag verwijst
- * elke requestBody daarheen. Een top-level schema dat {@code allOf} gebruikt wordt gewoon
- * meegenomen; alleen inline sub-schema's — allOf-leden en bodies die direct in een operatie
- * staan — vallen buiten beeld.
- *
- * <p>Deze test leest het contract rechtstreeks — niet het gepubliceerde document — omdat het de
- * bron is die de codegen voedt. Dat de twee gelijk zijn bewaakt {@code OpenApiContractDriftTest}.
+ * <p>De sweep kijkt alleen naar top-level {@code components/schemas}; inline sub-schema's vallen
+ * buiten beeld. Hij leest het contract zelf en niet het gepubliceerde document, omdat het contract
+ * de codegen voedt.
  */
 class ValidatieExtensiesTest {
 
@@ -112,23 +105,10 @@ class ValidatieExtensiesTest {
     }
 
     /**
-     * Zoekt de annotatie in de ruwe JSON-weergave van {@code x-class-extra-annotation}.
-     *
-     * <p>Wat er tussen het aanhalingsteken en de naam mag staan is precies witruimte: de generator
-     * neemt de waarde letterlijk over in de gegenereerde klasse, dus {@code " @...Nummer"} is
-     * geldige Java met de constraint actief en hoort als drager te tellen. Een uitgecommentarieerde
-     * waarde als {@code "// @...Nummer"} hoort dat juist niet: die compileert wél, maar de elfproef
-     * verdwijnt er stilzwijgend mee. (Met {@code #} ervoor breekt de compilatie — dat valt sowieso
-     * op en is dus niet de vorm waar deze controle voor bestaat.)
-     *
-     * <p>Aan de achterkant kan geen vast aanhalingsteken staan: een constraint mag attributen
-     * dragen, en {@code "@...Nummer(groups = {})"} is een geldige drager. Met een sluitend anker zou
-     * die als "annotatie ontbreekt" gemeld worden — een valse melding met precies de omgekeerde
-     * diagnose. Daarom eindigt de naam op een aanhalingsteken of op een haakje, wat tegelijk een
-     * langere naam met dezelfde prefix uitsluit.
-     *
-     * <p>De expressie zoekt over de hele waarde en niet alleen op de eerste treffer, zodat een
-     * prefix-genoot die toevallig eerder staat de echte drager niet maskeert.
+     * De generator neemt de waarde letterlijk over, dus witruimte ervoor is nog steeds een
+     * actieve constraint en {@code "// @...Nummer"} juist niet. Erna mag een haakje staan
+     * ({@code (groups = {})}) of het sluitende aanhalingsteken; dat laatste sluit een langere
+     * naam met dezelfde prefix uit.
      */
     private static boolean draagtAnnotatie(String ruweWaarde) {
         return DRAGER.matcher(ruweWaarde).find();

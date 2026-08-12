@@ -6,20 +6,10 @@ import jakarta.ws.rs.core.Response;
 import java.util.Map;
 
 /**
- * De twee vormen die deze helper aanbiedt. Problemen worden ook buiten deze klasse opgebouwd,
- * rechtstreeks met {@code HttpProblem.valueOf} of {@code HttpProblem.builder()}.
- *
- * <p>Er stonden hier meer helpers. {@code missingBody}, {@code badRequest} en
- * {@code serviceUnavailable} hadden geen aanroeper meer in productiecode; alleen hun unittests
- * hielden ze in leven, dus de dekkingsdrempel merkte er niets van. Bij de 400 was dat geen
- * bewuste keuze: {@code RequireBodyReaderInterceptor} en {@code EmailVerificatieController}
- * gebruiken {@code HttpProblem.valueOf(status, tekst)}, dat exact hetzelfde oplevert als
- * {@code missingBody} deed — reason phrase als titel, de tekst als detail. Die helpers waren
- * simpelweg nooit aangesloten. Alleen bij de 503 kon de helper het niet: daar zet
- * {@code EmailVerificatieController} een {@code Retry-After}-header en geen titel.
- *
- * <p>Wie hier een helper toevoegt: controleer of hij ook echt vanuit productiecode wordt
- * aangeroepen.
+ * De twee vormen die deze helper aanbiedt. Elders in de code worden problemen ook rechtstreeks
+ * met {@code HttpProblem.valueOf} of {@code builder()} opgebouwd. Wie hier een helper toevoegt:
+ * controleer of hij ook echt vanuit productiecode wordt aangeroepen — drie voorgangers waren
+ * alleen door hun eigen unittest in leven gehouden.
  */
 public final class Problems {
 

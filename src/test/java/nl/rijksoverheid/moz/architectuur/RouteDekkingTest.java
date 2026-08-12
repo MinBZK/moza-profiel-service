@@ -27,18 +27,9 @@ import java.util.Map;
 import java.util.TreeSet;
 
 /**
- * Bewaakt dat het contract en de JAX-RS-routes elkaar dekken, in beide richtingen.
- *
- * <p>Sinds annotatie-scanning uit staat ({@code mp.openapi.scan.disable=true}) wordt het
- * gepubliceerde document niet meer uit de code afgeleid. {@code OpenApiContractDriftTest}
- * vergelijkt dat document met {@code META-INF/openapi.yaml}, maar dat zijn sindsdien twee
- * verwijzingen naar hetzelfde bestand: die test bewaakt de configuratie, niet de vraag of het
- * contract nog beschrijft wat de service doet. Een nieuw endpoint zonder contractwijziging — of
- * een {@code @Path} die verdwijnt terwijl de operatie blijft staan — komt daar niet uit.
- *
- * <p>Deze test leest daarom de routes rechtstreeks uit de resource-klassen en legt ze naast de
- * operaties in het contract. Hij vergelijkt pad en HTTP-methode, niet de vorm van request of
- * response; dat laatste doet de contractvalidatie in {@code OpenApiValidationTest} per aanroep.
+ * Bewaakt dat het contract en de JAX-RS-routes elkaar dekken, in beide richtingen: pad en
+ * HTTP-methode, niet de vorm van de berichten. {@code OpenApiContractDriftTest} kan dit niet —
+ * die vergelijkt het gepubliceerde document met het bestand waaruit het komt.
  */
 class RouteDekkingTest {
 
@@ -99,18 +90,10 @@ class RouteDekkingTest {
                 continue;
             }
 
-            // Interfaces buiten het controllerpakket overslaan. @Path staat in deze codebase ook
-            // op REST-clients: de gegenereerde VerificationControllerApi voor de externe
-            // verificatieservice draagt @Path("") op klasseniveau — dát is wat hem hier zou
-            // binnenhalen — en @Path("/request") en @Path("/verify") op zijn methoden. Die
-            // beschrijven wat wij áánroepen, niet wat wij aanbieden.
-            //
-            // De uitzondering is bewust smal. Interfaces overal overslaan zou een handgeschreven
-            // JAX-RS interface met een implementatie zonder eigen @Path aan beide kanten mis laten
-            // gaan: de route wordt niet gezien, en een operatie die er wél voor staat wordt
-            // onterecht als routeloos gemeld. Binnen het controllerpakket telt een interface dus
-            // gewoon mee. Vandaag staan daar alleen concrete klassen, dus die tak is een
-            // vooruitgeschoven waarborg die geen enkele bestaande klasse raakt.
+            // Interfaces buiten het controllerpakket zijn REST-clients: de gegenereerde
+            // VerificationControllerApi draagt @Path("") en beschrijft wat wij áánroepen. Binnen
+            // het controllerpakket telt een interface wél mee, zodat een handgeschreven resource
+            // met een implementatie zonder eigen @Path niet onzichtbaar wordt.
             if (klasse.isInterface() && !klasse.getPackageName().equals(CONTROLLER_PAKKET)) {
                 continue;
             }
@@ -167,10 +150,8 @@ class RouteDekkingTest {
     }
 
     /**
-     * JAX-RS is onverschillig voor dubbele en afsluitende slashes — {@code @Path("/dienstverlener/")}
-     * bedient hetzelfde pad als {@code /dienstverlener} — terwijl het contract één schrijfwijze
-     * per pad kent. Zonder deze normalisatie zou de test op die kosmetiek omvallen in plaats van
-     * op echte drift.
+     * JAX-RS is onverschillig voor dubbele en afsluitende slashes, het contract kent één
+     * schrijfwijze per pad. Zonder normalisatie valt de test op die kosmetiek om.
      */
     private static String normaliseer(String pad) {
         String samengevouwen = pad.replaceAll("/{2,}", "/");

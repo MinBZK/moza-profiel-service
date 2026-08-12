@@ -17,31 +17,20 @@ import java.util.stream.Collectors;
 /**
  * Toetst de regels zelf, niet de productiecode.
  *
- * <p>{@link RequestDtoOnveranderbaarheidTest} draait ze tegen een codebase die ze niet
- * overtreedt, dus daar zijn ze per definitie groen — ook als ze niets zouden vangen. Dat is bij
- * het opzetten van deze regels (#651) drie keer misgegaan: eerst dekte {@code callMethodWhere}
- * geen method references, daarna liet de naam-allow-list de fluent setter {@code isDefault(Boolean)}
- * door, en vervolgens zag de ariteitsregel via {@code callCodeUnitWhere} opnieuw geen method
- * references. Steeds bleven beide regels groen en steeds stond in het commentaar dat het gat
- * gedicht was.
+ * <p>{@link RequestDtoOnveranderbaarheidTest} draait ze tegen code die ze niet overtreedt, dus
+ * daar zijn ze groen ook als ze niets zouden vangen. Dat is bij het opzetten van deze regels
+ * (#651) drie keer misgegaan.
  *
- * <p>Deze test legt per ontsnappingsvorm vast wélke regel hem pakt, niet alleen dát er één
- * regel op afgaat. Dat onderscheid is nodig: elke vorm in {@link RequestMutaties} roept een
- * methode met minstens één parameter aan, dus de ariteitsregel pakt ze allemaal in haar eentje.
- * Met een {@code anyMatch} over beide regels zou het weghalen van de naamregel deze test dus
- * groen laten — precies de vorm van vals groen die hij hoort te voorkomen.
+ * <p>Per ontsnappingsvorm ligt vast wélke regel hem pakt, niet alleen dát er één op afgaat: elke
+ * vorm in {@link RequestMutaties} heeft een mutator met parameters, dus met een {@code anyMatch}
+ * zou het weghalen van de naamregel onopgemerkt blijven.
  *
- * <p>Een nieuwe ontsnappingsvorm hoort een klasse in {@link RequestMutaties} én een waarde in
- * {@link Mutatievorm} te krijgen. Wordt die tweede stap vergeten, dan valt
- * {@link #elkeFixtureIsGedekt()} om in plaats van dat de vorm ongemerkt buiten de dekking valt.
+ * <p>Een nieuwe vorm hoort een klasse in {@link RequestMutaties} én een waarde in
+ * {@link Mutatievorm} te krijgen; {@link #elkeFixtureIsGedekt()} bewaakt die tweede stap.
  */
 class RegelDekkingTest {
 
-    /**
-     * Per fixture: welke regel hoort hem te pakken. De verwachting staat hier expliciet zodat
-     * een regel die stilzwijgend niets meer vangt zichtbaar wordt, ook als de andere regel hem
-     * nog dekt.
-     */
+    /** Per fixture: welke regel hoort hem te pakken. */
     enum Mutatievorm {
         /** Gewone setter: naam valt buiten de allow-list én de aanroep heeft een parameter. */
         DIRECTE_SETTER(RequestMutaties.DirecteSetter.class, true, true),

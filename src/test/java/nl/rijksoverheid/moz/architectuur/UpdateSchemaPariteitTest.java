@@ -20,31 +20,18 @@ import java.util.stream.Stream;
 /**
  * Houdt de update-schema's gelijk aan hun create-tegenhanger.
  *
- * <p>Op {@code main} was dit een taalgarantie: {@code ContactgegevenUpdateRequest extends
- * ContactgegevenRequest}. In het contract zijn het twee losse, volledig uitgeschreven schema's.
- * Dat is met opzet — de oude subtypering was onjuist, want een update-request draagt een
- * verplichte {@code id} en is dus geen geldig create-request, terwijl hij wel als zodanig kon
- * worden doorgegeven — maar er staat nu niets meer tegenover de duplicatie. Een veld toevoegen
- * of een pattern aanscherpen op het ene schema laat het andere stilzwijgend achter.
+ * <p>Op {@code main} was dit een taalgarantie via overerving; in het contract zijn het twee losse,
+ * volledig uitgeschreven schema's zonder iets dat ze synchroon houdt. De test eist niet dat ze
+ * gelijk zijn, maar dat het verschil precies de uitbreiding in {@link #schemaParen()} is.
  *
- * <p>De test eist niet dat de twee gelijk zijn, maar dat het verschil precies de bekende
- * uitbreiding is: elke property van het create-schema komt letterlijk terug in het
- * update-schema, en wat er extra in staat is opgesomd in {@link #schemaParen()}. Zo blijft een
- * bewuste uitbreiding een bewerking van deze lijst in plaats van een stille afwijking.
- *
- * <p>{@code allOf} zou de duplicatie in de YAML weghalen zonder de subtypering terug te brengen
- * — {@code jaxrs-spec} vlakt {@code allOf} af, dus de gegenereerde klassen blijven los van
- * elkaar. Zolang dat niet gebeurd is, doet deze test het werk.
+ * <p>{@code allOf} zou de duplicatie weghalen zonder de (onjuiste) subtypering terug te brengen;
+ * zolang dat niet gebeurd is, doet deze test het werk.
  */
 class UpdateSchemaPariteitTest {
 
     /**
-     * De extras worden net als de gedeelde velden op node-gelijkheid vergeleken, maar zonder hun
-     * {@code description}: alleen op naam pinnen zou de zwakste plek van deze test op de enige
-     * plek leggen waar afwijking is toegestaan. {@code id: {$ref: UUID}} kon dan ongemerkt
-     * {@code type: string} worden, en {@code isDefault}, dat in deze branch nullable werd, was op
-     * naam alleen helemaal ongedekt. Beschrijvende tekst mag wél wijzigen zonder deze test te
-     * raken; die wordt vóór de vergelijking weggelaten.
+     * De extras gaan op node-gelijkheid, zonder {@code description}. Alleen op naam pinnen zou de
+     * zwakste plek van deze test leggen op de enige plek waar afwijking is toegestaan.
      */
     private static final String ID_NODE = "{\"$ref\":\"#/components/schemas/UUID\"}";
 
