@@ -54,7 +54,8 @@ paths:
         "404":
           $ref: "#/components/responses/ContactgegevenOfScopeNietGevonden"
         "409":
-          description: Combinatie van type en waarde bestaat al voor deze partij
+          description: "Combinatie van type en waarde bestaat al voor deze partij, of een\
+            \ gelijktijdige write botste op een unique constraint"
           content:
             application/problem+json:
               schema:
@@ -164,7 +165,10 @@ paths:
       operationId: addDienstverlener
       description: "Voegt een dienstverlener toe met optionele beschrijving. Bestaat de naam\
         \ al, dan wordt de bestaande dienstverlener teruggegeven; een afwijkende beschrijving\
-        \ levert een 409 in plaats van een stille overschrijving."
+        \ levert een 409 in plaats van een stille overschrijving. De beschrijving ligt daarmee\
+        \ vast bij het aanmaken: er is geen operatie om hem later te wijzigen. Let op dat een\
+        \ dienstverlener ook impliciet ontstaat via POST /dienstverlener/{dienstverlenerNaam}/diensten,\
+        \ en dan géén beschrijving krijgt; die kan achteraf niet meer worden gezet."
       tags:
       - Dienstverlener
       requestBody:
@@ -184,7 +188,8 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
-          description: Dienstverlener bestaat al met een andere beschrijving
+          description: "Dienstverlener bestaat al met een andere beschrijving, of een\
+            \ gelijktijdige write botste op een unique constraint"
           content:
             application/problem+json:
               schema:
@@ -222,7 +227,8 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
-          description: Dienst bestaat al met een andere beschrijving
+          description: "Dienst bestaat al met een andere beschrijving, of een gelijktijdige\
+            \ write botste op een unique constraint"
           content:
             application/problem+json:
               schema:
@@ -417,7 +423,8 @@ paths:
         "404":
           $ref: "#/components/responses/VoorkeurOfScopeNietGevonden"
         "409":
-          description: Andere voorkeur bestaat al voor deze partij, type en scope
+          description: "Andere voorkeur bestaat al voor deze partij, type en scope, of een\
+            \ gelijktijdige write botste op een unique constraint"
           content:
             application/problem+json:
               schema:
