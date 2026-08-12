@@ -47,7 +47,7 @@ public class RetentieScheduler {
     private static final String CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631";
 
     // Bovengrens tegen een klok- of configuratiefout die in één klap veel te veel rijen zou
-    // zachtverwijderen; ongeacht INFO-logregels ("3 verwijderd" en "100.000 verwijderd" zien er
+    // soft-deleten; ongeacht INFO-logregels ("3 verwijderd" en "100.000 verwijderd" zien er
     // anders niet anders uit). Dynamisch opgezocht (niet via @ConfigProperty-veldinjectie) zodat
     // een test hem via een system property kan overschrijven.
     private static final String MAX_PER_RUN_PROPERTY = "retentie.scheduler.max-per-run";

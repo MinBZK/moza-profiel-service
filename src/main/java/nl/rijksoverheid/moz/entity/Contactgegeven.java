@@ -30,7 +30,7 @@ import java.util.UUID;
 // maar is daar een partiële unique index (WHERE verwijderd_op IS NULL). JPA's @UniqueConstraint
 // kan geen WHERE-clausule uitdrukken, dus staat die hier bewust niet: een niet-partiële variant
 // via deze annotatie zou in de door Hibernate gegenereerde testschema's (H2, drop-and-create)
-// weer duplicaten tegen zachtverwijderde rijen blokkeren, terwijl productie dat toestaat.
+// weer duplicaten tegen rijen met een soft delete blokkeren, terwijl productie dat toestaat.
 @Entity
 @Audited
 public class Contactgegeven extends PanacheEntityBase {

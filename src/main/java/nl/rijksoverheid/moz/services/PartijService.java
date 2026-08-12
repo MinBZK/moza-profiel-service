@@ -133,8 +133,8 @@ public class PartijService {
 
         // Voorkeur-invariant per 08-data.md: maximaal één ACTIEVE rij per (partij, voorkeurType, scope).
         // POST is daarmee upsert: zelfde sleutel + nieuwe waarde overschrijft de actieve rij, geen
-        // tweede rij. Een eerder zachtverwijderde rij op dezelfde sleutel blokkeert dit niet en wordt
-        // ook niet hersteld — er ontstaat gewoon een nieuwe actieve rij (de unique index is partieel,
+        // tweede rij. Een rij met een eerdere soft delete op dezelfde sleutel blokkeert dit niet en
+        // wordt ook niet hersteld — er ontstaat een nieuwe actieve rij (de unique index is partieel,
         // WHERE verwijderd_op IS NULL). Let op: deze invariant wordt uitsluitend in applicatiecode
         // afgedwongen, er is geen unieke DB-index op (partij, voorkeurType, scope); twee gelijktijdige
         // POSTs op dezelfde sleutel kunnen dus beide hier voorbij komen en twee actieve rijen invoegen.
@@ -306,7 +306,7 @@ public class PartijService {
         // FlushModeType.AUTO) vóór een JPQL bulk-update tegen dezelfde tabel, dus deze volgorde
         // werkt; bij flushmode=COMMIT zou de partiële index alsnog kunnen breken.
         // lastUpdated wordt expliciet meegebumped omdat een bulk-update @PreUpdate bypasst.
-        // Filtert wél op verwijderdOp: een zachtverwijderde rij behoudt haar isDefault-waarde
+        // Filtert wél op verwijderdOp: een rij met een soft delete behoudt haar isDefault-waarde
         // zoals die was op het moment van verwijderen (zie verwijderContactgegeven) en mag daarom
         // hier niet aangeraakt worden — die rij zit toch al buiten de partiële index.
         Contactgegeven.update(

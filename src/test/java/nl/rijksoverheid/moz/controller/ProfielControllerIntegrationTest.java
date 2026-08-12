@@ -827,7 +827,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .delete("/api/profielservice/v1/voorkeur/" + origineleId)
                 .then().statusCode(NO_CONTENT);
 
-        // Opnieuw dezelfde waarde toevoegen: de zachtverwijderde rij mag niet hersteld worden
+        // Opnieuw dezelfde waarde toevoegen: de rij met de soft delete mag niet hersteld worden
         // (dat zou 200 + de oude id geven), er moet een nieuwe rij ontstaan (201 + nieuwe id).
         given().filter(validationFilter).contentType(ContentType.JSON).body(addBody)
                 .post("/api/profielservice/v1/voorkeur")

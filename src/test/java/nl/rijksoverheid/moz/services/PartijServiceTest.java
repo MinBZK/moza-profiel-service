@@ -748,7 +748,7 @@ public class PartijServiceTest {
     }
 
     @Test
-    void updateContactgegeven_isDefaultTrue_LaatZachtverwijderdeDefaultOngemoeid() {
+    void updateContactgegeven_isDefaultTrue_LaatDefaultMetSoftDeleteOngemoeid() {
         AtomicReference<UUID> verwijderdId = new AtomicReference<>();
         AtomicReference<UUID> secondId = new AtomicReference<>();
         AtomicReference<Instant> verwijderdLastUpdated = new AtomicReference<>();
@@ -794,9 +794,9 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven verwijderd = Contactgegeven.findById(verwijderdId.get());
             Assertions.assertTrue(verwijderd.isIsDefault(),
-                    "een zachtverwijderde rij zit al buiten de partiële index en mag niet gedemote worden");
+                    "een rij met een soft delete zit al buiten de partiële index en mag niet gedemote worden");
             Assertions.assertEquals(verwijderdLastUpdated.get(), verwijderd.getLastUpdated(),
-                    "de zachtverwijderde rij mag door de demote-update niet aangeraakt worden");
+                    "de rij met een soft delete mag door de demote-update niet aangeraakt worden");
         });
     }
 
@@ -938,7 +938,7 @@ public class PartijServiceTest {
     @Test
     void updateContactgegeven_DuplicateIsSoftDeleted_DoesNotThrowConflict() {
         // uk_contactgegeven_dedup is partieel (WHERE verwijderd_op IS NULL): een botsing met een
-        // zachtverwijderde rij is geen conflict meer, noch op applicatie- noch op DB-niveau.
+        // rij met een soft delete is geen conflict meer, noch op applicatie- noch op DB-niveau.
         AtomicReference<UUID> targetId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -1224,12 +1224,12 @@ public class PartijServiceTest {
         PartijService.AddContactgegevenResult result =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertTrue(result.wasCreated(), "een zachtverwijderde rij mag niet hersteld worden, er moet een nieuwe komen");
+        Assertions.assertTrue(result.wasCreated(), "een rij met een soft delete mag niet hersteld worden, er moet een nieuwe komen");
         Assertions.assertNotEquals(verwijderdId.get(), result.contactgegeven().id);
         Assertions.assertNull(result.contactgegeven().getVerwijderdOp());
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(verwijderdOp.get(), Contactgegeven.<Contactgegeven>findById(verwijderdId.get()).getVerwijderdOp(),
-                        "de oude zachtverwijderde rij moet ongemoeid blijven"));
+                        "de oude rij met de soft delete moet ongemoeid blijven"));
     }
 
     /**
@@ -1328,12 +1328,12 @@ public class PartijServiceTest {
 
         PartijService.AddVoorkeurResult result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertTrue(result.wasCreated(), "een zachtverwijderde rij mag niet hersteld worden, er moet een nieuwe komen");
+        Assertions.assertTrue(result.wasCreated(), "een rij met een soft delete mag niet hersteld worden, er moet een nieuwe komen");
         Assertions.assertNotEquals(verwijderdId.get(), result.voorkeur().id);
         Assertions.assertNull(result.voorkeur().getVerwijderdOp());
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(verwijderdOp.get(), Voorkeur.<Voorkeur>findById(verwijderdId.get()).getVerwijderdOp(),
-                        "de oude zachtverwijderde rij moet ongemoeid blijven"));
+                        "de oude rij met de soft delete moet ongemoeid blijven"));
     }
 
     @Test

@@ -27,7 +27,7 @@ CREATE INDEX idx_contactgegeven_retentie ON contactgegeven (COALESCE(last_used_a
 
 -- Partieel maken is noodzakelijk voor PartijService.addContactgegeven/addVoorkeur: bij een
 -- herhaalde toevoeging moet een nieuwe rij aangemaakt kunnen worden in plaats van de
--- zachtverwijderde rij te moeten hergebruiken (die zou anders de sleutel nog bezet houden).
+-- rij met de soft delete te moeten hergebruiken (die zou anders de sleutel nog bezet houden).
 -- Deze koppeling tussen migratie en servicecode is alleen hier gedocumenteerd; wijzig ze samen.
 ALTER TABLE contactgegeven DROP CONSTRAINT uk_contactgegeven_dedup;
 CREATE UNIQUE INDEX uk_contactgegeven_dedup ON contactgegeven (partij_id, type, waarde)
