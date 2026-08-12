@@ -188,7 +188,7 @@ public class Contactgegeven extends PanacheEntityBase {
     }
 
     @Nullable
-    public static Contactgegeven findById(Partij partij, UUID id) {
+    public static Contactgegeven find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
     }
 
@@ -208,6 +208,19 @@ public class Contactgegeven extends PanacheEntityBase {
         return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }
 
+    /**
+     * Controleert of er al een niet-verwijderd contactgegeven bestaat voor deze partij met
+     * hetzelfde type en dezelfde waarde, bv. om te voorkomen dat hetzelfde e-mailadres
+     * tweemaal aan een partij wordt gekoppeld.
+     *
+     * @param partij   de partij waarvan de contactgegevens doorzocht worden
+     * @param type     het type contactgegeven, bv. e-mailadres of telefoonnummer
+     * @param waarde   de waarde van het contactgegeven, bv. het e-mailadres of telefoonnummer zelf
+     * @param exceptId id van het contactgegeven dat uitgesloten wordt van de controle, zodat een
+     *                 bestaand contactgegeven bij een update niet als duplicaat van zichzelf geldt
+     * @return {@code true} als er een ander, niet-verwijderd contactgegeven met hetzelfde type en
+     *         dezelfde waarde bestaat
+     */
     public static boolean exists(Partij partij, ContactType type, String waarde, UUID exceptId) {
         return find(
                 "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4 AND verwijderdOp IS NULL",

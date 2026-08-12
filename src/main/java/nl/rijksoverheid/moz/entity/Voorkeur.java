@@ -137,7 +137,7 @@ public class Voorkeur extends PanacheEntityBase {
     }
 
     @Nullable
-    public static Voorkeur findById(Partij partij, UUID id) {
+    public static Voorkeur find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
     }
 

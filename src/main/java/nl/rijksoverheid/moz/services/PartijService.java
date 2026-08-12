@@ -234,7 +234,7 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Contactgegeven contact = Contactgegeven.findById(partij, request.id);
+        Contactgegeven contact = Contactgegeven.find(partij, request.id);
 
         if (contact == null) {
             return false;
@@ -319,7 +319,7 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Voorkeur voorkeur = Voorkeur.findById(partij, request.id);
+        Voorkeur voorkeur = Voorkeur.find(partij, request.id);
 
         if (voorkeur == null) {
             return false;
