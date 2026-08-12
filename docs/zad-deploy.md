@@ -36,18 +36,26 @@ met een aantal aanpassingen specifiek voor de Profielservice:
 
 `application.properties` zet `quarkus.management.enabled=true` met
 `quarkus.management.port=9090`: `/q/health/ready` en `/q/metrics` luisteren
-standaard op een aparte poort, niet de publieke HTTP-poort. `quarkus.management.*`
-is **build-time fixed** (niet via een runtime env var op de deployment te
-overschrijven).
+standaard op een aparte poort, niet de publieke HTTP-poort.
+`quarkus.management.enabled` (en `.root-path`) is **build-time fixed** — niet via
+een runtime env var op de deployment te overschrijven. (`.port`/`.host` zijn wel
+runtime-instelbaar, maar dat lost dit probleem niet op: een andere poort kiezen
+maakt `/q/health/ready` niet alsnog bereikbaar op de publieke poort.)
 
 In plaats daarvan zet de build in `deploy.yml` de Maven-flag
 `-Dquarkus.smallrye-health.management.enabled=false`. Dat is hetzelfde patroon dat
 `application.properties` al gebruikt om OpenAPI/Swagger UI van de management-poort
-af te houden (`quarkus.swagger-ui.management.enabled=false`), maar dan voor health.
-Resultaat: `/q/health/ready` (inclusief de echte datasource-check) draait op de
+af te houden (`quarkus.smallrye-openapi.management.enabled=false`), maar dan voor
+health. Resultaat: `/q/health/ready` (inclusief de echte datasource-check) draait op de
 publieke poort, `/q/metrics` blijft op de management-poort. Omdat dit image
 uitsluitend op ZAD draait — nooit op het Standaard Platform — is dit veilig voor
 zowel de `pr-<n>`- als de `stable`-deploy.
+
+Let op de keerzijde: hiermee is `/q/health/ready` — inclusief of de datasource
+bereikbaar is — ongeauthenticeerd zichtbaar voor iedereen die het publieke
+ZAD-adres kent, op zowel `pr-<n>` als `stable`. Deze service heeft geen auth; dat
+is hier een bewuste afweging (geldig zolang dit alleen op ZAD draait), geen
+oversight.
 
 ### Gedeelde database + Quartz
 
@@ -63,6 +71,20 @@ env-var-tabel hieronder) — de scheduler draait niet op previews. Dit is een
 bewuste afwijking; als ZAD ooit een database/schema per deployment kan leveren, kan
 dit heroverwogen worden.
 
+Een tweede, nog niet opgelost risico van diezelfde gedeelde database:
+`quarkus.flyway.migrate-at-start=true` staat globaal aan, en Flyway's defaults
+(`validate-on-migrate=true`, `out-of-order=false`) zijn strikt. Met meerdere
+gelijktijdig open PR-previews op één database kan de ene PR de andere breken:
+een PR die een nieuwe migratie toevoegt en deployt, laat elke andere (van vóór die
+migratie afgetakte) PR-preview bij de eerstvolgende redeploy falen met "detected
+applied migration not resolved locally" — de boot faalt, `/q/health/ready` komt
+nooit op, en de deploy gaat rood voor een PR die inhoudelijk niets fout deed. Twee
+PR's die allebei een migratie met hetzelfde versienummer maar andere inhoud
+toevoegen, geven een checksum-mismatch die pas met een handmatige reset van de
+gedeelde database opgelost is. Dit speelt zodra er twee migratie-toevoegende PR's
+tegelijk open staan; een schema (of database) per preview zou dit structureel
+oplossen, maar is nu niet hoe ZAD dit inricht.
+
 ### Flyway
 
 Anders dan bij de NMC hoeft `QUARKUS_FLYWAY_MIGRATE_AT_START` **niet** als env var
@@ -77,9 +99,14 @@ migraties draaien al automatisch bij het opstarten.
 | Secret | Waarvoor |
 | --- | --- |
 | `ZAD_API_KEY` | ZAD Operations Manager API key (deploy + cleanup) |
-| `GITHUB_ADMIN_TOKEN` | PAT met repo-admin; nodig om het GitHub-environment te verwijderen bij cleanup |
+| `GH_ADMIN_TOKEN` | PAT met repo-admin; nodig om het GitHub-environment te verwijderen bij cleanup |
 
 `GITHUB_TOKEN` is automatisch beschikbaar (image push naar GHCR).
+
+> Bewust `GH_ADMIN_TOKEN`, niet `GITHUB_ADMIN_TOKEN`: GitHub verbiedt secret-namen
+> met het gereserveerde `GITHUB_`-prefix ("Secret names must not start with
+> GITHUB_"). De NMC-variant van deze workflow gebruikt nog wel `GITHUB_ADMIN_TOKEN`
+> — dat secret kan daar dus nooit succesvol zijn aangemaakt.
 
 ### 2. ZAD-project en component
 
@@ -114,27 +141,51 @@ Benodigde env-vars op de `feature`-deployment (en analoog op `stable`):
 | `QUARKUS_DATASOURCE_PASSWORD` | `$APP_DATABASE_PASSWORD` | `%prod`-waarde is leeg |
 | `QUARKUS_REST_CLIENT_VERIFICATIE_SERVICE_URL` | `https://wiremock-dev-mozam-chu.rig.prd1.gn2.quattro.rijksapps.nl` | Default is `https://verificatie.example.invalid`. De POC wijst naar een in-cluster Service (`verificatie-service.logius-moz-poc.svc.cluster.local`) die niet vanaf ZAD bereikbaar is; dit is de gedeelde ZAD WireMock-mock uit [#800](https://github.com/MinBZK/moza-profiel-service/issues/800). Al gestubd voor `POST /request` (200, tekst-referentie-id) en `POST /verify` (200 succes; `code: "000000"` simuleert bewust een foutieve-code-response) — geen extra stub-setup nodig |
 | `QUARKUS_SCHEDULER_ENABLED` | `false` | Zie "Gedeelde database + Quartz" hierboven — alleen nodig op `feature` (previews), niet per se op `stable` |
+| `NOTIFYNL_EMAILVERIFICATIE_API_KEY` | Elke niet-lege placeholder, bv. `zad-preview-key` | Verplicht, zie hieronder ("`%prod`-lege waarden" gotcha). Profiel-service belt niet rechtstreeks NotifyNL; `EmailVerificatieService` stuurt deze waarde mee als veld in de request-body naar de verificatie-service (`POST /request`). Op ZAD wijst die URL naar de gedeelde WireMock-mock (zie boven), die de body niet valideert — elke waarde werkt, als hij maar niet leeg is |
+| `NOTIFYNL_EMAILVERIFICATIE_TEMPLATE_ID` | Elke niet-lege placeholder, bv. `zad-preview-template` | Idem |
+| `LOGBOEKDATAVERWERKING_ENABLED` | `false` | Verplicht ondanks dat LDV uitstaat — zie gotcha hieronder |
+| `LOGBOEKDATAVERWERKING_SERVICE_NAME` | `profiel-service` | Verplicht, zelfde gotcha |
 | `MOZA_CORS_ORIGINS` | — | Alleen nodig als een frontend vanaf een andere origin de preview aanroept; Swagger UI op `/docs` is same-origin |
 
 > Quarkus mapt env-vars naar properties via name-mangling (uppercase, niet-alfanumeriek
 > → `_`).
 
-**Niet nodig op ZAD, wel bestaand in `application.properties`:**
+### Gotcha: `%prod.x=` (leeg) resolveert als *afwezig*, niet als lege string
 
-- `NOTIFYNL_EMAILVERIFICATIE_API_KEY`, `_TEMPLATE_ID` — profiel-service belt niet
-  rechtstreeks NotifyNL; `EmailVerificatieService` stuurt deze twee waarden mee als
-  velden in de request-body naar de verificatie-service (`POST /request`). Op ZAD
-  wijst die URL naar de gedeelde WireMock-mock (zie boven), die de body niet
-  valideert — elke placeholder-waarde (of zelfs niets, `%prod` default is een lege
-  string, wat voor Quarkus "aanwezig" is, niet "missing") werkt. Pas nodig zodra
-  `verificatie-service-url` naar iets wijst dat de aanroep echt doorzet naar
-  NotifyNL.
-- `NOTIFYNL_EMAILVERIFICATIE_REFERENCE` — dead config, wordt nergens in de code via
-  `@ConfigProperty` gelezen. Niet nodig, ook niet in productie.
-- `LOGBOEKDATAVERWERKING_*` (inclusief `_ENABLED`) — irrelevant zolang LDV uitstaat.
-  Met `LOGBOEKDATAVERWERKING_ENABLED` ongezet valt de app terug op de `%prod`-default
-  (leeg), wat door de applicatiecode als "uit" behandeld wordt. Pas nodig zodra LDV
-  aangezet wordt.
+`application.properties` gebruikt op meerdere plekken het patroon `x=<default>` +
+`%prod.x=` (leeg) om een property "verplicht per omgeving" te maken. Een leeg
+`%prod`-scoped override schaduwt de default-waarde volledig en resolveert als
+*afwezig*, niet als lege string — ongeacht welk mechanisme de property verderop
+leest. Dat mechanisme verschilt wél per var, met een ander foutbeeld tot gevolg:
+
+- **`NOTIFYNL_EMAILVERIFICATIE_API_KEY`/`_TEMPLATE_ID`**: constructor-parameters
+  met `@ConfigProperty` in `EmailVerificatieService`. Quarkus valideert alle
+  verplichte (niet-`Optional`, geen `defaultValue`) `@ConfigProperty`-injecties bij
+  het opstarten in één keer; ontbreekt er een, dan faalt de boot volledig met
+  `Failed to load config value of type class ... for: ...`.
+- **`QUARKUS_DATASOURCE_*`**: Agroal-datasourceconfig, geen `@ConfigProperty`-
+  injectie. Een ontbrekende username/password faalt niet in bovenstaande
+  boot-sweep, maar pas bij de eerste connectiepoging, met een ander foutbeeld.
+- **`LOGBOEKDATAVERWERKING_ENABLED`/`_SERVICE_NAME`**: worden lazy gelezen via
+  `ConfigProvider.getValue(...)` in de LDV-wrapper (`ConfigurationLoader`), niet
+  via `@ConfigProperty`. Een ontbrekende waarde faalt pas bij de eerste keer dat
+  hij daadwerkelijk gelezen wordt, met `SRCFG00014: The config property ... is
+  required but it could not be found` — een andere melding dan hierboven.
+
+Praktisch verandert dit niets: deze env-vars (en om dezelfde reden ook
+`QUARKUS_DATASOURCE_JDBC_URL` en de verificatie-service-url) moeten allemaal
+expliciet gezet zijn, ook al lijkt een lege waarde op het eerste gezicht een
+geldig "uitgeschakeld"-signaal. Het verschil zit in welke foutmelding je te zien
+krijgt als je er een vergeet — handig om te weten bij het debuggen van een
+volgende crash.
+
+`NOTIFYNL_EMAILVERIFICATIE_REFERENCE` blijft wel echt overbodig: dead config,
+wordt nergens in de code via `@ConfigProperty` gelezen (dus zit niet in de
+build-time validatieset en kan niet op deze manier crashen). De
+`LOGBOEKDATAVERWERKING_CLICKHOUSE_*`-vars blijven ook echt optioneel zolang
+`_ENABLED=false` staat: `ConfigurationLoader.validateClickhouseConfig()` in de
+LDV-wrapper wordt alleen aangeroepen als `enabled` op `true` staat, dus die keys
+worden dan nooit gelezen.
 
 > Deze env-vars worden nu handmatig gezet. Automatiseren via de ZAD Operations
 > Manager API staat open als
@@ -151,6 +202,10 @@ Benodigde env-vars op de `feature`-deployment (en analoog op `stable`):
 URL-patroon: `https://profielservice-pr-<n>-psd-law.rig.prd1.gn2.quattro.rijksapps.nl`
 → `/docs` (Swagger UI), `/openapi.json`, `/q/health/ready`.
 
+Het geserveerde `/openapi.json` bevat geen `servers`-array, dus Swagger UI valt
+terug op same-origin requests — "Try it out" op `/docs` werkt hierdoor direct
+tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
+
 ## Gotchas (al opgelost in de workflow)
 
 - **JDBC-URL** moet volledig zijn: `jdbc:postgresql://host:5432/<db>` (env op
@@ -164,12 +219,6 @@ URL-patroon: `https://profielservice-pr-<n>-psd-law.rig.prd1.gn2.quattro.rijksap
 
 ## Bekend, niet opgelost in deze workflow
 
-- **Swagger UI "Try it out" wijst standaard naar productie.** `OpenApiConfig.java`
-  definieert een vaste `servers`-lijst (`https://api.mijnoverheidzakelijk.nl/...` +
-  `localhost`), anders dan bij de NMC (die bewust geen `servers`-blok heeft, zodat
-  Swagger UI de request-origin volgt). Op een ZAD-preview moet je in de Swagger UI
-  het "Servers"-dropdown handmatig naar de `pr-<n>`-URL zetten voordat "Try it out"
-  werkt.
 - **LDV-snapshot-dependency**: de build trekt
   `nl.mijnoverheidzakelijk.ldv:logboekdataverwerking-wrapper:1.4.0-SNAPSHOT` uit
   central-portal-snapshots. Snapshots zijn niet reproduceerbaar en kunnen
@@ -180,13 +229,3 @@ URL-patroon: `https://profielservice-pr-<n>-psd-law.rig.prd1.gn2.quattro.rijksap
   reaper voor verweesde `pr-<n>`-deployments (#884), vaste GitHub-environment
   (#885), verweesde GHCR-versies (#888), cleanup die fail-open faalt (#891), bewijs
   dat image/pod echt draait (#892).
-
-## Restpunten
-
-- [x] ZAD-project aangemaakt (`psd-law`) en `ZAD_PROJECT_ID` in `deploy.yml` ingevuld.
-- [ ] `feature`- en `stable`-deployment in Operations Manager inrichten met de
-  env-vars uit de tabel hierboven.
-- [ ] `ZAD_API_KEY` als repo-secret toevoegen.
-- [ ] `GITHUB_ADMIN_TOKEN` (repo-admin PAT) als repo-secret toevoegen, daarna in
-  `deploy.yml` `delete-github-env` + `delete-github-deployments` weer op `'true'`
-  zetten (nu `'false'` om hard falen van cleanup te voorkomen).

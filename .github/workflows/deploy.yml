@@ -9,8 +9,11 @@
 # op LPC blijven hierbuiten — zie Docs/structurizr/profielservicedocs/10-deployment.md.
 #
 # Vereiste repo-secrets:
-#   ZAD_API_KEY         — ZAD Operations Manager API key
-#   GITHUB_ADMIN_TOKEN  — PAT met repo-admin (voor opruimen GitHub environment)
+#   ZAD_API_KEY      — ZAD Operations Manager API key
+#   GH_ADMIN_TOKEN   — PAT met repo-admin (voor opruimen GitHub environment). Heet
+#                      bewust niet GITHUB_ADMIN_TOKEN: GitHub verbiedt secret-namen
+#                      met het gereserveerde GITHUB_-prefix (foutmelding bij
+#                      aanmaken: "Secret names must not start with GITHUB_").
 #
 # De applicatieconfiguratie (DB-url/credentials, verificatie-service-url, NotifyNL-
 # keys, ...) komt NIET uit deze workflow maar uit de ZAD-deploymentconfig. Die staat
@@ -23,8 +26,9 @@
 # en dus niet via een env var op de deployment uit te zetten. In plaats daarvan zet
 # de build hieronder `-Dquarkus.smallrye-health.management.enabled=false`, wat alleen
 # de health-checks (niet metrics) terug op de publieke poort zet — zelfde patroon als
-# de bestaande `quarkus.swagger-ui.management.enabled=false` in application.properties.
-# Omdat dit image alléén op ZAD draait (nooit op het Standaard Platform), is dit veilig
+# de bestaande `quarkus.smallrye-openapi.management.enabled=false` in
+# application.properties. Omdat dit image alléén op ZAD draait (nooit op het
+# Standaard Platform), is dit veilig
 # voor zowel de pr-<n>- als de stable-deploy.
 #
 # TODO(#10): Deze env-vars worden nu handmatig op de 'feature'- en 'stable'-deployment
@@ -54,8 +58,15 @@ env:
 
 jobs:
   build:
-    # Bouwen op push naar main en op elke PR-actie behalve 'closed' (dan enkel opruimen).
-    if: github.event_name == 'push' || github.event.action != 'closed'
+    # Bouwen op push naar main en op elke PR-actie behalve 'closed' (dan enkel
+    # opruimen). Fork-PR's en bekende bot-PR's (dependabot) overslaan: die krijgen
+    # een read-only GITHUB_TOKEN, waarmee de jib-push naar GHCR toch met een 403
+    # zou falen — dus liever een schone skip dan een rode build elke week.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.action != 'closed' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -88,6 +99,7 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           QUARKUS_CONTAINER_IMAGE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           # Tag per event: PR → mutable pr-<n>; push naar main → main-<sha7>. Beide worden
           # verderop op immutable digest gedeployd (verse pull i.p.v. gecachete tag).
           if [ "$EVENT" = "push" ]; then
@@ -104,6 +116,9 @@ jobs:
             -Dquarkus.container-image.username="$GHCR_USER" \
             -Dquarkus.smallrye-health.management.enabled=false
           # Immutable digest voor de deploy-step (verse pull i.p.v. gecachete tag).
+          # -s (niet enkel bestaan-check): een leeg bestand zou anders alsnog een
+          # lege "digest="-output opleveren i.p.v. deze stap hard te laten falen.
+          test -s target/jib-image.digest
           echo "digest=$(cat target/jib-image.digest)" >> "$GITHUB_OUTPUT"
 
   deploy-preview:
@@ -154,15 +169,15 @@ jobs:
           api-key: ${{ secrets.ZAD_API_KEY }}
           project-id: ${{ env.ZAD_PROJECT_ID }}
           deployment-name: pr-${{ github.event.pull_request.number }}
-          # GitHub-environment verwijderen vereist GITHUB_ADMIN_TOKEN (repo-admin PAT).
-          # Zet beide op 'true' zodra dat secret bestaat; nu uit om hard falen te voorkomen.
-          delete-github-env: 'false'
-          delete-github-deployments: 'false'
+          # GitHub-environment verwijderen vereist GH_ADMIN_TOKEN (repo-admin PAT,
+          # aanwezig als repo-secret).
+          delete-github-env: 'true'
+          delete-github-deployments: 'true'
           delete-container: 'true'
           container-org: minbzk # lowercase; moet matchen met push-tag
           container-name: ${{ github.event.repository.name }}
-          container-tag: pr-${{ github.event.number }}
-          github-admin-token: ${{ secrets.GITHUB_ADMIN_TOKEN }}
+          container-tag: pr-${{ github.event.pull_request.number }}
+          github-admin-token: ${{ secrets.GH_ADMIN_TOKEN }}
 
   # Push/merge naar main → de persistente 'stable'-deployment (de baseline-omgeving).
   # Config (DB-url/creds, verificatie-service-url, NotifyNL-keys, ...) staat éénmalig op
