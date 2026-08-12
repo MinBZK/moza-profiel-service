@@ -113,8 +113,16 @@ class EnumPariteitTest {
                 continue;
             }
 
-            if (Class.forName(delen[1].trim()).isEnum()) {
-                gemapteEnums.add(delen[0].trim());
+            String doel = delen[1].trim();
+
+            try {
+                if (Class.forName(doel).isEnum()) {
+                    gemapteEnums.add(delen[0].trim());
+                }
+            } catch (ClassNotFoundException nietOpClasspath) {
+                Assertions.fail("schemaMappings verwijst naar " + doel + ", maar die klasse staat"
+                        + " niet op het testclasspath. Klopt de naam, of hoort de dependency"
+                        + " ruimer dan compile-scope te staan?");
             }
         }
 

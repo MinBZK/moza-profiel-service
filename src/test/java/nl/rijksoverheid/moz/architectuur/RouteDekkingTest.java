@@ -46,6 +46,8 @@ class RouteDekkingTest {
      * Alle HTTP-methoden die JAX-RS kent, ook de methoden die dit contract vandaag niet gebruikt.
      * Zo valt een resource-methode die er ooit bijkomt niet stilzwijgend buiten de sweep.
      */
+    private static final String CONTROLLER_PAKKET = "nl.rijksoverheid.moz.controller";
+
     private static final Map<Class<? extends Annotation>, String> HTTP_METHODEN = Map.of(
             GET.class, "get",
             POST.class, "post",
@@ -97,12 +99,16 @@ class RouteDekkingTest {
                 continue;
             }
 
-            // Interfaces overslaan. @Path staat in deze codebase ook op REST-clients — de
-            // gegenereerde VerificationControllerApi voor de externe verificatieservice draagt
-            // @Path("/request") en @Path("/verify") — en die beschrijven wat wij áánroepen, niet
-            // wat wij aanbieden. Serverresources zijn hier per definitie concrete klassen: er
-            // worden geen JAX-RS interfaces gegenereerd (generateApis=false in pom.xml).
-            if (klasse.isInterface()) {
+            // Interfaces buiten het controllerpakket overslaan. @Path staat in deze codebase ook
+            // op REST-clients: de gegenereerde VerificationControllerApi voor de externe
+            // verificatieservice draagt @Path("") op klasseniveau — dát is wat hem hier zou
+            // binnenhalen — en @Path("/request") en @Path("/verify") op zijn methoden. Die
+            // beschrijven wat wij áánroepen, niet wat wij aanbieden.
+            //
+            // De uitzondering is bewust smal. Interfaces overal overslaan zou een handgeschreven
+            // JAX-RS interface met een implementatie zonder eigen @Path onzichtbaar maken, in
+            // beide richtingen. Binnen het controllerpakket telt een interface dus gewoon mee.
+            if (klasse.isInterface() && !klasse.getPackageName().equals(CONTROLLER_PAKKET)) {
                 continue;
             }
 

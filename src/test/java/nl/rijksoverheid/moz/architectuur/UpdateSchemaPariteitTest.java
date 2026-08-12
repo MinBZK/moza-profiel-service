@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.architectuur;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,18 +39,21 @@ import java.util.stream.Stream;
 class UpdateSchemaPariteitTest {
 
     /**
-     * De id-property staat er letterlijk bij. Alleen op naam pinnen zou de zwakste plek van deze
-     * test op de enige plek leggen waar afwijking is toegestaan: {@code id: {$ref: UUID}} kon dan
-     * ongemerkt {@code type: string} worden, terwijl de gedeelde velden wél op volledige
-     * node-gelijkheid gaan. isDefault draagt beschrijvende tekst en wordt daarom alleen op naam
-     * en verplichtheid gecontroleerd; die tekst mag wijzigen zonder deze test te raken.
+     * De extras worden net als de gedeelde velden op node-gelijkheid vergeleken, maar zonder hun
+     * {@code description}: alleen op naam pinnen zou de zwakste plek van deze test op de enige
+     * plek leggen waar afwijking is toegestaan. {@code id: {$ref: UUID}} kon dan ongemerkt
+     * {@code type: string} worden, en {@code isDefault} — het enige request-veld waarvan het type
+     * in deze branch veranderde — was op naam alleen helemaal ongedekt. Beschrijvende tekst mag
+     * wél wijzigen zonder deze test te raken; die wordt vóór de vergelijking weggelaten.
      */
     private static final String ID_NODE = "{\"$ref\":\"#/components/schemas/UUID\"}";
+
+    private static final String IS_DEFAULT_NODE = "{\"type\":[\"boolean\",\"null\"]}";
 
     private static Stream<Arguments> schemaParen() {
         return Stream.of(
                 Arguments.of("ContactgegevenRequest", "ContactgegevenUpdateRequest",
-                        Map.of("id", ID_NODE, "isDefault", ""), Set.of("id")),
+                        Map.of("id", ID_NODE, "isDefault", IS_DEFAULT_NODE), Set.of("id")),
                 Arguments.of("VoorkeurRequest", "VoorkeurUpdateRequest",
                         Map.of("id", ID_NODE), Set.of("id")));
     }
@@ -111,15 +115,17 @@ class UpdateSchemaPariteitTest {
                     + extras);
         }
 
-        // De extras waarvan de vorm vastligt worden op node-gelijkheid vergeleken, net als de
-        // gedeelde velden. Een lege verwachting betekent "alleen op naam en verplichtheid".
+        // De extras worden op node-gelijkheid vergeleken, net als de gedeelde velden hierboven,
+        // maar zonder description: beschrijvende tekst mag wijzigen, de vorm niet.
         verwachteExtrasMetNode.forEach((veld, verwachteNode) -> {
-            if (verwachteNode.isEmpty() || !update.has(veld)) {
+            if (!update.has(veld)) {
                 return;
             }
 
-            if (!verwachteNode.equals(update.get(veld).toString())) {
-                bevindingen.add("'" + veld + "' in " + updateNaam + " is " + update.get(veld)
+            JsonNode gevonden = zonderBeschrijving(update.get(veld));
+
+            if (!lees(verwachteNode).equals(gevonden)) {
+                bevindingen.add("'" + veld + "' in " + updateNaam + " is " + gevonden
                         + " in plaats van " + verwachteNode);
             }
         });
@@ -147,6 +153,18 @@ class UpdateSchemaPariteitTest {
         }
 
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
+    }
+
+    private static JsonNode lees(String json) {
+        try {
+            return new ObjectMapper().readTree(json);
+        } catch (Exception onmogelijk) {
+            throw new IllegalStateException("Vaste JSON in deze test is ongeldig: " + json, onmogelijk);
+        }
+    }
+
+    private static JsonNode zonderBeschrijving(JsonNode node) {
+        return ((ObjectNode) node.deepCopy()).without("description");
     }
 
     private static Set<String> verplichteVelden(JsonNode schema) {

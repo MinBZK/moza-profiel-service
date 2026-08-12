@@ -5,6 +5,17 @@ import jakarta.ws.rs.core.Response;
 
 import java.util.Map;
 
+/**
+ * De twee vormen waarin deze applicatie een RFC 9457-probleem opbouwt.
+ *
+ * <p>Er stonden er meer. {@code missingBody}, {@code badRequest} en {@code serviceUnavailable}
+ * hadden geen aanroeper meer in productiecode: de plekken die ze zouden gebruiken bouwen hun
+ * probleem inline, omdat ze net iets anders nodig hebben dan de helper kon —
+ * {@code RequireBodyReaderInterceptor} wil de tekst als titel in plaats van als detail, en
+ * {@code EmailVerificatieController} zet er een {@code Retry-After}-header bij. Alleen hun
+ * unittests hielden ze in leven, dus de dekkingsdrempel merkte er niets van. Wie hier een
+ * helper toevoegt: controleer of hij ook echt vanuit productiecode wordt aangeroepen.
+ */
 public final class Problems {
 
     private Problems() {}
@@ -12,22 +23,6 @@ public final class Problems {
     public static HttpProblem notFound(String title, String detail) {
         return HttpProblem.builder()
                 .withStatus(Response.Status.NOT_FOUND)
-                .withTitle(title)
-                .withDetail(detail)
-                .build();
-    }
-
-    public static HttpProblem badRequest(String title, String detail) {
-        return HttpProblem.builder()
-                .withStatus(Response.Status.BAD_REQUEST)
-                .withTitle(title)
-                .withDetail(detail)
-                .build();
-    }
-
-    public static HttpProblem serviceUnavailable(String title, String detail) {
-        return HttpProblem.builder()
-                .withStatus(Response.Status.SERVICE_UNAVAILABLE)
                 .withTitle(title)
                 .withDetail(detail)
                 .build();

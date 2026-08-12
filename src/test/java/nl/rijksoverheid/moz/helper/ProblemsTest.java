@@ -26,24 +26,6 @@ class ProblemsTest {
     }
 
     @Test
-    void badRequest_HeeftStatus400EnBehoudtTitelEnDetail() {
-        HttpProblem problem = Problems.badRequest("Ongeldig", "identificatieNummer ontbreekt");
-
-        assertEquals(400, problem.getStatusCode());
-        assertEquals("Ongeldig", problem.getTitle());
-        assertEquals("identificatieNummer ontbreekt", problem.getDetail());
-    }
-
-    @Test
-    void serviceUnavailable_HeeftStatus503EnBehoudtTitelEnDetail() {
-        HttpProblem problem = Problems.serviceUnavailable("Niet beschikbaar", "NotifyNL antwoordt niet");
-
-        assertEquals(503, problem.getStatusCode());
-        assertEquals("Niet beschikbaar", problem.getTitle());
-        assertEquals("NotifyNL antwoordt niet", problem.getDetail());
-    }
-
-    @Test
     void problemResponse_LevertProblemJsonMetVolledigRfc9457Lichaam() {
         Response response = Problems.problemResponse(
                 Response.Status.CONFLICT, "Conflict", "Resource bestaat al");

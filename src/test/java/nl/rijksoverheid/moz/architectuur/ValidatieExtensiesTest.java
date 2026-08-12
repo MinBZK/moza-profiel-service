@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * {@code @ValidIdentificatieNummer} is een class-level constraint met
@@ -49,6 +50,9 @@ class ValidatieExtensiesTest {
     /** De schema's die de elfproef horen te dragen. Volgorde doet niet ter zake. */
     private static final List<String> DRAGERS = List.of("EmailVerificatieRequest");
 
+    private static final Pattern DRAGER =
+            Pattern.compile("\"\\s*@" + Pattern.quote(ANNOTATIE) + "\\s*[\"(]");
+
     @Test
     void annotatieEnInterfaceStaanAltijdSamen() throws Exception {
         JsonNode schemas;
@@ -73,17 +77,9 @@ class ValidatieExtensiesTest {
             // een enkele string. Symmetrisch lezen houdt de twee takken gelijk en blijft werken als
             // een van de vormen ooit verandert; asText() geeft op een lijst leeg terug en zou dan
             // precies het omgekeerde melden van wat er aan de hand is.
-            // Het openende aanhalingsteken hoort bij de match: zonder anker zou een
-            // uitgecommentarieerde waarde als "# @nl...ValidIdentificatieNummer" hier nog steeds
-            // als drager tellen, terwijl de generator er een comment van maakt en de elfproef
-            // stilzwijgend verdwijnt.
-            //
-            // Aan de achterkant kan geen vast aanhalingsteken staan: een constraint mag attributen
-            // dragen, en "@...ValidIdentificatieNummer(groups = {})" is een geldige drager. Met een
-            // sluitend anker zou die als "annotatie ontbreekt" gemeld worden — een valse melding
-            // met precies de omgekeerde diagnose. Daarom eindigt de naam op een aanhalingsteken of
-            // op een haakje. De interface-kant kent dat probleem niet en blijft aan beide kanten
-            // geankerd.
+            // De annotatiekant wordt met een expressie gelezen, de interfacekant met een simpele
+            // vergelijking; zie draagtAnnotatie hieronder voor waarom de vorm daar losser moet
+            // zijn dan hier.
             boolean heeftAnnotatie = draagtAnnotatie(schema.path("x-class-extra-annotation").toString());
             boolean heeftInterface = schema.path("x-implements").toString()
                     .contains("\"" + INTERFACE + "\"");
@@ -116,26 +112,25 @@ class ValidatieExtensiesTest {
     }
 
     /**
-     * Zoekt de annotatie in de ruwe JSON-weergave van {@code x-class-extra-annotation}. De naam
-     * moet direct na {@code "@} beginnen en direct erna hoort het einde van de annotatie te komen:
-     * een aanhalingsteken, of een haakje wanneer er attributen volgen. Zo telt een langere naam met
-     * dezelfde prefix niet mee, terwijl een drager mét attributen dat wel doet.
+     * Zoekt de annotatie in de ruwe JSON-weergave van {@code x-class-extra-annotation}.
+     *
+     * <p>Wat er tussen het aanhalingsteken en de naam mag staan is precies witruimte: de generator
+     * neemt de waarde letterlijk over in de gegenereerde klasse, dus {@code " @...Nummer"} is
+     * geldige Java met de constraint actief en hoort als drager te tellen. Een uitgecommentarieerde
+     * waarde als {@code "// @...Nummer"} hoort dat juist niet: die compileert wél, maar de elfproef
+     * verdwijnt er stilzwijgend mee. (Met {@code #} ervoor breekt de compilatie — dat valt sowieso
+     * op en is dus niet de vorm waar deze controle voor bestaat.)
+     *
+     * <p>Aan de achterkant kan geen vast aanhalingsteken staan: een constraint mag attributen
+     * dragen, en {@code "@...Nummer(groups = {})"} is een geldige drager. Met een sluitend anker zou
+     * die als "annotatie ontbreekt" gemeld worden — een valse melding met precies de omgekeerde
+     * diagnose. Daarom eindigt de naam op een aanhalingsteken of op een haakje, wat tegelijk een
+     * langere naam met dezelfde prefix uitsluit.
+     *
+     * <p>De expressie zoekt over de hele waarde en niet alleen op de eerste treffer, zodat een
+     * prefix-genoot die toevallig eerder staat de echte drager niet maskeert.
      */
     private static boolean draagtAnnotatie(String ruweWaarde) {
-        int begin = ruweWaarde.indexOf("\"@" + ANNOTATIE);
-
-        if (begin < 0) {
-            return false;
-        }
-
-        int na = begin + 2 + ANNOTATIE.length();
-
-        if (na >= ruweWaarde.length()) {
-            return false;
-        }
-
-        char volgend = ruweWaarde.charAt(na);
-
-        return volgend == '"' || volgend == '(';
+        return DRAGER.matcher(ruweWaarde).find();
     }
 }

@@ -574,8 +574,10 @@ components:
     GelijktijdigeWrite:
       # Deze endpoints doen eerst een lookup en persisteren daarna; twee gelijktijdige
       # writes kunnen die voorcontrole passeren en pas bij flush op een unique index
-      # botsen (uk_identificatie op de tabel identificatie, uk_contactgegeven_dedup op
-      # contactgegeven — die laatste kan alleen bij POST /contactgegeven optreden).
+      # botsen. Onder meer: uk_identificatie op identificatie, uk_contactgegeven_dedup op
+      # contactgegeven (die laatste ook bij PUT /contactgegeven, dat zijn duplicaatcontrole
+      # vóór de mutatie doet), en uk_dvdienst_dv_broad op dienstverlener_dienst, dat beide
+      # verwijzende endpoints via resolveDienstverlenerDienst kunnen raken.
       # DatabaseConstraintViolationMapper is bedoeld om dat naar deze 409 te vertalen; hij
       # is op zichzelf getest, maar de race is over HTTP niet betrouwbaar te reproduceren,
       # dus dat de vertaling in dit pad ook werkelijk aanslaat is niet vastgelegd.
@@ -585,6 +587,13 @@ components:
           schema:
             $ref: "#/components/schemas/HttpProblem"
   schemas:
+    # De contractvalidatie in OpenApiValidationTest handhaaft type niet. Dit document is
+    # OpenAPI 3.1; swagger-parser zet die typen in getTypes() en laat getType() leeg,
+    # terwijl de validator alleen dat laatste leest. required, enum, pattern, format,
+    # minItems en maxItems werken wél. De nullable-unies hieronder zijn dus documentatie
+    # voor de consumer, geen bewaking: ze staan er omdat het gepubliceerde document klopt
+    # moet zijn, niet omdat een test erop afgaat.
+    #
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
     # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
@@ -619,9 +628,13 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
-          $ref: "#/components/schemas/ScopeRequest"
+          anyOf:
+          - $ref: "#/components/schemas/ScopeRequest"
+          - type: "null"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          anyOf:
+          - $ref: "#/components/schemas/Instant"
+          - type: "null"
     ContactgegevenResponse:
       # De velden die de server altijd meestuurt staan als required, zodat een consumer niet
       # defensief hoeft te coderen tegen nulls die niet kunnen optreden. Wat optioneel is,
@@ -629,10 +642,16 @@ components:
       # een leeg veld gaat als expliciete null over de lijn en niet als ontbrekende sleutel.
       #
       # Let op wat required hier niet doet. JSON Schema vraagt alleen of de sleutel aanwezig
-      # is, en dat is hij altijd — ook met waarde null. Een mapper die een veld op null zet
-      # komt dus langs de contractvalidatie in OpenApiValidationTest; alleen een veld dat
-      # helemaal niet meer geserialiseerd wordt valt op. Deze lijst documenteert dus voor de
-      # consumer wat hij mag verwachten, maar bewaakt de mapper niet.
+      # is, en dat is hij altijd — ook met waarde null. Formeel zou zo'n null nog op het
+      # type moeten stuklopen, maar de contractvalidatie handhaaft type hier niet (zie de
+      # toelichting bij components/schemas). Een mapper die een veld op null zet komt er dus
+      # langs; alleen een veld dat helemaal niet meer geserialiseerd wordt valt op. Deze
+      # lijst documenteert dus voor de consumer wat hij mag verwachten, maar bewaakt de
+      # mapper niet.
+      #
+      # De nullable velden hieronder worden óók altijd meegestuurd; ze staan alleen niet in
+      # required omdat de generator er dan @NotNull op zet, wat het gegenereerde bestand in
+      # tegenspraak zou brengen met het schema.
       type: object
       required:
       - id
@@ -659,10 +678,11 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          # anyOf en niet oneOf: een null-waarde matcht bij de contractvalidatie zowel de
-          # Instant-tak als de null-tak, en oneOf eist er precies één. Semantisch maakt het
-          # hier niets uit — de unie is hetzelfde — maar oneOf zou op elke lege
-          # verwijderdatum een valse fout geven.
+          # anyOf en niet oneOf. De contractvalidatie laat 3.1-typen vallen (zie de
+          # toelichting bij components/schemas), waardoor beide takken élke waarde matchen —
+          # een gevulde timestamp net zo goed als een null. oneOf eist er precies één en is
+          # daarmee nooit te bevredigen; anyOf wel. Semantisch maakt het niets uit, de unie
+          # is dezelfde.
           anyOf:
           - $ref: "#/components/schemas/Instant"
           - type: "null"
@@ -690,9 +710,13 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
-          $ref: "#/components/schemas/ScopeRequest"
+          anyOf:
+          - $ref: "#/components/schemas/ScopeRequest"
+          - type: "null"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          anyOf:
+          - $ref: "#/components/schemas/Instant"
+          - type: "null"
         id:
           $ref: "#/components/schemas/UUID"
         isDefault:
@@ -709,7 +733,7 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         beschrijving:
-          type: string
+          type: [string, "null"]
     DienstResponse:
       # Zie ContactgegevenResponse voor waarom required hier staat. beschrijving is
       # optioneel omdat een dienst zonder beschrijving aangemaakt kan worden.
@@ -734,7 +758,7 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         beschrijving:
-          type: string
+          type: [string, "null"]
     DienstverlenerResponse:
       # Zie ContactgegevenResponse. beschrijving is optioneel; diensten is altijd
       # aanwezig en hooguit leeg.
@@ -908,11 +932,13 @@ components:
       - identificaties
       properties:
         identificaties:
-          # maxItems begrenst wat één aanroep aan partij-lookups kan aanvragen. Het lezen zelf
-          # is goedkoop — getPartijResponseBulk groepeert op identificatieType en doet dus
-          # hooguit drie queries — maar het schrijven schaalt wel mee: elk teruggegeven
-          # contactgegeven en elke voorkeur loopt langs registreerGebruik, dat per lang
-          # ongebruikte rij een UPDATE doet. Ongebonden is dat een goedkope amplificatie.
+          # maxItems begrenst wat één aanroep aan partij-lookups kan aanvragen.
+          # getPartijResponseBulk
+          # groepeert op identificatieType, dus hooguit drie partij-queries — al haalt het
+          # mappen daarna per partij de lazy collecties op. Het schrijven schaalt hoe dan ook
+          # mee: elk teruggegeven contactgegeven en elke voorkeur loopt langs
+          # registreerGebruik, dat een UPDATE doet voor elke rij die nog nooit is opgehaald
+          # of langer dan 24 uur ongebruikt is. Ongebonden is dat een goedkope amplificatie.
           # 100 ligt ruim boven het normale gebruik; overschrijding levert een 400 op.
           type: array
           items:
@@ -950,10 +976,10 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstverlener:
-          type: string
+          type: [string, "null"]
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
-          type: string
+          type: [string, "null"]
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     PartijResponse:
       # Zie ContactgegevenResponse. De drie lijsten zijn altijd aanwezig en hooguit leeg.
@@ -985,10 +1011,10 @@ components:
       type: object
       properties:
         dienstverlenerNaam:
-          type: string
+          type: [string, "null"]
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
-          type: string
+          type: [string, "null"]
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     ScopeResponse:
       # Zie ContactgegevenResponse. dienstNaam is bewust optioneel: een dienstverlener-brede
@@ -1025,7 +1051,7 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         dienstNaam:
-          type: string
+          type: [string, "null"]
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         teVerwijderenOp:
           $ref: "#/components/schemas/Instant"
@@ -1076,9 +1102,13 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
-          $ref: "#/components/schemas/ScopeRequest"
+          anyOf:
+          - $ref: "#/components/schemas/ScopeRequest"
+          - type: "null"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          anyOf:
+          - $ref: "#/components/schemas/Instant"
+          - type: "null"
     VoorkeurResponse:
       # Zie ContactgegevenResponse voor waarom required hier staat.
       type: object
@@ -1101,10 +1131,11 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          # anyOf en niet oneOf: een null-waarde matcht bij de contractvalidatie zowel de
-          # Instant-tak als de null-tak, en oneOf eist er precies één. Semantisch maakt het
-          # hier niets uit — de unie is hetzelfde — maar oneOf zou op elke lege
-          # verwijderdatum een valse fout geven.
+          # anyOf en niet oneOf. De contractvalidatie laat 3.1-typen vallen (zie de
+          # toelichting bij components/schemas), waardoor beide takken élke waarde matchen —
+          # een gevulde timestamp net zo goed als een null. oneOf eist er precies één en is
+          # daarmee nooit te bevredigen; anyOf wel. Semantisch maakt het niets uit, de unie
+          # is dezelfde.
           anyOf:
           - $ref: "#/components/schemas/Instant"
           - type: "null"
@@ -1140,8 +1171,12 @@ components:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
         scope:
-          $ref: "#/components/schemas/ScopeRequest"
+          anyOf:
+          - $ref: "#/components/schemas/ScopeRequest"
+          - type: "null"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          anyOf:
+          - $ref: "#/components/schemas/Instant"
+          - type: "null"
         id:
           $ref: "#/components/schemas/UUID"
