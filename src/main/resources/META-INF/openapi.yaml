@@ -65,9 +65,13 @@ paths:
       summary: Toevoegen nieuwe contactgegeven voor een partij
       operationId: addContactgegeven
       description: "Voegt een contactgegeven toe. Creëert automatisch ontbrekende partijen.\
-        \ Bestaat de combinatie (partij, type, waarde) al, dan volgt een 200 en wordt hooguit\
-        \ de scope uitgebreid. Een meegestuurde teVerwijderenOp moet in de toekomst liggen en\
-        \ hooguit 7 jaar na de referentiedatum; buiten dat bereik volgt een 400."
+        \ Bestaat de combinatie (partij, type, waarde) al — voor type Email wordt de waarde\
+        \ daarbij case-insensitief vergeleken — dan komt er geen tweede rij bij en volgt een\
+        \ 200. Op dat bestaande contactgegeven wordt wel een meegestuurde teVerwijderenOp\
+        \ toegepast, krijgt een nog niet geverifieerd e-mailadres een nieuwe verificatiecode\
+        \ toegestuurd, en wordt de scope zo nodig uitgebreid. Een meegestuurde teVerwijderenOp\
+        \ moet in de toekomst liggen en hooguit 7 jaar na de referentiedatum; buiten dat\
+        \ bereik volgt een 400."
       tags:
       - Profiel
       requestBody:
@@ -395,7 +399,7 @@ paths:
     put:
       summary: Update voorkeur van een partij
       operationId: updateVoorkeur
-      description: "Werk type, waarde, scope en teVerwijderenOp van een voorkeur bij.\
+      description: "Werk voorkeurType, waarde, scope en teVerwijderenOp van een voorkeur bij.\
         \ Identificatie kan niet aangepast worden."
       tags:
       - Profiel
@@ -563,15 +567,19 @@ components:
     GelijktijdigeWrite:
       # Deze endpoints doen eerst een lookup en persisteren daarna; twee gelijktijdige
       # writes kunnen die voorcontrole passeren en pas bij flush op een unique index
-      # botsen (uk_identificatie op de partij, uk_contactgegeven_dedup op het
-      # contactgegeven). DatabaseConstraintViolationMapper vertaalt dat naar deze 409.
+      # botsen (uk_identificatie op de tabel identificatie, uk_contactgegeven_dedup op
+      # contactgegeven — die laatste kan alleen bij POST /contactgegeven optreden).
+      # DatabaseConstraintViolationMapper is bedoeld om dat naar deze 409 te vertalen; hij
+      # is op zichzelf getest, maar de race is over HTTP niet betrouwbaar te reproduceren,
+      # dus dat de vertaling in dit pad ook werkelijk aanslaat is niet vastgelegd.
       description: Gelijktijdige write botste op een unique constraint
       content:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/HttpProblem"
   schemas:
-    # De pattern "^[^\r\n]*\S[^\r\n]*$" op de verplichte tekstvelden wijst lege en
+    # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
+    # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
     # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
     # geschreven en niet als ".*\S.*": Jakarta @Pattern doet een full match waarbij "."
     # geen newline matcht, en de inline-vlag "(?s)" die dat repareert bestaat niet in
@@ -608,11 +616,16 @@ components:
         teVerwijderenOp:
           $ref: "#/components/schemas/Instant"
     ContactgegevenResponse:
-      # De velden die de server altijd meestuurt staan als required. Zonder die lijst
-      # zegt het contract dat élk veld mag ontbreken, moet een consumer defensief tegen
-      # nulls coderen die niet kunnen optreden, en kan de contractvalidatie in
-      # OpenApiValidationTest een mapper die een veld laat vallen niet zien.
-      # teVerwijderenOp is bewust optioneel: die is leeg zolang er geen verwijderdatum is.
+      # De velden die de server altijd meestuurt staan als required, zodat een consumer niet
+      # defensief hoeft te coderen tegen nulls die niet kunnen optreden. Wat optioneel is,
+      # draagt "null" in zijn type: Jackson staat hier op de standaard ALWAYS-inclusie, dus
+      # een leeg veld gaat als expliciete null over de lijn en niet als ontbrekende sleutel.
+      #
+      # Let op wat required hier niet doet. JSON Schema vraagt alleen of de sleutel aanwezig
+      # is, en dat is hij altijd — ook met waarde null. Een mapper die een veld op null zet
+      # komt dus langs de contractvalidatie in OpenApiValidationTest; alleen een veld dat
+      # helemaal niet meer geserialiseerd wordt valt op. Deze lijst documenteert dus voor de
+      # consumer wat hij mag verwachten, maar bewaakt de mapper niet.
       type: object
       required:
       - id
@@ -639,7 +652,13 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          # anyOf en niet oneOf: een null-waarde matcht bij de contractvalidatie zowel de
+          # Instant-tak als de null-tak, en oneOf eist er precies één. Semantisch maakt het
+          # hier niets uit — de unie is hetzelfde — maar oneOf zou op elke lege
+          # verwijderdatum een valse fout geven.
+          anyOf:
+          - $ref: "#/components/schemas/Instant"
+          - type: "null"
         scopes:
           type: array
           items:
@@ -670,7 +689,7 @@ components:
         id:
           $ref: "#/components/schemas/UUID"
         isDefault:
-          type: boolean
+          type: [boolean, "null"]
           description: "Weglaten of op null zetten laat de huidige waarde staan; true maakt\
             \ dit het standaard-contactgegeven voor zijn type en degradeert het vorige."
     DienstRequest:
@@ -697,7 +716,7 @@ components:
         naam:
           type: string
         beschrijving:
-          type: string
+          type: [string, "null"]
     DienstverlenerRequest:
       description: Request object voor het toevoegen van een dienstverlener
       type: object
@@ -720,7 +739,7 @@ components:
         naam:
           type: string
         beschrijving:
-          type: string
+          type: [string, "null"]
         diensten:
           type: array
           items:
@@ -882,9 +901,12 @@ components:
       - identificaties
       properties:
         identificaties:
-          # maxItems begrenst wat één aanroep aan partij-lookups kan aanvragen. Ongebonden zou
-          # één POST willekeurig veel joins in getPartijResponseBulk kunnen triggeren. 100 ligt
-          # ruim boven het normale gebruik; overschrijding levert een 400 op.
+          # maxItems begrenst wat één aanroep aan partij-lookups kan aanvragen. Het lezen zelf
+          # is goedkoop — getPartijResponseBulk groepeert op identificatieType en doet dus
+          # hooguit drie queries — maar het schrijven schaalt wel mee: elk teruggegeven
+          # contactgegeven en elke voorkeur loopt langs registreerGebruik, dat per lang
+          # ongebruikte rij een UPDATE doet. Ongebonden is dat een goedkope amplificatie.
+          # 100 ligt ruim boven het normale gebruik; overschrijding levert een 400 op.
           type: array
           items:
             $ref: "#/components/schemas/PartijIdentificatieRequest"
@@ -963,7 +985,7 @@ components:
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
     ScopeResponse:
       # Zie ContactgegevenResponse. dienstNaam is bewust optioneel: een dienstverlener-brede
-      # scope heeft geen dienst (dd.dienst IS NULL) en laat het veld dus weg.
+      # scope heeft geen dienst (dd.dienst IS NULL) en stuurt het veld dus als null mee.
       type: object
       required:
       - dienstverlenerNaam
@@ -971,7 +993,7 @@ components:
         dienstverlenerNaam:
           type: string
         dienstNaam:
-          type: string
+          type: [string, "null"]
     TeVerwijderenOpRequest:
       description: "Request object voor het zetten van een verwijderdatum. teVerwijderenOp\
         \ moet in de toekomst liggen en mag hooguit 7 jaar na de referentiedatum liggen\
@@ -1072,7 +1094,13 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          # anyOf en niet oneOf: een null-waarde matcht bij de contractvalidatie zowel de
+          # Instant-tak als de null-tak, en oneOf eist er precies één. Semantisch maakt het
+          # hier niets uit — de unie is hetzelfde — maar oneOf zou op elke lege
+          # verwijderdatum een valse fout geven.
+          anyOf:
+          - $ref: "#/components/schemas/Instant"
+          - type: "null"
         scopes:
           type: array
           items:
