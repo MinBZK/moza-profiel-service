@@ -42,9 +42,9 @@ class UpdateSchemaPariteitTest {
      * De extras worden net als de gedeelde velden op node-gelijkheid vergeleken, maar zonder hun
      * {@code description}: alleen op naam pinnen zou de zwakste plek van deze test op de enige
      * plek leggen waar afwijking is toegestaan. {@code id: {$ref: UUID}} kon dan ongemerkt
-     * {@code type: string} worden, en {@code isDefault} — het enige request-veld waarvan het type
-     * in deze branch veranderde — was op naam alleen helemaal ongedekt. Beschrijvende tekst mag
-     * wél wijzigen zonder deze test te raken; die wordt vóór de vergelijking weggelaten.
+     * {@code type: string} worden, en {@code isDefault}, dat in deze branch nullable werd, was op
+     * naam alleen helemaal ongedekt. Beschrijvende tekst mag wél wijzigen zonder deze test te
+     * raken; die wordt vóór de vergelijking weggelaten.
      */
     private static final String ID_NODE = "{\"$ref\":\"#/components/schemas/UUID\"}";
 
@@ -156,6 +156,12 @@ class UpdateSchemaPariteitTest {
     }
 
     private static JsonNode lees(String json) {
+        // Een lege verwachting betekende ooit "sla de vergelijking over". Die uitzondering is weg;
+        // zonder deze controle zou hij stilzwijgend terugkomen als een MissingNode die nooit gelijk
+        // is aan een property, met een onbegrijpelijke melding tot gevolg.
+        Assertions.assertFalse(json.isBlank(),
+                "Een extra hoort een verwachte node te krijgen, geen lege string");
+
         try {
             return new ObjectMapper().readTree(json);
         } catch (Exception onmogelijk) {

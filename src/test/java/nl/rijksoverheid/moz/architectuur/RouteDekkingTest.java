@@ -42,12 +42,12 @@ import java.util.TreeSet;
  */
 class RouteDekkingTest {
 
+    private static final String CONTROLLER_PAKKET = "nl.rijksoverheid.moz.controller";
+
     /**
      * Alle HTTP-methoden die JAX-RS kent, ook de methoden die dit contract vandaag niet gebruikt.
      * Zo valt een resource-methode die er ooit bijkomt niet stilzwijgend buiten de sweep.
      */
-    private static final String CONTROLLER_PAKKET = "nl.rijksoverheid.moz.controller";
-
     private static final Map<Class<? extends Annotation>, String> HTTP_METHODEN = Map.of(
             GET.class, "get",
             POST.class, "post",
@@ -106,8 +106,11 @@ class RouteDekkingTest {
             // beschrijven wat wij áánroepen, niet wat wij aanbieden.
             //
             // De uitzondering is bewust smal. Interfaces overal overslaan zou een handgeschreven
-            // JAX-RS interface met een implementatie zonder eigen @Path onzichtbaar maken, in
-            // beide richtingen. Binnen het controllerpakket telt een interface dus gewoon mee.
+            // JAX-RS interface met een implementatie zonder eigen @Path aan beide kanten mis laten
+            // gaan: de route wordt niet gezien, en een operatie die er wél voor staat wordt
+            // onterecht als routeloos gemeld. Binnen het controllerpakket telt een interface dus
+            // gewoon mee. Vandaag staan daar alleen concrete klassen, dus die tak is een
+            // vooruitgeschoven waarborg die geen enkele bestaande klasse raakt.
             if (klasse.isInterface() && !klasse.getPackageName().equals(CONTROLLER_PAKKET)) {
                 continue;
             }
