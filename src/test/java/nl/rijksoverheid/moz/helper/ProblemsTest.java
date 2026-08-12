@@ -44,15 +44,6 @@ class ProblemsTest {
     }
 
     @Test
-    void missingBody_Is400MetStandaardReasonPhraseAlsTitel() {
-        HttpProblem problem = Problems.missingBody();
-
-        assertEquals(400, problem.getStatusCode());
-        assertEquals(Response.Status.BAD_REQUEST.getReasonPhrase(), problem.getTitle());
-        assertEquals("Request body mag niet leeg zijn", problem.getDetail());
-    }
-
-    @Test
     void problemResponse_LevertProblemJsonMetVolledigRfc9457Lichaam() {
         Response response = Problems.problemResponse(
                 Response.Status.CONFLICT, "Conflict", "Resource bestaat al");

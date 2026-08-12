@@ -17,10 +17,6 @@ public final class Problems {
                 .build();
     }
 
-    public static HttpProblem missingBody() {
-        return badRequest(Response.Status.BAD_REQUEST.getReasonPhrase(), "Request body mag niet leeg zijn");
-    }
-
     public static HttpProblem badRequest(String title, String detail) {
         return HttpProblem.builder()
                 .withStatus(Response.Status.BAD_REQUEST)
