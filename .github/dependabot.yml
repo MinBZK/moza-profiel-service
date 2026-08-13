@@ -16,3 +16,11 @@ updates:
     directory: /
     schedule:
       interval: "weekly"
+    # init, analyze en upload-sarif zijn losse dependencies binnen dezelfde
+    # release. Ongegroepeerd bumpt dependabot ze in aparte PR's, waarna de
+    # Analyze-job faalt op "Loaded a configuration file for version X, but
+    # running version Y". Groeperen houdt ze gelijk.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
