@@ -160,7 +160,7 @@ van beide zelf aan:
   `main` bijwerkt. Moet **vóór de eerste merge naar `main`** dezelfde env-vars
   hebben als `feature` (zie tabel), anders crasht de app bij die eerste
   `deploy-stable`-run op precies dezelfde manier als een preview zonder
-  `feature`-config zou doen (zie de `%prod`-gotcha hieronder). URL:
+  `feature`-config zou doen (zie de `%prod`-valkuil hieronder). URL:
   `https://profielservice-stable-psd-law.rig.prd1.gn2.quattro.rijksapps.nl`.
 
 ### 3. Applicatieconfiguratie in ZAD (managed DB + secrets)
@@ -187,16 +187,16 @@ Benodigde env-vars op de `feature`-deployment (en analoog op `stable`):
 | `QUARKUS_DATASOURCE_PASSWORD` | `$APP_DATABASE_PASSWORD` | `%prod`-waarde is leeg |
 | `QUARKUS_REST_CLIENT_VERIFICATIE_SERVICE_URL` | `https://wiremock-dev-mozam-chu.rig.prd1.gn2.quattro.rijksapps.nl` | Default is `https://verificatie.example.invalid`. De POC wijst naar een in-cluster Service (`verificatie-service.logius-moz-poc.svc.cluster.local`) die niet vanaf ZAD bereikbaar is; dit is de gedeelde ZAD WireMock-mock uit [#800](https://github.com/MinBZK/moza-profiel-service/issues/800). Al gestubd voor `POST /request` (200, tekst-referentie-id) en `POST /verify` (200 succes; `code: "000000"` simuleert bewust een foutieve-code-response) — geen extra stub-setup nodig |
 | `QUARKUS_SCHEDULER_ENABLED` | `false` | Zie "Gedeelde database + Quartz" hierboven — alleen nodig op `feature` (previews), niet per se op `stable` |
-| `NOTIFYNL_EMAILVERIFICATIE_API_KEY` | Elke niet-lege placeholder, bv. `zad-preview-key` | Verplicht, zie hieronder ("`%prod`-lege waarden" gotcha). Profiel-service belt niet rechtstreeks NotifyNL; `EmailVerificatieService` stuurt deze waarde mee als veld in de request-body naar de verificatie-service (`POST /request`). Op ZAD wijst die URL naar de gedeelde WireMock-mock (zie boven), die de body niet valideert — elke waarde werkt, als hij maar niet leeg is |
+| `NOTIFYNL_EMAILVERIFICATIE_API_KEY` | Elke niet-lege placeholder, bv. `zad-preview-key` | Verplicht, zie hieronder ("`%prod`-lege waarden" valkuil). Profiel-service belt niet rechtstreeks NotifyNL; `EmailVerificatieService` stuurt deze waarde mee als veld in de request-body naar de verificatie-service (`POST /request`). Op ZAD wijst die URL naar de gedeelde WireMock-mock (zie boven), die de body niet valideert — elke waarde werkt, als hij maar niet leeg is |
 | `NOTIFYNL_EMAILVERIFICATIE_TEMPLATE_ID` | Elke niet-lege placeholder, bv. `zad-preview-template` | Idem |
-| `LOGBOEKDATAVERWERKING_ENABLED` | `false` | Verplicht ondanks dat LDV uitstaat — zie gotcha hieronder |
-| `LOGBOEKDATAVERWERKING_SERVICE_NAME` | `profiel-service` | Verplicht, zelfde gotcha |
+| `LOGBOEKDATAVERWERKING_ENABLED` | `false` | Verplicht ondanks dat LDV uitstaat — zie valkuil hieronder |
+| `LOGBOEKDATAVERWERKING_SERVICE_NAME` | `profiel-service` | Verplicht, zelfde valkuil |
 | `MOZA_CORS_ORIGINS` | — | Alleen nodig als een frontend vanaf een andere origin de preview aanroept; Swagger UI op `/docs` is same-origin |
 
 > Quarkus mapt env-vars naar properties via name-mangling (uppercase, niet-alfanumeriek
 > → `_`).
 
-### Gotcha: `%prod.x=` (leeg) resolveert als *afwezig*, niet als lege string
+### Valkuil: `%prod.x=` (leeg) resolveert als *afwezig*, niet als lege string
 
 `application.properties` gebruikt op meerdere plekken het patroon `x=<default>` +
 `%prod.x=` (leeg) om een property "verplicht per omgeving" te maken. Een leeg
@@ -252,7 +252,7 @@ Het geserveerde `/openapi.json` bevat geen `servers`-array, dus Swagger UI valt
 terug op same-origin requests — "Try it out" op `/docs` werkt hierdoor direct
 tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 
-## Gotchas (al opgelost in de workflow)
+## Valkuilen (al opgelost in de workflow)
 
 - **JDBC-URL** moet volledig zijn: `jdbc:postgresql://host:5432/<db>` (env op
   `feature`/`stable`), niet enkel host of `jdbc://...`.
