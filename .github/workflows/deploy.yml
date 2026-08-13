@@ -186,19 +186,13 @@ jobs:
           # aanwezig als repo-secret).
           delete-github-env: 'true'
           delete-github-deployments: 'true'
-          # TIJDELIJK 'false': de gepinde cleanup-action verwijdert bij een
-          # DELETE-weigering ("you cannot delete the last tagged version") het
-          # HELE GHCR-package i.p.v. alleen deze pr-<n>-tag. Zolang
-          # ghcr.io/minbzk/moza-profiel-service maar één tag heeft (nu het geval:
-          # alleen pr-<n>-tags, vóór de eerste geslaagde stable-deploy) raakt
-          # iedere PR-close dit gegarandeerd; bij een merge is het bovendien een
-          # race met de gelijktijdige stable-build, die dan tegen een net
-          # verwijderd — en na jib's herstel standaard privaat — package pusht,
-          # waarna ZAD niet meer anoniem kan pullen (zo ook gebeurd bij de NMC,
-          # 22 juli). Zet terug op 'true' zodra er een main-*-tag in GHCR staat
-          # (na de eerste succesvolle push naar main): dan heeft het package
-          # altijd 2+ tags en kan deze fallback niet meer raken.
-          delete-container: 'false'
+          # De gepinde cleanup-action verwijdert bij een DELETE-weigering ("you
+          # cannot delete the last tagged version") het HELE GHCR-package i.p.v.
+          # alleen de gesloten PR's tag. Veilig zolang het package altijd 2+ tags
+          # heeft — sinds de eerste geslaagde stable-deploy staat er ook een
+          # main-*-tag naast de pr-<n>-tags, dus een pr-<n>-tag is nooit meer de
+          # laatste. (Stond tijdelijk op 'false' vóór die eerste stable-deploy.)
+          delete-container: 'true'
           container-org: minbzk # lowercase; moet matchen met push-tag
           container-name: ${{ github.event.repository.name }}
           container-tag: pr-${{ github.event.pull_request.number }}

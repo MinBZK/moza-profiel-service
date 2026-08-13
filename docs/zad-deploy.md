@@ -262,18 +262,18 @@ tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 - **Health-check op de management-poort**: zie "Management-poort en health-check"
   hierboven — opgelost via `-Dquarkus.smallrye-health.management.enabled=false` in
   de build.
+- **GHCR-package-verwijdering op de laatste tag**: de gepinde cleanup-action
+  verwijdert bij een DELETE-weigering ("you cannot delete the last tagged
+  version") het hele GHCR-package i.p.v. alleen de gesloten PR's tag — riskant
+  zolang `ghcr.io/minbzk/moza-profiel-service` maar één tag had (vóór de eerste
+  geslaagde `stable`-deploy; bij de NMC op 22 juli daadwerkelijk gebeurd, cleanup
+  verwijderde het package terwijl de stable-build ernaartoe pushte).
+  `delete-container` stond hierom tijdelijk op `'false'`; nu er ook een
+  `main-*`-tag in GHCR staat (naast de pr-<n>-tags) is een pr-<n>-tag nooit meer
+  de laatste, en staat het weer op `'true'`.
 
 ## Bekend, niet opgelost in deze workflow
 
-- **`delete-container: 'false'` in `cleanup-preview` is tijdelijk.** De gepinde
-  cleanup-action verwijdert bij een DELETE-weigering ("you cannot delete the last
-  tagged version") het hele GHCR-package i.p.v. alleen de gesloten PR's tag.
-  Zolang `ghcr.io/minbzk/moza-profiel-service` maar één tag heeft — nu het geval,
-  vóór de eerste geslaagde `stable`-deploy — raakt dit gegarandeerd elke
-  PR-close, en bij een merge is het een race met de gelijktijdige
-  `stable`-build (bij de NMC op 22 juli daadwerkelijk gebeurd: cleanup
-  verwijderde het package terwijl de stable-build ernaartoe pushte). Zet
-  `delete-container` terug op `'true'` zodra er een `main-*`-tag in GHCR staat.
 - **LDV-snapshot-dependency**: de build trekt
   `nl.mijnoverheidzakelijk.ldv:logboekdataverwerking-wrapper:1.4.0-SNAPSHOT` uit
   central-portal-snapshots. Snapshots zijn niet reproduceerbaar en kunnen
