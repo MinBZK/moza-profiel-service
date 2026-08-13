@@ -4,6 +4,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # quarkus-openapi-generator en quarkus-openapi-generator-server komen uit
+    # dezelfde reactor/release en moeten volgens pom.xml dezelfde versie
+    # dragen. Ongegroepeerd bumpt dependabot er één, zoals in #118.
+    groups:
+      quarkus-openapi-generator:
+        patterns:
+          - "io.quarkiverse.openapi.generator:*"
   - package-ecosystem: "docker"
     directory: "/src/main/docker"
     schedule:
