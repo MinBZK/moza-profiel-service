@@ -92,7 +92,7 @@
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator</artifactId>
-            <version>2.17.0</version>
+            <version>2.19.0</version>
         </dependency>
         <!-- Contract-first server-stub generatie (JAX-RS interfaces + DTOs) uit src/main/openapi-server.
              Shadow: gegenereerde interfaces zijn inert tot een controller ze implementeert (#651).
@@ -108,7 +108,7 @@
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator-server</artifactId>
-            <version>2.17.0</version>
+            <version>2.19.0</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
