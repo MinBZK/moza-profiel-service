@@ -8,8 +8,10 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.io.File;
@@ -38,6 +40,14 @@ import java.util.Set;
  * hele suite: 146 van de 198 tests werden overgeslagen). Deze test gebruikt Flyway en Hibernate
  * rechtstreeks via hun eigen Java-API, zonder Quarkus' testframework of CDI erbij te betrekken,
  * en kan daardoor gewoon naast de rest van de suite draaien.
+ * <p>
+ * Vereist een draaiende Docker-daemon (Testcontainers start een Postgres-container). Lokaal
+ * (buiten CI) wordt de test overgeslagen als Docker niet beschikbaar is (zie {@code assumeTrue}
+ * in {@code startPostgres()}), in plaats van de build rood te laten kleuren om iets dat niets met
+ * je wijziging te maken heeft. In CI (GitHub Actions zet {@code CI=true}) geldt die vrijstelling
+ * niet: dit is de enige test die de V*.sql-migraties daadwerkelijk uitvoert en tegen het
+ * Hibernate-schema valideert, dus daar moet ontbrekende Docker de build hard laten falen in
+ * plaats van die dekking stil te laten wegvallen.
  */
 class MigrationValidationTest {
 
@@ -47,6 +57,12 @@ class MigrationValidationTest {
 
     @BeforeAll
     static void startPostgres() {
+        // GitHub Actions zet CI=true: daar mag ontbrekende Docker niet leiden tot een stille
+        // skip, maar moet de build hard falen. Lokaal slaan we de test wel over.
+        boolean ci = System.getenv("CI") != null;
+        Assumptions.assumeTrue(ci || DockerClientFactory.instance().isDockerAvailable(),
+                "Docker niet beschikbaar; migratievalidatie overgeslagen");
+
         postgres = new PostgreSQLContainer<>("postgres:17-alpine");
         postgres.start();
 
