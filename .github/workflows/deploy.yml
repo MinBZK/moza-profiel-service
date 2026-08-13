@@ -6,7 +6,8 @@
 #
 # ZAD is uitsluitend de PR-preview-/ontwikkelomgeving. De bestaande POC-deployment
 # op het Standaard Platform (OpenShift TEST, namespace logius-moz-poc) en de landing
-# op LPC blijven hierbuiten — zie Docs/structurizr/profielservicedocs/10-deployment.md.
+# op LPC blijven hierbuiten — zie Docs/structurizr/profielservicedocs/10-deployment.md
+# in de MijnOverheidZakelijk-repo (niet in deze repo).
 #
 # Vereiste repo-secrets:
 #   ZAD_API_KEY      — ZAD Operations Manager API key
@@ -62,11 +63,17 @@ jobs:
     # opruimen). Fork-PR's en bekende bot-PR's (dependabot) overslaan: die krijgen
     # een read-only GITHUB_TOKEN, waarmee de jib-push naar GHCR toch met een 403
     # zou falen — dus liever een schone skip dan een rode build elke week.
+    # Check de PR-AUTEUR, niet github.actor: bij "Update branch" op een
+    # dependabot-PR is de actor een mens, terwijl de auteur (en dus ook wat
+    # zad-actions' eigen skip-bot-prs checkt) nog steeds dependabot[bot] is. Op
+    # actor checken zou dan een image pushen en een pr-<n>-environment aanmaken
+    # die deploy/cleanup daarna alsnog intern overslaan — een weesimage/-environment
+    # die nooit wordt opgeruimd.
     if: >-
       github.event_name == 'push' ||
       (github.event.action != 'closed' &&
        github.event.pull_request.head.repo.full_name == github.repository &&
-       github.actor != 'dependabot[bot]')
+       github.event.pull_request.user.login != 'dependabot[bot]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -156,7 +163,13 @@ jobs:
 
   cleanup-preview:
     # Alleen bij sluiten van de PR: omgeving + image + GitHub environment opruimen.
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    # Zelfde fork/auteur-guard als build (zie toelichting daar): voor die PR's is
+    # er nooit een preview geweest (build sloeg al over), dus cleanup zou hier
+    # alleen een zinloze API-aanroep met lege secrets doen.
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       deployments: write
@@ -173,7 +186,19 @@ jobs:
           # aanwezig als repo-secret).
           delete-github-env: 'true'
           delete-github-deployments: 'true'
-          delete-container: 'true'
+          # TIJDELIJK 'false': de gepinde cleanup-action verwijdert bij een
+          # DELETE-weigering ("you cannot delete the last tagged version") het
+          # HELE GHCR-package i.p.v. alleen deze pr-<n>-tag. Zolang
+          # ghcr.io/minbzk/moza-profiel-service maar één tag heeft (nu het geval:
+          # alleen pr-<n>-tags, vóór de eerste geslaagde stable-deploy) raakt
+          # iedere PR-close dit gegarandeerd; bij een merge is het bovendien een
+          # race met de gelijktijdige stable-build, die dan tegen een net
+          # verwijderd — en na jib's herstel standaard privaat — package pusht,
+          # waarna ZAD niet meer anoniem kan pullen (zo ook gebeurd bij de NMC,
+          # 22 juli). Zet terug op 'true' zodra er een main-*-tag in GHCR staat
+          # (na de eerste succesvolle push naar main): dan heeft het package
+          # altijd 2+ tags en kan deze fallback niet meer raken.
+          delete-container: 'false'
           container-org: minbzk # lowercase; moet matchen met push-tag
           container-name: ${{ github.event.repository.name }}
           container-tag: pr-${{ github.event.pull_request.number }}

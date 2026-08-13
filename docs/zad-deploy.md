@@ -6,11 +6,17 @@ ephemeral ZAD-omgeving (`pr-<nummer>`). Bij sluiten van de PR ruimt
 push/merge naar `main` deployt `deploy-stable` naar de persistente
 `stable`-omgeving.
 
+Dit geldt voor elke PR **vanuit deze repo, van een niet-bot auteur**. PR's vanaf
+een fork krijgen bewust geen secrets (zie "Hoe het draait" hieronder) en
+dependabot-PR's worden bewust overgeslagen — met het aantal dependabot-PR's op
+deze repo (vier ecosystemen, wekelijks) is dat in de praktijk het geval dat je het
+vaakst tegenkomt.
+
 > **Scope:** ZAD is uitsluitend de **PR-preview-/ontwikkelomgeving**. De bestaande
 > POC-deployment op het Standaard Platform (OpenShift TEST, namespace
 > `logius-moz-poc`, infra-files op de Logius GitLab) en de landing op LPC blijven
-> hierbuiten ongewijzigd — zie
-> `Docs/structurizr/profielservicedocs/10-deployment.md`.
+> hierbuiten ongewijzigd — zie `Docs/structurizr/profielservicedocs/10-deployment.md`
+> in de **MijnOverheidZakelijk**-repo (niet in deze repo).
 
 Referentie: analoge workflow voor de NMC, zie
 [`moza-notificatiemanagementcomponent#749`](https://github.com/MinBZK/moza-notificatiemanagementcomponent/issues/749)
@@ -57,6 +63,20 @@ ZAD-adres kent, op zowel `pr-<n>` als `stable`. Deze service heeft geen auth; da
 is hier een bewuste afweging (geldig zolang dit alleen op ZAD draait), geen
 oversight.
 
+Van de opties uit de story is dit een nette variant van optie B: de letterlijke
+optie B (het management-interface zelf runtime uitzetten) kan niet, omdat
+`quarkus.management.enabled` build-time fixed is — deze flag bereikt hetzelfde
+resultaat via een build-time override in plaats van een runtime-toggle, en
+behoudt (anders dan optie C) de echte datasource-check in de readiness-probe.
+
+Een aparte probe-port (los van de publieke ingress-poort) routeren via
+ZAD/Operations Manager is niet mogelijk: het `port`/`ports`-veld op een
+component is de enige poortconfiguratie die de Operations Manager API kent, en
+`zad-actions/deploy`'s `health-endpoint` is geïmplementeerd als een simpele
+`curl` tegen datzelfde publieke adres — geen van beide kent een apart
+poort-argument voor health-checks. Deze route is dus geen optie, niet alleen nu
+ongebruikt.
+
 ### Gedeelde database + Quartz
 
 Alle PR-previews delen via `clone-from: feature` dezelfde managed Postgres (zoals
@@ -70,6 +90,15 @@ Daarom staat `QUARKUS_SCHEDULER_ENABLED=false` op de `feature`-base-deployment (
 env-var-tabel hieronder) — de scheduler draait niet op previews. Dit is een
 bewuste afwijking; als ZAD ooit een database/schema per deployment kan leveren, kan
 dit heroverwogen worden.
+
+Dit geldt niet alleen tussen previews onderling: `stable` krijgt zijn
+`$APP_DATABASE_*` uit dezelfde Postgres-add-on als `feature` en alle previews —
+er is geen aparte database voor `stable`. Na de eerste merge draait `stable`'s
+geclusterde Quartz dus tegen dezelfde `qrtz_*`-tabellen als de previews. Het
+directe datarisico daarvan is beperkt (de retentiejob doet alleen `UPDATE`s op
+`te_verwijderen_op`, geen `DELETE`s); het Flyway-migratierisico hieronder geldt
+echter net zo goed tussen een preview en `stable` als tussen twee previews
+onderling.
 
 Een tweede, nog niet opgelost risico van diezelfde gedeelde database:
 `quarkus.flyway.migrate-at-start=true` staat globaal aan, en Flyway's defaults
@@ -108,22 +137,39 @@ migraties draaien al automatisch bij het opstarten.
 > GITHUB_"). De NMC-variant van deze workflow gebruikt nog wel `GITHUB_ADMIN_TOKEN`
 > — dat secret kan daar dus nooit succesvol zijn aangemaakt.
 
-### 2. ZAD-project en component
+### 2. ZAD-project, `feature`- en `stable`-deployment
 
-ZAD-project: `psd-law` (los van het NMC-project `nd-j7s`), component
-`profielservice`. Geen andere ZAD-services nodig dan de Postgres-add-on en
-"publiceren op het web" — de app heeft verder geen infra-afhankelijkheden (Quartz
-gebruikt tabellen in dezelfde Postgres, geen aparte queue/cache/mail-service). Het
-component zelf hoeft geen container-image te hebben ingevuld; `zad-actions/deploy`
-zet die per deploy dynamisch (zelfde als `nmcapi` bij de NMC).
+ZAD-project: `psd-law` (los van het NMC-project `nd-j7s`). Geen andere
+ZAD-services nodig dan de Postgres-add-on en "publiceren op het web" — de app
+heeft verder geen infra-afhankelijkheden (Quartz gebruikt tabellen in dezelfde
+Postgres, geen aparte queue/cache/mail-service). De ZAD UI vraagt bij het
+aanmaken van het `profielservice`-component om een container-image (leeg laten
+kan niet) — een tijdelijke placeholder-tag
+(bijvoorbeeld `nginx:alpine`, een volledig gekwalificeerde, bestaande image)
+volstaat, want `zad-actions/deploy` overschrijft die bij de eerste echte deploy
+met de net gebouwde digest.
+
+Twee deployments moeten **vóór de eerste PR** bestaan, en de workflow maakt geen
+van beide zelf aan:
+
+- **`feature`** — de basisconfiguratie waar elke PR-preview via `clone-from` van
+  erft (zie hieronder). De workflow deployt hier nooit rechtstreeks naartoe; dit
+  is puur een config-sjabloon en moet dus handmatig aangemaakt worden, mét de
+  volledige env-var-tabel hieronder, vóórdat de eerste PR wordt geopend.
+- **`stable`** — de persistente omgeving die `deploy-stable` bij elke push naar
+  `main` bijwerkt. Moet **vóór de eerste merge naar `main`** dezelfde env-vars
+  hebben als `feature` (zie tabel), anders crasht de app bij die eerste
+  `deploy-stable`-run op precies dezelfde manier als een preview zonder
+  `feature`-config zou doen (zie de `%prod`-gotcha hieronder). URL:
+  `https://profielservice-stable-psd-law.rig.prd1.gn2.quattro.rijksapps.nl`.
 
 ### 3. Applicatieconfiguratie in ZAD (managed DB + secrets)
 
 De `zad-actions/deploy` action zet **geen** env-vars of DB-config; de app krijgt
-die uit de ZAD-deploymentconfig. Dit is geregeld via de **`feature`-deployment**
-(component `profielservice`), waar `clone-from: feature` in `deploy.yml` naar
-verwijst. PR-deploys erven die env. De `stable`-deployment heeft haar eigen,
-losstaande configuratie.
+die uit de ZAD-deploymentconfig, hierboven handmatig ingericht op `feature` en
+`stable`. PR-deploys erven `feature`'s env via `clone-from: feature` in
+`deploy.yml`. De `stable`-deployment heeft haar eigen, losstaande configuratie
+(zelfde tabel, apart ingevuld).
 
 Bij het toevoegen van de Postgres-add-on op het component geeft ZAD platform-
 variabelen terug (bij de NMC zijn dat `$APP_DATABASE_USER`, `$APP_DATABASE_PASSWORD`,
@@ -219,6 +265,15 @@ tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 
 ## Bekend, niet opgelost in deze workflow
 
+- **`delete-container: 'false'` in `cleanup-preview` is tijdelijk.** De gepinde
+  cleanup-action verwijdert bij een DELETE-weigering ("you cannot delete the last
+  tagged version") het hele GHCR-package i.p.v. alleen de gesloten PR's tag.
+  Zolang `ghcr.io/minbzk/moza-profiel-service` maar één tag heeft — nu het geval,
+  vóór de eerste geslaagde `stable`-deploy — raakt dit gegarandeerd elke
+  PR-close, en bij een merge is het een race met de gelijktijdige
+  `stable`-build (bij de NMC op 22 juli daadwerkelijk gebeurd: cleanup
+  verwijderde het package terwijl de stable-build ernaartoe pushte). Zet
+  `delete-container` terug op `'true'` zodra er een `main-*`-tag in GHCR staat.
 - **LDV-snapshot-dependency**: de build trekt
   `nl.mijnoverheidzakelijk.ldv:logboekdataverwerking-wrapper:1.4.0-SNAPSHOT` uit
   central-portal-snapshots. Snapshots zijn niet reproduceerbaar en kunnen
