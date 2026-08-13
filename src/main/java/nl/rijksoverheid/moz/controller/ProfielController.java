@@ -213,6 +213,12 @@ public class ProfielController {
 
     /**
      * Voegt een nieuwe contactgegeven toe voor een partij.
+     * <p>
+     * Bestond er al een contactgegeven met exact hetzelfde (partij, type, waarde), dan wordt de
+     * meegestuurde request body niet toegepast: de bestaande rij wordt ongewijzigd teruggegeven
+     * (met hooguit neveneffecten — een nieuwe verificatiecode bij een nog niet geverifieerd
+     * e-mailadres, een toegevoegde scope, of een lastUsedAt-touch). De 200 (in plaats van 201)
+     * response is het signaal daarvoor.
      *
      * @param request Request body met contactgegevens en partij identificatie
      * @return Response 201 Created met Location header naar de aangemaakte resource
@@ -233,7 +239,9 @@ public class ProfielController {
             ),
             @APIResponse(
                     responseCode = "200",
-                    description = "Contactgegeven was al geregistreerd voor deze partij en scope",
+                    description = "Contactgegeven met dit type en deze waarde was al geregistreerd voor deze "
+                            + "partij en scope. De request body is niet toegepast; de bestaande, ongewijzigde "
+                            + "contactgegeven wordt teruggegeven. Gebruik PUT om een bestaand contactgegeven te wijzigen.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ContactgegevenResponse.class))
             ),
             @APIResponse(
@@ -269,7 +277,7 @@ public class ProfielController {
      * Alleen type, waarde en scope kunnen worden geüpdatet.
      */
     @PUT
-    @Path("/contactgegeven")
+    @Path("/contactgegeven/{id}")
     @Transactional
     @RequireBody
     @Operation(
@@ -283,12 +291,12 @@ public class ProfielController {
             @APIResponse(responseCode = "409", description = "Combinatie van type en waarde bestaat al voor een ander (actief) contactgegeven van deze partij")
     })
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
-    public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
+    public Response updateContactgegeven(@PathParam("id") UUID id, @Valid ContactgegevenUpdateRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        boolean updated = partijService.updateContactgegeven(request.identificatieType, request.identificatieNummer, request);
+        boolean updated = partijService.updateContactgegeven(request.identificatieType, request.identificatieNummer, id, request);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -304,6 +312,11 @@ public class ProfielController {
 
     /**
      * Voegt een nieuwe voorkeur toe voor een partij.
+     * <p>
+     * Bestond er al een actieve voorkeur voor dezelfde (partij, voorkeurType, scope), dan wordt
+     * geen tweede rij aangemaakt: de waarde van de bestaande voorkeur wordt overschreven met de
+     * meegestuurde waarde (upsert). De 200 (in plaats van 201) response is het signaal dat het om
+     * een update van een bestaande rij ging, niet om een nieuwe.
      *
      * @param request Request body met voorkeur gegevens en partij identificatie
      * @return Response 201 Created met Location header naar de aangemaakte resource
@@ -324,7 +337,9 @@ public class ProfielController {
             ),
             @APIResponse(
                     responseCode = "200",
-                    description = "Voorkeur was al geregistreerd voor deze partij en scope",
+                    description = "Voorkeur voor deze partij, scope en voorkeurType bestond al; de waarde is "
+                            + "overschreven met de meegestuurde waarde (upsert) in plaats van een nieuwe voorkeur "
+                            + "aan te maken.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = VoorkeurResponse.class))
             ),
             @APIResponse(
@@ -362,7 +377,7 @@ public class ProfielController {
      * Alleen type en waarde kunnen worden geüpdatet.
      */
     @PUT
-    @Path("/voorkeur")
+    @Path("/voorkeur/{id}")
     @Transactional
     @RequireBody
     @Operation(
@@ -376,12 +391,12 @@ public class ProfielController {
             @APIResponse(responseCode = "409", description = "Combinatie van type en scope bestaat al voor een andere (actieve) voorkeur van deze partij")
     })
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
-    public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
+    public Response updateVoorkeur(@PathParam("id") UUID id, @Valid VoorkeurUpdateRequest request) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        boolean updated = partijService.updateVoorkeur(request.identificatieType, request.identificatieNummer, request);
+        boolean updated = partijService.updateVoorkeur(request.identificatieType, request.identificatieNummer, id, request);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);

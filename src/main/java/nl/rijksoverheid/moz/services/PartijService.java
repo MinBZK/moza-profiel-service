@@ -230,11 +230,11 @@ public class PartijService {
     }
 
     @Transactional
-    public boolean updateContactgegeven(IdentificatieType identificatieType, String identificatieNummer, ContactgegevenUpdateRequest request) {
+    public boolean updateContactgegeven(IdentificatieType identificatieType, String identificatieNummer, UUID id, ContactgegevenUpdateRequest request) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Contactgegeven contact = Contactgegeven.find(partij, request.id);
+        Contactgegeven contact = Contactgegeven.find(partij, id);
 
         if (contact == null) {
             return false;
@@ -315,11 +315,11 @@ public class PartijService {
     }
 
     @Transactional
-    public boolean updateVoorkeur(IdentificatieType identificatieType, String identificatieNummer, VoorkeurUpdateRequest request) {
+    public boolean updateVoorkeur(IdentificatieType identificatieType, String identificatieNummer, UUID id, VoorkeurUpdateRequest request) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Voorkeur voorkeur = Voorkeur.find(partij, request.id);
+        Voorkeur voorkeur = Voorkeur.find(partij, id);
 
         if (voorkeur == null) {
             return false;

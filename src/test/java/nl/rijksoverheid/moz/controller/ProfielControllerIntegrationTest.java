@@ -425,7 +425,6 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         var body = new ContactgegevenUpdateRequest();
         body.identificatieType = BSN;
         body.identificatieNummer = "111111111";
-        body.id = id.get();
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
 
@@ -433,7 +432,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegeven")
+                .put("/api/profielservice/v1/contactgegeven/" + id.get())
                 .then()
                 .statusCode(NO_CONTENT);
 
@@ -462,7 +461,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .put("/api/profielservice/v1/contactgegeven")
+                .put("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -472,7 +471,6 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         var body = new ContactgegevenUpdateRequest();
         body.identificatieType = BSN;
         body.identificatieNummer = "123456789";
-        body.id = UUID.randomUUID();
         body.type = ContactType.Email;
         body.waarde = "test2@example.com";
 
@@ -480,7 +478,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/contactgegeven")
+                .put("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
@@ -543,7 +541,6 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         var body = new VoorkeurUpdateRequest();
         body.identificatieType = BSN;
         body.identificatieNummer = "111111115";
-        body.id = id.get();
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "en";
 
@@ -551,7 +548,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/voorkeur")
+                .put("/api/profielservice/v1/voorkeur/" + id.get())
                 .then()
                 .statusCode(NO_CONTENT);
     }
@@ -571,7 +568,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
 
         given()
                 .contentType(ContentType.JSON)
-                .put("/api/profielservice/v1/voorkeur")
+                .put("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
                 .statusCode(BAD_REQUEST);
     }
@@ -581,7 +578,6 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         var body = new VoorkeurUpdateRequest();
         body.identificatieType = BSN;
         body.identificatieNummer = "123456789";
-        body.id = UUID.randomUUID();
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "en";
 
@@ -589,7 +585,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(body)
-                .put("/api/profielservice/v1/voorkeur")
+                .put("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")

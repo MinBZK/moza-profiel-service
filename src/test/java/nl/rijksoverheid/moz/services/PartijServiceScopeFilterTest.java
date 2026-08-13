@@ -495,7 +495,6 @@ class PartijServiceScopeFilterTest {
 
         // De eerste voorkeur naar de scope van de tweede duwen botst op de invariant.
         VoorkeurUpdateRequest update = new VoorkeurUpdateRequest();
-        update.id = eerste.voorkeur().id;
         update.identificatieType = IdentificatieType.BSN;
         update.identificatieNummer = BSN_NUMMER;
         update.voorkeurType = VoorkeurType.WebsiteTaal;
@@ -505,7 +504,7 @@ class PartijServiceScopeFilterTest {
         update.scope.dienstNaam = "Dienst-B";
 
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
-                () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, update));
+                () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, eerste.voorkeur().id, update));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 
