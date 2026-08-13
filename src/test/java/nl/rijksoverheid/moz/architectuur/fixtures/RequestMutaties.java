@@ -41,7 +41,12 @@ public final class RequestMutaties {
         }
     }
 
-    /** Method reference naar een gewone setter: geen JavaCall, alleen een toegang. */
+    /**
+     * Method reference naar een gewone setter: geen JavaCall, alleen een toegang. De method
+     * reference is hier de testvorm en niet een omweg — vervang hem niet door een directe
+     * aanroep, want dan wordt deze fixture een duplicaat van {@link DirecteSetter} en verdwijnt
+     * de dekking zonder dat een test omvalt.
+     */
     public static final class MethodReferenceNaarSetter {
         public void muteer(ContactgegevenUpdateRequest request) {
             Consumer<String> zet = request::setWaarde;
@@ -49,7 +54,11 @@ public final class RequestMutaties {
         }
     }
 
-    /** De lastigste combinatie: getter-achtige naam én method reference. */
+    /**
+     * De lastigste combinatie: getter-achtige naam én method reference. Zie
+     * {@link MethodReferenceNaarSetter} voor waarom de method reference moet blijven staan; hier
+     * zou een directe aanroep deze fixture gelijk maken aan {@link FluentSetterMetGetterNaam}.
+     */
     public static final class MethodReferenceNaarFluentSetterMetGetterNaam {
         public void muteer(ContactgegevenUpdateRequest request) {
             Consumer<Boolean> zet = request::isDefault;
