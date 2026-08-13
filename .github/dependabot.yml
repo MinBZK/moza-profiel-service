@@ -4,6 +4,24 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # quarkus-openapi-generator en quarkus-openapi-generator-server komen uit
+    # dezelfde reactor/release en moeten volgens pom.xml dezelfde versie
+    # dragen. Ongegroepeerd bumpt dependabot er één, zoals in #118.
+    groups:
+      quarkus-openapi-generator:
+        patterns:
+          - "io.quarkiverse.openapi.generator:*"
+    ignore:
+      # Vanaf 2.20.0 genereert quarkus-openapi-generator-server beanvelden als
+      # Object i.p.v. het juiste type. Gemeten op 2026-08-13 met 2.23.0: 24 van
+      # de 27 gegenereerde beans, 57 velden. De build blijft groen omdat de
+      # stubs shadow zijn, dus CI vangt dit niet. 2.19.0 is de nieuwste
+      # geverifieerd goede versie; zie de toelichting in pom.xml.
+      # Let op: dit onderdrukt ook security-updates voor deze artefacten.
+      # Opheffen zodra de regressie upstream is opgelost, of zodra de
+      # server-extensie uit pom.xml verdwijnt (MinBZK/moza-profiel-service#95).
+      - dependency-name: "io.quarkiverse.openapi.generator:*"
+        versions: [">2.19.0"]
   - package-ecosystem: "docker"
     directory: "/src/main/docker"
     schedule:
@@ -16,3 +34,11 @@ updates:
     directory: /
     schedule:
       interval: "weekly"
+    # init, analyze en upload-sarif zijn losse dependencies binnen dezelfde
+    # release. Ongegroepeerd bumpt dependabot ze in aparte PR's, waarna de
+    # Analyze-job faalt op "Loaded a configuration file for version X, but
+    # running version Y". Groeperen houdt ze gelijk.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
