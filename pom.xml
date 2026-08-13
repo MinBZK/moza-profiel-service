@@ -194,6 +194,13 @@
             <version>2.1.0</version>
             <scope>test</scope>
         </dependency>
+        <!-- embedded-postgres brengt alleen amd64-binaries mee; zonder deze faalt de testsuite
+             op een Apple Silicon JDK bij het starten van de embedded PostgreSQL. -->
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-darwin-arm64v8</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-flyway</artifactId>

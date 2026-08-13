@@ -14,7 +14,7 @@
 # themselves test-scoped.
 mkdir -p $OUT/lib
 ./mvnw dependency:copy-dependencies -DoutputDirectory=$OUT/lib -B \
-  -DexcludeArtifactIds=embedded-postgres-binaries-windows-amd64,embedded-postgres-binaries-darwin-amd64,embedded-postgres-binaries-linux-amd64-alpine
+  -DexcludeArtifactIds=embedded-postgres-binaries-windows-amd64,embedded-postgres-binaries-darwin-amd64,embedded-postgres-binaries-darwin-arm64v8,embedded-postgres-binaries-linux-amd64-alpine
 
 # Copy compiled application and test classes
 cp -r target/classes $OUT/classes
