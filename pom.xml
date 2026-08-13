@@ -269,8 +269,12 @@
                             <goal>generate</goal>
                         </goals>
                         <configuration>
-                            <!-- Eén bron: dit contract wordt door smallrye-openapi ook statisch geserveerd op /openapi.json. -->
-                            <inputSpec>${project.basedir}/src/main/resources/META-INF/openapi.yaml</inputSpec>
+                            <!-- Eén bron: dit contract wordt door smallrye-openapi ook statisch geserveerd op /openapi.json.
+                                 Bewust relatief. Met ${project.basedir} maakt Maven op Windows er
+                                 C:\... van, en de swagger-parser in generator 7.10.0 leest die
+                                 driveletter als URI-scheme — een illegale URI, dus een build-fout.
+                                 Vanaf 7.24.0 is dat opgelost; zie MinBZK/MijnOverheidZakelijk#951. -->
+                            <inputSpec>src/main/resources/META-INF/openapi.yaml</inputSpec>
                             <generatorName>jaxrs-spec</generatorName>
                             <output>${project.build.directory}/generated-sources/server</output>
                             <modelPackage>nl.rijksoverheid.moz.api.generated.model</modelPackage>
