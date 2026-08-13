@@ -12,28 +12,31 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.37.0</quarkus.platform.version>
+        <quarkus.platform.version>3.38.1</quarkus.platform.version>
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.5.5</surefire-plugin.version>
+        <surefire-plugin.version>3.5.6</surefire-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Security-override: quarkus-bom 3.37.0 pint OpenTelemetry nog op 1.60.1 (Dependabot-alert).
-                 De BOM MOET vóór de quarkus-bom import staan: import-scope is first-wins, dus een override
-                 ná quarkus-bom heeft geen effect. Netty (4.1.135.Final) wordt sinds 3.36.3 al door de
-                 quarkus-bom beheerd en heeft daarom geen eigen pins meer nodig. -->
+            <!-- Security-override: quarkus-bom 3.38.1 pint jackson-databind op 2.22.0, dat twee
+                 Dependabot-alerts heeft (@JsonView-bypass bij @JsonUnwrapped, en case-insensitive
+                 deserialisatie die @JsonIgnoreProperties omzeilt), beide gefixt in 2.22.1.
+                 jackson-bom i.p.v. een losse databind-pin: databind 2.22.1 vraagt zelf
+                 jackson-core 2.22.1, dus een losse databind-pin zou databind 2.22.1 met de
+                 jackson-core 2.22.0 van de quarkus-bom combineren — een combinatie die Jackson
+                 zelf nooit uitbrengt of test. jackson-bom lijnt core/databind/annotations en alle
+                 jackson-datatype-*/jackson-module-* in één entry uit. VERWIJDEREN zodra de
+                 quarkus-bom zelf jackson-databind >= 2.22.1 beheert.
+
+                 Dit is een import-scope BOM: positie doet er hier wél toe, dus moet vóór de
+                 quarkus-bom import staan (first-wins). Dat geldt niet voor een gewone (niet-import)
+                 dependencyManagement-entry — die wint altijd van een geïmporteerde BOM, ongeacht
+                 positie. -->
             <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-bom</artifactId>
-                <version>1.62.0</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.opentelemetry</groupId>
-                <artifactId>opentelemetry-bom-alpha</artifactId>
-                <version>1.62.0-alpha</version>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>2.22.1</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -56,7 +59,7 @@
             <dependency>
                 <groupId>io.swagger.parser.v3</groupId>
                 <artifactId>swagger-parser</artifactId>
-                <version>2.1.40</version>
+                <version>2.1.46</version>
             </dependency>
             <!-- Security-pins voor test-scope transitives (via Pact) die niet door de quarkus-bom
                  beheerd worden en die Dependabot niet zelf kan updaten. -->
@@ -68,12 +71,12 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-configuration2</artifactId>
-                <version>2.15.0</version>
+                <version>2.15.1</version>
             </dependency>
             <dependency>
                 <groupId>org.mozilla</groupId>
                 <artifactId>rhino</artifactId>
-                <version>1.7.14.1</version>
+                <version>1.9.1</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -91,19 +94,28 @@
         <dependency>
             <groupId>io.quarkiverse.httpproblem</groupId>
             <artifactId>quarkus-http-problem</artifactId>
-            <version>3.33.1</version>
+            <version>3.38.1</version>
         </dependency>
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator</artifactId>
-            <version>2.17.0</version>
+            <version>2.19.0</version>
         </dependency>
         <!-- Contract-first server-stub generatie (JAX-RS interfaces + DTOs) uit src/main/openapi-server.
-             Shadow: gegenereerde interfaces zijn inert tot een controller ze implementeert (#651). -->
+             Shadow: gegenereerde interfaces zijn inert tot een controller ze implementeert (#651).
+             Zelfde versie als quarkus-openapi-generator hierboven (beide komen uit dezelfde
+             reactor/release). Vanaf 2.20.0 genereert deze extensie voor een breed deel van de
+             beans (niet alleen Scope/ScopeRequest/ScopeResponse) velden als Object i.p.v. het
+             juiste type zoals String — geverifieerd door 2.18.0 t/m 2.23.0 stuk voor stuk te
+             bouwen en de gegenereerde beans te inspecteren. 2.17.0 t/m 2.19.0 genereren correct;
+             2.19.0 is de nieuwste geverifieerd goede versie. Oorzaak niet vastgesteld: dit raakt
+             te veel beans om aan schema-deduplicatie van Scope/ScopeRequest/ScopeResponse te
+             wijten. Niet ophogen voorbij 2.19.0 zonder de gegenereerde server-stub-beans opnieuw
+             te controleren. -->
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
             <artifactId>quarkus-openapi-generator-server</artifactId>
-            <version>2.16.0-lts</version>
+            <version>2.19.0</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
@@ -222,7 +234,6 @@
         <dependency>
             <groupId>org.hibernate.validator</groupId>
             <artifactId>hibernate-validator</artifactId>
-            <version>9.1.0.Final</version>
         </dependency>
 
         <dependency>
@@ -242,7 +253,7 @@
         <dependency>
             <groupId>io.quarkiverse.wiremock</groupId>
             <artifactId>quarkus-wiremock</artifactId>
-            <version>1.6.1</version>
+            <version>1.6.3</version>
         </dependency>
 
         <!-- Contract testing -->
@@ -315,7 +326,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.14</version>
+                <version>0.8.15</version>
                 <configuration>
                     <excludes>
                         <exclude>nl/rijksoverheid/moz/external/**/*</exclude>
