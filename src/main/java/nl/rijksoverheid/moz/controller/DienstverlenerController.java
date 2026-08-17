@@ -64,11 +64,6 @@ public class DienstverlenerController {
     @RequireBody
     public Response addDienstverlener(
             @Valid DienstverlenerRequest dienstverlenerRequest) {
-        // Geen null-check op de body: @RequireBody laat RequireBodyReaderInterceptor die al
-        // afvangen vóórdat deze methode draait. ProfielController en EmailVerificatieController
-        // leunen daar als enige op, en hun *_BadRequest-tests zijn groen. Een tweede check hier
-        // is dus onbereikbaar; DienstverlenerControllerIntegrationTest asserteert op de
-        // problem-body zodat zichtbaar blijft wélk mechanisme antwoordt.
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
