@@ -12,11 +12,6 @@ info:
   license:
     name: EUPL-1.2
     url: https://joinup.ec.europa.eu/software/page/eupl
-servers:
-- url: https://api.mijnoverheidzakelijk.nl/profielservice
-  description: Productie
-- url: http://localhost:8080
-  description: Lokale ontwikkelomgeving
 tags:
 - name: Dienstverlener
   description: Endpoints voor het beheren van dienstverleners en diensten

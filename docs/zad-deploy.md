@@ -248,10 +248,9 @@ worden dan nooit gelezen.
 URL-patroon: `https://profielservice-pr-<n>-psd-law.rig.prd1.gn2.quattro.rijksapps.nl`
 → `/docs` (Swagger UI), `/openapi.json`, `/q/health/ready`.
 
-Het geserveerde `/openapi.json` is sinds #651 het statische contract uit
-`META-INF/openapi.yaml`, inclusief een `servers`-array met de productie-URL
-voorop. Swagger UI kiest die als doel, dus zet de serverkeuze op `/docs` om
-voordat je "Try it out" tegen een preview gebruikt.
+Het geserveerde `/openapi.json` bevat geen `servers`-array, dus Swagger UI valt
+terug op same-origin requests — "Try it out" op `/docs` werkt hierdoor direct
+tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 
 ## Valkuilen (al opgelost in de workflow)
 

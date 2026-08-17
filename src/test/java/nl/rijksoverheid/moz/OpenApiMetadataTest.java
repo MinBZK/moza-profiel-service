@@ -6,8 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Bewaakt de metadata van het contract dat op /openapi.json wordt gepubliceerd.
@@ -50,17 +49,18 @@ class OpenApiMetadataTest {
     }
 
     /**
-     * Het contract werd oorspronkelijk geëxporteerd uit een draaiende lokale instantie,
-     * die er 0.0.0.0-servers in zette. Zulke adressen horen niet in een gepubliceerd contract.
+     * Geen servers-array: clients en Swagger UI vallen dan terug op same-origin, zodat
+     * "Try it out" tegen de omgeving praat waar het document vandaan komt — nodig voor de
+     * ZAD-previews, zie docs/zad-deploy.md. Een geëxporteerd bind-adres als 0.0.0.0:8080
+     * hoort hier al helemaal niet in.
      */
     @Test
-    void contractAdverteertProductieServerEnGeenBindAdres() {
+    void contractAdverteertGeenServers() {
         given()
                 .accept(ContentType.JSON)
                 .when().get("/openapi.json?format=JSON")
                 .then()
                 .statusCode(200)
-                .body("servers.url", hasItem("https://api.mijnoverheidzakelijk.nl/profielservice"))
-                .body("servers.url", not(hasItem("http://0.0.0.0:8080")));
+                .body("servers", nullValue());
     }
 }
