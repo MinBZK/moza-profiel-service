@@ -43,7 +43,7 @@ public class PartijService {
 
     private static final String ACTIEF = "verwijderdOp IS NULL";
 
-    // Binnen deze drempel mag een leesactie (GET/POST) geen schrijfactie veroorzaken: anders zou
+    // Binnen deze drempel mag een leesactie (GET) geen schrijfactie veroorzaken: anders zou
     // elke aanroep lastUsedAt bijwerken. Zie touchIfStale.
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
@@ -60,12 +60,8 @@ public class PartijService {
         this.dienstverlenerService = dienstverlenerService;
     }
 
-    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean scopeAdded) {}
-
-    public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated) {}
-
     @Transactional
-    public AddContactgegevenResult addContactgegeven(
+    public Contactgegeven addContactgegeven(
             IdentificatieType eigenaarType,
             String eigenaarNummer,
             ContactgegevenRequest request) {
@@ -80,26 +76,8 @@ public class PartijService {
         Contactgegeven existing = Contactgegeven.find(partij, request.type, normalisedWaarde);
 
         if (existing != null) {
-            LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
-
-            if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
-                requestAndApplyVerificatieCode(existing);
-                LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
-            }
-
-            boolean scopeAdded = false;
-
-            if (link != null && !hasContactgegevenScopeFor(existing.getScopes(), link)) {
-                existing.addScope(new ScopeContactgegeven(existing, link));
-                scopeAdded = true;
-            }
-
-            // Ná alle mutaties hierboven: touchIfStale is een bulk-update die buiten de
-            // persistence context om schrijft. Vóór verdere mutaties aanroepen zou hem laten
-            // overschrijven door de flush van deze (dan alsnog dirty) entity bij commit.
-            touchIfStale(existing);
-
-            return new AddContactgegevenResult(existing, false, scopeAdded);
+            throw new BusinessException(Kind.CONFLICT,
+                    "Contactgegeven met dit type en deze waarde bestaat al voor deze partij");
         }
 
         Contactgegeven contactgegeven = new Contactgegeven();
@@ -119,11 +97,11 @@ public class PartijService {
 
         contactgegeven.persist();
 
-        return new AddContactgegevenResult(contactgegeven, true, false);
+        return contactgegeven;
     }
 
     @Transactional
-    public AddVoorkeurResult addVoorkeur(
+    public Voorkeur addVoorkeur(
             IdentificatieType eigenaarType,
             String eigenaarNummer,
             VoorkeurRequest request) {
@@ -132,23 +110,17 @@ public class PartijService {
         DienstverlenerDienst link = resolveDienstverlenerDienst(request.scope);
 
         // Voorkeur-invariant per 08-data.md: maximaal één ACTIEVE rij per (partij, voorkeurType, scope).
-        // POST is daarmee upsert: zelfde sleutel + nieuwe waarde overschrijft de actieve rij, geen
-        // tweede rij. Een rij met een eerdere soft delete op dezelfde sleutel blokkeert dit niet en
-        // wordt ook niet hersteld — er ontstaat een nieuwe actieve rij (de unique index is partieel,
+        // Een POST op een sleutel die al een actieve rij heeft, voegt niets toe en wordt afgewezen
+        // met een CONFLICT. Een rij met een eerdere soft delete op dezelfde sleutel blokkeert dit niet
+        // en wordt ook niet hersteld — er ontstaat een nieuwe actieve rij (de unique index is partieel,
         // WHERE verwijderd_op IS NULL). Let op: deze invariant wordt uitsluitend in applicatiecode
         // afgedwongen, er is geen unieke DB-index op (partij, voorkeurType, scope); twee gelijktijdige
-        // POSTs op dezelfde sleutel kunnen dus beide hier voorbij komen en twee actieve rijen invoegen.
+        // POSTs op dezelfde sleutel kunnen dus beide hier voorbij komen en beide een actieve rij invoegen.
         Voorkeur existing = Voorkeur.find(partij, request.voorkeurType, link);
 
         if (existing != null) {
-            if (!Objects.equals(existing.getWaarde(), request.waarde)) {
-                existing.setWaarde(request.waarde);
-            }
-
-            // Ná de mutatie hierboven: zie de toelichting bij touchIfStale in addContactgegeven.
-            touchIfStale(existing);
-
-            return new AddVoorkeurResult(existing, false);
+            throw new BusinessException(Kind.CONFLICT,
+                    "Voorkeur voor deze partij, scope en voorkeurType bestaat al");
         }
 
         Voorkeur voorkeur = new Voorkeur();
@@ -163,11 +135,7 @@ public class PartijService {
 
         voorkeur.persist();
 
-        return new AddVoorkeurResult(voorkeur, true);
-    }
-
-    private boolean hasContactgegevenScopeFor(List<ScopeContactgegeven> existing, DienstverlenerDienst link) {
-        return existing.stream().anyMatch(s -> Objects.equals(s.getDienstverlenerDienst().id, link.id));
+        return voorkeur;
     }
 
     private void requestAndApplyVerificatieCode(Contactgegeven contact) {
@@ -265,7 +233,7 @@ public class PartijService {
 
         contact.setType(request.type);
         contact.setWaarde(newWaarde);
-        replaceScopesContactgegeven(contact, resolveDienstverlenerDienst(request.scope));
+        addContactgegevenScopeIfMissing(contact, resolveDienstverlenerDienst(request.scope));
 
         // Email verification: re-issue only when the email value actually changes (or the type
         // changes into Email from something else). Re-verifying on every PUT would force a
@@ -340,12 +308,18 @@ public class PartijService {
         return true;
     }
 
-    private void replaceScopesContactgegeven(Contactgegeven owner, DienstverlenerDienst link) {
-        owner.clearScopes();
-
-        if (link != null) {
+    // In tegenstelling tot Voorkeur (waar scope onderdeel is van de identiteit, zie
+    // replaceScopesVoorkeur) kan een Contactgegeven meerdere scopes hebben. Een PUT vervangt de
+    // scopes daarom niet, maar voegt de meegestuurde scope toe als die er nog niet is — zo gaan
+    // eerder toegevoegde scopes niet verloren bij een volgende PUT.
+    private void addContactgegevenScopeIfMissing(Contactgegeven owner, DienstverlenerDienst link) {
+        if (link != null && !hasContactgegevenScopeFor(owner.getScopes(), link)) {
             owner.addScope(new ScopeContactgegeven(owner, link));
         }
+    }
+
+    private boolean hasContactgegevenScopeFor(List<ScopeContactgegeven> existing, DienstverlenerDienst link) {
+        return existing.stream().anyMatch(s -> Objects.equals(s.getDienstverlenerDienst().id, link.id));
     }
 
     private void replaceScopesVoorkeur(Voorkeur owner, DienstverlenerDienst link) {

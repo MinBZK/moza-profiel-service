@@ -42,6 +42,7 @@ import static nl.rijksoverheid.moz.common.IdentificatieType.KVK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
+import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CONFLICT;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.INTERNAL_SERVER_ERROR;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_FOUND;
@@ -74,11 +75,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         Dienstverlener.deleteAll();
     }
 
-    private void assertSecondPostReturns200(String path, Object body, String expectedWaarde) {
+    private void assertSecondPostReturnsConflict(String path, Object body) {
         given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then().statusCode(CREATED);
         given().filter(validationFilter).contentType(ContentType.JSON).body(body).post(path).then()
-                .statusCode(OK)
-                .body("waarde", equalTo(expectedWaarde));
+                .statusCode(CONFLICT)
+                .contentType("application/problem+json")
+                .body("title", equalTo("Conflict"));
     }
 
     @Test
@@ -348,14 +350,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void addContactgegeven_Duplicate_Returns200() {
+    void addContactgegeven_Duplicate_Returns409() {
         var body = new ContactgegevenRequest();
         body.identificatieType = BSN;
         body.identificatieNummer = "123456789";
         body.type = ContactType.Email;
         body.waarde = "dup@example.com";
 
-        assertSecondPostReturns200("/api/profielservice/v1/contactgegeven", body, "dup@example.com");
+        assertSecondPostReturnsConflict("/api/profielservice/v1/contactgegeven", body);
     }
 
     @Test
@@ -504,14 +506,14 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void addVoorkeur_Duplicate_Returns200() {
+    void addVoorkeur_Duplicate_Returns409() {
         var body = new VoorkeurRequest();
         body.identificatieType = BSN;
         body.identificatieNummer = "123456789";
         body.voorkeurType = VoorkeurType.WebsiteTaal;
         body.waarde = "nl";
 
-        assertSecondPostReturns200("/api/profielservice/v1/voorkeur", body, "nl");
+        assertSecondPostReturnsConflict("/api/profielservice/v1/voorkeur", body);
     }
 
     @Test

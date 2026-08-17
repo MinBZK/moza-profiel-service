@@ -199,39 +199,6 @@ public class PartijServiceTest {
         });
     }
 
-    /** Zie addContactgegeven_Duplicate_UnverifiedEmail_TouchOverleeftLatereMutatie voor de reden. */
-    @Test
-    void addVoorkeur_Existing_TouchOverleeftWaardeMutatie() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        Instant ouder = Instant.now().minus(Duration.ofHours(48));
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Voorkeur voorkeur = new Voorkeur();
-            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            voorkeur.setWaarde("nl");
-            voorkeur.setPartij(partij);
-            voorkeur.setLastUsedAt(ouder);
-            voorkeur.persist();
-            voorkeurId.set(voorkeur.id);
-        });
-
-        Instant voorAanroep = Instant.now();
-        VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "en";
-        partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
-            Assertions.assertEquals("en", voorkeur.getWaarde());
-            Assertions.assertFalse(voorkeur.getLastUsedAt().isBefore(voorAanroep),
-                    "lastUsedAt moet de touch weerspiegelen, niet de oude waarde van vóór de aanroep");
-        });
-    }
-
     @Test
     void updateContactgegeven_Success() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
@@ -371,38 +338,7 @@ public class PartijServiceTest {
     }
 
     @Test
-    void addContactgegeven_Duplicate_NewScope_AddsScopeToExisting() {
-        createTestDienstverlenerWithDienst();
-
-        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
-
-        ContactgegevenRequest unscoped = new ContactgegevenRequest();
-        unscoped.type = ContactType.Email;
-        unscoped.waarde = "scope@test.com";
-        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", unscoped);
-
-        ContactgegevenRequest scoped = new ContactgegevenRequest();
-        scoped.type = ContactType.Email;
-        scoped.waarde = "scope@test.com";
-        scoped.scope = new ScopeRequest();
-        scoped.scope.dienstverlenerNaam = "TestDV";
-        scoped.scope.dienstNaam = "TestDienst";
-
-        PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
-
-        Assertions.assertFalse(result.wasCreated(), "no new contactgegeven row was created");
-        Assertions.assertTrue(result.scopeAdded(), "a new scope was attached to the existing row");
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
-            Contactgegeven cg = partij.getContactgegevens().get(0);
-            Assertions.assertEquals(1, cg.getScopes().size());
-        });
-    }
-
-    @Test
-    void addContactgegeven_Duplicate_MatchingScope_ReturnsExisting() {
+    void addContactgegeven_Duplicate_ThrowsConflict() {
         createTestDienstverlenerWithDienst();
 
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
@@ -414,13 +350,13 @@ public class PartijServiceTest {
         scoped.scope.dienstverlenerNaam = "TestDV";
         scoped.scope.dienstNaam = "TestDienst";
 
-        PartijService.AddContactgegevenResult first =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
-        PartijService.AddContactgegevenResult second =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
+        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
 
-        Assertions.assertTrue(first.wasCreated());
-        Assertions.assertFalse(second.wasCreated());
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
+        Mockito.verify(emailVerificatieService, Mockito.times(1)).requestEmailVerificationCode(Mockito.anyString());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
@@ -430,110 +366,72 @@ public class PartijServiceTest {
     }
 
     @Test
-    void addContactgegeven_Duplicate_UnverifiedEmail_ResendsVerificationCode() {
-        Mockito.doReturn("first-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+    void addContactgegeven_Duplicate_DifferentScope_ThrowsConflictAndLeavesExistingScopeUnchanged() {
+        createTestDienstverlenerWithDienst();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("OtherDV");
+            dv.persist();
+            Dienst d = new Dienst();
+            d.setNaam("OtherDienst");
+            d.persist();
+            new DienstverlenerDienst(dv, d).persist();
+        });
 
-        ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "unverified@test.com";
+        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
-        PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-        Assertions.assertTrue(first.wasCreated());
+        ContactgegevenRequest first = new ContactgegevenRequest();
+        first.type = ContactType.Email;
+        first.waarde = "differentscope@test.com";
+        first.scope = new ScopeRequest();
+        first.scope.dienstverlenerNaam = "TestDV";
+        first.scope.dienstNaam = "TestDienst";
+        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", first);
 
-        Mockito.doReturn("second-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+        // Zelfde (type, waarde), maar een andere scope: Contactgegeven.find() negeert scope volledig,
+        // dus dit moet ook een conflict opleveren en de bestaande scope niet aanvullen.
+        ContactgegevenRequest duplicateWithOtherScope = new ContactgegevenRequest();
+        duplicateWithOtherScope.type = ContactType.Email;
+        duplicateWithOtherScope.waarde = "differentscope@test.com";
+        duplicateWithOtherScope.scope = new ScopeRequest();
+        duplicateWithOtherScope.scope.dienstverlenerNaam = "OtherDV";
+        duplicateWithOtherScope.scope.dienstNaam = "OtherDienst";
 
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-        Assertions.assertFalse(second.wasCreated());
-        Mockito.verify(emailVerificatieService, Mockito.times(2)).requestEmailVerificationCode("unverified@test.com");
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", duplicateWithOtherScope));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().get(0);
-            Assertions.assertEquals("second-ref", contact.getVerificatieReferentieId());
-            Assertions.assertNull(contact.getGeverifieerdAt());
-            Assertions.assertFalse(contact.isIsGeverifieerd());
-        });
-    }
-
-    /**
-     * touchIfStale is een bulk update die buiten de persistence context om schrijft; als de
-     * entity ná die aanroep nog verder gemuteerd wordt (hier: requestAndApplyVerificatieCode),
-     * overschrijft de flush van die entity bij commit de touch weer met de oude, in-memory
-     * lastUsedAt. Deze test legt vast dat de touch de mutatie moet overleven.
-     */
-    @Test
-    void addContactgegeven_Duplicate_UnverifiedEmail_TouchOverleeftLatereMutatie() {
-        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
-
-        AtomicReference<UUID> contactId = new AtomicReference<>();
-        Instant ouder = Instant.now().minus(Duration.ofHours(48));
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.persist();
-
-            Contactgegeven contact = new Contactgegeven();
-            contact.setType(ContactType.Email);
-            contact.setWaarde("stale-unverified@test.com");
-            contact.setPartij(partij);
-            contact.setLastUsedAt(ouder);
-            contact.persist();
-            contactId.set(contact.id);
-        });
-
-        Instant voorAanroep = Instant.now();
-        ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "stale-unverified@test.com";
-        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Instant lastUsedAt = Contactgegeven.<Contactgegeven>findById(contactId.get()).getLastUsedAt();
-            Assertions.assertFalse(lastUsedAt.isBefore(voorAanroep),
-                    "lastUsedAt moet de touch weerspiegelen, niet de oude waarde van vóór de aanroep");
+            Assertions.assertEquals(1, partij.getContactgegevens().size());
+            Contactgegeven cg = partij.getContactgegevens().get(0);
+            Assertions.assertEquals(1, cg.getScopes().size(), "de scope van OtherDV mag niet toegevoegd worden bij een conflict");
+            Assertions.assertEquals("TestDV", cg.getScopes().get(0).getDienstverlenerDienst().getDienstverlener().getNaam());
         });
     }
 
     @Test
-    void addContactgegeven_Duplicate_VerifiedEmail_DoesNotResendCode() {
-        Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
-
-        ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "verified@test.com";
-
-        partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().get(0);
-            contact.setGeverifieerdAt(java.time.Instant.now());
-            contact.setIsGeverifieerd(true);
-        });
-
-        PartijService.AddContactgegevenResult second = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
-        Assertions.assertFalse(second.wasCreated());
-        Mockito.verify(emailVerificatieService, Mockito.times(1)).requestEmailVerificationCode(Mockito.anyString());
-    }
-
-    @Test
-    void addVoorkeur_Duplicate_NoScope_ReturnsExisting() {
+    void addVoorkeur_Duplicate_ThrowsConflict() {
         VoorkeurRequest request = new VoorkeurRequest();
         request.voorkeurType = VoorkeurType.WebsiteTaal;
         request.waarde = "nl";
 
-        PartijService.AddVoorkeurResult first =
-                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
-        PartijService.AddVoorkeurResult second =
-                partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertTrue(first.wasCreated());
-        Assertions.assertFalse(second.wasCreated());
-        Assertions.assertEquals(first.voorkeur().id, second.voorkeur().id);
+        VoorkeurRequest duplicate = new VoorkeurRequest();
+        duplicate.voorkeurType = VoorkeurType.WebsiteTaal;
+        duplicate.waarde = "de";
+
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", duplicate));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Assertions.assertEquals(1, partij.getVoorkeuren().size());
+            Assertions.assertEquals("nl", partij.getVoorkeuren().get(0).getWaarde());
         });
     }
 
@@ -967,13 +865,15 @@ public class PartijServiceTest {
         first.waarde = "User@Test.COM";
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", first);
 
-        // A second POST with different case should be treated as duplicate (no new row).
+        // A second POST with different case should be treated as duplicate and rejected.
         ContactgegevenRequest second = new ContactgegevenRequest();
         second.type = ContactType.Email;
         second.waarde = "USER@TEST.COM";
-        PartijService.AddContactgegevenResult result =
-                partijService.addContactgegeven(IdentificatieType.BSN, "123456789", second);
-        Assertions.assertFalse(result.wasCreated());
+
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", second));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
@@ -1208,12 +1108,11 @@ public class PartijServiceTest {
         request.type = ContactType.Telefoonnummer;
         request.waarde = "0612345678";
 
-        PartijService.AddContactgegevenResult result =
+        Contactgegeven result =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertTrue(result.wasCreated(), "een rij met een soft delete mag niet hersteld worden, er moet een nieuwe komen");
-        Assertions.assertNotEquals(verwijderdId.get(), result.contactgegeven().id);
-        Assertions.assertNull(result.contactgegeven().getVerwijderdOp());
+        Assertions.assertNotEquals(verwijderdId.get(), result.id, "een rij met een soft delete mag niet hersteld worden, er moet een nieuwe komen");
+        Assertions.assertNull(result.getVerwijderdOp());
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(verwijderdOp.get(), Contactgegeven.<Contactgegeven>findById(verwijderdId.get()).getVerwijderdOp(),
                         "de oude rij met de soft delete moet ongemoeid blijven"));
@@ -1235,13 +1134,13 @@ public class PartijServiceTest {
         request.type = ContactType.Telefoonnummer;
         request.waarde = "0612345678";
 
-        UUID eersteId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).contactgegeven().id;
+        UUID eersteId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).id;
         partijService.verwijderContactgegeven(eersteId);
 
-        UUID tweedeId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).contactgegeven().id;
+        UUID tweedeId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).id;
         partijService.verwijderContactgegeven(tweedeId);
 
-        UUID derdeId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).contactgegeven().id;
+        UUID derdeId = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request).id;
 
         Assertions.assertNotEquals(eersteId, tweedeId);
         Assertions.assertNotEquals(tweedeId, derdeId);
@@ -1281,11 +1180,10 @@ public class PartijServiceTest {
         request.type = ContactType.Email;
         request.waarde = "test@example.com";
 
-        PartijService.AddContactgegevenResult result =
+        Contactgegeven result =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertTrue(result.wasCreated());
-        Assertions.assertFalse(result.contactgegeven().isIsGeverifieerd(),
+        Assertions.assertFalse(result.isIsGeverifieerd(),
                 "een nieuwe rij moet opnieuw geverifieerd worden, ongeacht de verificatiestatus van de oude");
         Mockito.verify(emailVerificatieService).requestEmailVerificationCode("test@example.com");
     }
@@ -1313,11 +1211,10 @@ public class PartijServiceTest {
         request.voorkeurType = VoorkeurType.WebsiteTaal;
         request.waarde = "nl";
 
-        PartijService.AddVoorkeurResult result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
+        Voorkeur result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
-        Assertions.assertTrue(result.wasCreated(), "een rij met een soft delete mag niet hersteld worden, er moet een nieuwe komen");
-        Assertions.assertNotEquals(verwijderdId.get(), result.voorkeur().id);
-        Assertions.assertNull(result.voorkeur().getVerwijderdOp());
+        Assertions.assertNotEquals(verwijderdId.get(), result.id, "een rij met een soft delete mag niet hersteld worden, er moet een nieuwe komen");
+        Assertions.assertNull(result.getVerwijderdOp());
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(verwijderdOp.get(), Voorkeur.<Voorkeur>findById(verwijderdId.get()).getVerwijderdOp(),
                         "de oude rij met de soft delete moet ongemoeid blijven"));
@@ -1385,7 +1282,7 @@ public class PartijServiceTest {
     void updateVoorkeurThenAddVoorkeur_DoesNotCreateDuplicateActiveVoorkeur() {
         // updateVoorkeur correctly ignores a soft-deleted collision, so the soft-deleted row and
         // the newly-updated row can end up sharing a key. A later addVoorkeur on that same key
-        // must then update the already-active row (upsert), never insert a second active row.
+        // must be rejected as a conflict, never insert a second active row.
         AtomicReference<UUID> targetId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -1415,13 +1312,17 @@ public class PartijServiceTest {
         VoorkeurRequest addRequest = new VoorkeurRequest();
         addRequest.voorkeurType = VoorkeurType.WebsiteTaal;
         addRequest.waarde = "de";
-        partijService.addVoorkeur(IdentificatieType.BSN, "123456789", addRequest);
+
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> partijService.addVoorkeur(IdentificatieType.BSN, "123456789", addRequest));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
         QuarkusTransaction.requiringNew().run(() -> {
-            long activeCount = Voorkeur.count(
-                    "voorkeurType = ?1 AND verwijderdOp IS NULL", VoorkeurType.WebsiteTaal);
-            Assertions.assertEquals(1, activeCount,
+            List<Voorkeur> actief = Voorkeur.list("voorkeurType = ?1 AND verwijderdOp IS NULL", VoorkeurType.WebsiteTaal);
+            Assertions.assertEquals(1, actief.size(),
                     "must never end up with two active voorkeuren on the same (partij, type, scope) key");
+            Assertions.assertEquals("nl", actief.get(0).getWaarde(), "de bestaande actieve rij mag niet overschreven worden");
         });
     }
 

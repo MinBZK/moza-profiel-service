@@ -40,8 +40,6 @@ import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import nl.rijksoverheid.moz.services.PartijService;
-import nl.rijksoverheid.moz.services.PartijService.AddContactgegevenResult;
-import nl.rijksoverheid.moz.services.PartijService.AddVoorkeurResult;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -214,11 +212,9 @@ public class ProfielController {
     /**
      * Voegt een nieuwe contactgegeven toe voor een partij.
      * <p>
-     * Bestond er al een contactgegeven met exact hetzelfde (partij, type, waarde), dan wordt de
-     * meegestuurde request body niet toegepast: de bestaande rij wordt ongewijzigd teruggegeven
-     * (met hooguit neveneffecten — een nieuwe verificatiecode bij een nog niet geverifieerd
-     * e-mailadres, een toegevoegde scope, of een lastUsedAt-touch). De 200 (in plaats van 201)
-     * response is het signaal daarvoor.
+     * Bestaat er al een contactgegeven met exact hetzelfde (partij, type, waarde), dan wordt er
+     * niets toegevoegd of gewijzigd en resulteert dit in een 409 Conflict. Gebruik PUT om een
+     * bestaand contactgegeven te wijzigen of er een scope aan toe te voegen.
      *
      * @param request Request body met contactgegevens en partij identificatie
      * @return Response 201 Created met Location header naar de aangemaakte resource
@@ -238,15 +234,14 @@ public class ProfielController {
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ContactgegevenResponse.class))
             ),
             @APIResponse(
-                    responseCode = "200",
-                    description = "Contactgegeven met dit type en deze waarde was al geregistreerd voor deze "
-                            + "partij en scope. De request body is niet toegepast; de bestaande, ongewijzigde "
-                            + "contactgegeven wordt teruggegeven. Gebruik PUT om een bestaand contactgegeven te wijzigen.",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ContactgegevenResponse.class))
-            ),
-            @APIResponse(
                     responseCode = "400",
                     description = ApiResponseDescriptions.BAD_REQUEST_BODY
+            ),
+            @APIResponse(
+                    responseCode = "409",
+                    description = "Contactgegeven met dit type en deze waarde bestaat al voor deze partij. "
+                            + "Gebruik PUT om het bestaande contactgegeven te wijzigen.",
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
@@ -255,26 +250,23 @@ public class ProfielController {
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        AddContactgegevenResult result = partijService.addContactgegeven(request.identificatieType, request.identificatieNummer, request);
-        ContactgegevenResponse body = partijMapper.mapContactgegeven(result.contactgegeven());
+        Contactgegeven contactgegeven = partijService.addContactgegeven(request.identificatieType, request.identificatieNummer, request);
+        ContactgegevenResponse body = partijMapper.mapContactgegeven(contactgegeven);
 
         URI uri = UriBuilder.fromResource(ProfielController.class)
                 .path("contactgegeven").path("{id}")
-                .build(result.contactgegeven().id);
+                .build(contactgegeven.id);
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Contactgegeven toegevoegd");
 
-        if (result.wasCreated()) {
-            LOG.info("Contactgegeven toegevoegd");
-            return Response.created(uri).entity(body).build();
-        }
-
-        return Response.ok(body).location(uri).build();
+        return Response.created(uri).entity(body).build();
     }
 
     /**
      * Update een bestaand contactgegeven van een partij.
      * IdentificatieType en Nummer kunnen niet gewijzigd worden.
-     * Alleen type, waarde en scope kunnen worden geüpdatet.
+     * Type en waarde worden overschreven; een meegestuurde scope wordt toegevoegd aan de bestaande
+     * scopes van het contactgegeven (niet vervangen).
      */
     @PUT
     @Path("/contactgegeven/{id}")
@@ -282,7 +274,8 @@ public class ProfielController {
     @RequireBody
     @Operation(
             summary = "Update contactgegeven van een partij",
-            description = "Werk type, waarde en scope van een contactgegeven bij. Identificatie kan niet aangepast worden."
+            description = "Werk type en waarde van een contactgegeven bij en voeg optioneel een scope toe. "
+                    + "Bestaande scopes blijven behouden. Identificatie kan niet aangepast worden."
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol bijgewerkt"),
@@ -313,10 +306,9 @@ public class ProfielController {
     /**
      * Voegt een nieuwe voorkeur toe voor een partij.
      * <p>
-     * Bestond er al een actieve voorkeur voor dezelfde (partij, voorkeurType, scope), dan wordt
-     * geen tweede rij aangemaakt: de waarde van de bestaande voorkeur wordt overschreven met de
-     * meegestuurde waarde (upsert). De 200 (in plaats van 201) response is het signaal dat het om
-     * een update van een bestaande rij ging, niet om een nieuwe.
+     * Bestaat er al een actieve voorkeur voor dezelfde (partij, voorkeurType, scope), dan wordt er
+     * niets toegevoegd of gewijzigd en resulteert dit in een 409 Conflict. Gebruik PUT om een
+     * bestaande voorkeur te wijzigen.
      *
      * @param request Request body met voorkeur gegevens en partij identificatie
      * @return Response 201 Created met Location header naar de aangemaakte resource
@@ -336,15 +328,14 @@ public class ProfielController {
                     content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = VoorkeurResponse.class))
             ),
             @APIResponse(
-                    responseCode = "200",
-                    description = "Voorkeur voor deze partij, scope en voorkeurType bestond al; de waarde is "
-                            + "overschreven met de meegestuurde waarde (upsert) in plaats van een nieuwe voorkeur "
-                            + "aan te maken.",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = VoorkeurResponse.class))
-            ),
-            @APIResponse(
                     responseCode = "400",
                     description = ApiResponseDescriptions.BAD_REQUEST_BODY
+            ),
+            @APIResponse(
+                    responseCode = "409",
+                    description = "Voorkeur voor deze partij, scope en voorkeurType bestaat al. Gebruik PUT om "
+                            + "de bestaande voorkeur te wijzigen.",
+                    content = @Content(mediaType = MediaTypes.PROBLEM_JSON, schema = @Schema(implementation = HttpProblem.class))
             )
     })
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
@@ -353,22 +344,16 @@ public class ProfielController {
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.identificatieNummer));
         logboekContext.setDataSubjectType(String.valueOf(request.identificatieType));
 
-        AddVoorkeurResult result = partijService.addVoorkeur(request.identificatieType, request.identificatieNummer, request);
-        VoorkeurResponse body = partijMapper.mapVoorkeur(result.voorkeur());
+        Voorkeur voorkeur = partijService.addVoorkeur(request.identificatieType, request.identificatieNummer, request);
+        VoorkeurResponse body = partijMapper.mapVoorkeur(voorkeur);
 
         logboekContext.setStatus(StatusCode.OK);
         URI uri = UriBuilder.fromResource(ProfielController.class)
                 .path("voorkeur").path("{id}")
-                .build(result.voorkeur().id);
+                .build(voorkeur.id);
+        LOG.info("Voorkeur toegevoegd");
 
-        if (result.wasCreated()) {
-            LOG.info("Voorkeur toegevoegd");
-            return Response.created(uri).entity(body).build();
-        }
-
-        LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
-
-        return Response.ok(body).location(uri).build();
+        return Response.created(uri).entity(body).build();
     }
 
     /**

@@ -505,14 +505,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ContactgegevenResponse"
-        "200":
-          description: Contactgegeven was al geregistreerd voor deze partij en scope
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ContactgegevenResponse"
         "400":
           description: Request body ontbreekt of is ongeldig
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "409":
+          description: Contactgegeven met dit type en deze waarde bestaat al voor deze partij
           content:
             application/problem+json:
               schema:
@@ -924,14 +924,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VoorkeurResponse"
-        "200":
-          description: Voorkeur was al geregistreerd voor deze partij en scope
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/VoorkeurResponse"
         "400":
           description: Request body ontbreekt of is ongeldig
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "409":
+          description: Voorkeur voor deze partij, scope en voorkeurType bestaat al
           content:
             application/problem+json:
               schema:

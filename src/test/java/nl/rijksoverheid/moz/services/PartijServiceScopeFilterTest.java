@@ -10,6 +10,7 @@ import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
+import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.dto.request.PartijRequest;
 import nl.rijksoverheid.moz.dto.request.ScopeRequest;
 import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
@@ -390,7 +391,7 @@ class PartijServiceScopeFilterTest {
 
         var result = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request);
 
-        UUID id = result.contactgegeven().id;
+        UUID id = result.id;
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertTrue(Contactgegeven.<Contactgegeven>findById(id).getScopes().isEmpty()));
     }
@@ -428,7 +429,7 @@ class PartijServiceScopeFilterTest {
 
         var result = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request);
 
-        UUID id = result.contactgegeven().id;
+        UUID id = result.id;
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven cg = Contactgegeven.findById(id);
             Assertions.assertEquals(1, cg.getScopes().size());
@@ -454,6 +455,77 @@ class PartijServiceScopeFilterTest {
     }
 
     @Test
+    void updateContactgegevenMetNieuweScope_VoegtScopeToeZonderBestaandeTeVerliezen() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            maakLink("DV-A", "Dienst-A");
+            maakLink("DV-B", "Dienst-B");
+        });
+
+        ContactgegevenRequest create = new ContactgegevenRequest();
+        create.identificatieType = IdentificatieType.BSN;
+        create.identificatieNummer = BSN_NUMMER;
+        create.type = ContactType.Telefoonnummer;
+        create.waarde = "0612345678";
+        create.scope = new ScopeRequest();
+        create.scope.dienstverlenerNaam = "DV-A";
+        create.scope.dienstNaam = "Dienst-A";
+
+        Contactgegeven created = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, create);
+
+        ContactgegevenUpdateRequest update = new ContactgegevenUpdateRequest();
+        update.identificatieType = IdentificatieType.BSN;
+        update.identificatieNummer = BSN_NUMMER;
+        update.type = ContactType.Telefoonnummer;
+        update.waarde = "0612345678";
+        update.scope = new ScopeRequest();
+        update.scope.dienstverlenerNaam = "DV-B";
+        update.scope.dienstNaam = "Dienst-B";
+
+        boolean updated = partijService.updateContactgegeven(IdentificatieType.BSN, BSN_NUMMER, created.id, update);
+        Assertions.assertTrue(updated);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven cg = Contactgegeven.findById(created.id);
+            Assertions.assertEquals(2, cg.getScopes().size(), "de PUT moet de nieuwe scope toevoegen, niet de bestaande vervangen");
+            List<String> dvNamen = cg.getScopes().stream()
+                    .map(s -> s.getDienstverlenerDienst().getDienstverlener().getNaam())
+                    .toList();
+            Assertions.assertTrue(dvNamen.containsAll(List.of("DV-A", "DV-B")));
+        });
+    }
+
+    @Test
+    void updateContactgegevenMetZelfdeScope_VoegtGeenDubbeleScopeToe() {
+        QuarkusTransaction.requiringNew().run(() -> maakLink("DV-A", "Dienst-A"));
+
+        ContactgegevenRequest create = new ContactgegevenRequest();
+        create.identificatieType = IdentificatieType.BSN;
+        create.identificatieNummer = BSN_NUMMER;
+        create.type = ContactType.Telefoonnummer;
+        create.waarde = "0612345678";
+        create.scope = new ScopeRequest();
+        create.scope.dienstverlenerNaam = "DV-A";
+        create.scope.dienstNaam = "Dienst-A";
+
+        Contactgegeven created = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, create);
+
+        ContactgegevenUpdateRequest update = new ContactgegevenUpdateRequest();
+        update.identificatieType = IdentificatieType.BSN;
+        update.identificatieNummer = BSN_NUMMER;
+        update.type = ContactType.Telefoonnummer;
+        update.waarde = "0612345678";
+        update.scope = new ScopeRequest();
+        update.scope.dienstverlenerNaam = "DV-A";
+        update.scope.dienstNaam = "Dienst-A";
+
+        partijService.updateContactgegeven(IdentificatieType.BSN, BSN_NUMMER, created.id, update);
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(1, Contactgegeven.<Contactgegeven>findById(created.id).getScopes().size(),
+                        "dezelfde scope opnieuw meesturen mag geen duplicaat scope-record opleveren"));
+    }
+
+    @Test
     void gescopteVoorkeurenVanTweeDienstverleners_BlijvenAparteRijen() {
         // De upsert-invariant is (partij, voorkeurType, scope). Twee dienstverleners met
         // dezelfde voorkeurType mogen elkaars waarde dus niet overschrijven.
@@ -470,15 +542,13 @@ class PartijServiceScopeFilterTest {
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(2, Voorkeur.count(), "Elke scope houdt een eigen rij"));
 
-        // Zelfde scope opnieuw: upsert, geen derde rij.
-        var upsert = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
-                voorkeurRequest(VoorkeurType.WebsiteTaal, "fy", "DV-A", "Dienst-A"));
+        // Zelfde scope opnieuw: conflict, geen derde rij en de bestaande rij blijft ongewijzigd.
+        BusinessException ex = Assertions.assertThrows(BusinessException.class,
+                () -> partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                        voorkeurRequest(VoorkeurType.WebsiteTaal, "fy", "DV-A", "Dienst-A")));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
-        Assertions.assertFalse(upsert.wasCreated());
-        QuarkusTransaction.requiringNew().run(() -> {
-            Assertions.assertEquals(2, Voorkeur.count());
-            Assertions.assertEquals("fy", Voorkeur.<Voorkeur>findById(upsert.voorkeur().id).getWaarde());
-        });
+        QuarkusTransaction.requiringNew().run(() -> Assertions.assertEquals(2, Voorkeur.count()));
     }
 
     @Test
@@ -504,7 +574,7 @@ class PartijServiceScopeFilterTest {
         update.scope.dienstNaam = "Dienst-B";
 
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
-                () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, eerste.voorkeur().id, update));
+                () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, eerste.id, update));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
     }
 
