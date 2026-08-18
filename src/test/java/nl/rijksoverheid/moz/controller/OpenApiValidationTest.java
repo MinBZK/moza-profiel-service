@@ -4,7 +4,11 @@ import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
+import io.restassured.config.ObjectMapperConfig;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -39,6 +43,14 @@ abstract class OpenApiValidationTest {
 
     @BeforeEach
     void setupValidationFilter() throws Exception {
+        // RestAssured serialiseert met een eigen ObjectMapper, die Instant zonder deze
+        // instelling als epoch-getal wegschrijft in plaats van als ISO-8601 string. Staat
+        // vóór de early return: Quarkus zet de RestAssured-config per testklasse terug.
+        RestAssured.config = RestAssured.config().objectMapperConfig(
+                new ObjectMapperConfig().jackson2ObjectMapperFactory((type, charset) -> new ObjectMapper()
+                        .registerModule(new JavaTimeModule())
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)));
+
         if (validationFilter != null) return;
         String openApiPath = ConfigProvider.getConfig()
                 .getOptionalValue("quarkus.smallrye-openapi.path", String.class)

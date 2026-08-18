@@ -621,7 +621,7 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
     ContactgegevenResponse:
       description: "Contactgegeven van een partij. teVerwijderenOp is null zolang er geen verwijderdatum is gezet."
       # De velden die de server altijd meestuurt staan als required, zodat een consumer niet
@@ -659,7 +659,7 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         scopes:
           type: array
           items:
@@ -687,7 +687,7 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         id:
           $ref: "#/components/schemas/UUID"
         isDefault:
@@ -804,7 +804,7 @@ components:
       properties:
         type:
           type: string
-          format: uri
+          format: uri-reference
           description: A optional URI reference that identifies the problem type
           examples:
           - https://example.com/errors/not-found
@@ -827,7 +827,7 @@ components:
           - Record not found
         instance:
           type: string
-          format: uri
+          format: uri-reference
           description: A URI reference that identifies the specific occurrence of
             the problem
           examples:
@@ -839,7 +839,7 @@ components:
       properties:
         type:
           type: string
-          format: uri
+          format: uri-reference
           description: A optional URI reference that identifies the problem type
           examples:
           - https://example.com/errors/not-found
@@ -862,7 +862,7 @@ components:
           - Record not found
         instance:
           type: string
-          format: uri
+          format: uri-reference
           description: A URI reference that identifies the specific occurrence of
             the problem
           examples:
@@ -891,6 +891,15 @@ components:
       - RSIN
     Instant:
       type: string
+      format: date-time
+      examples:
+      - 2022-03-10T16:15:50Z
+    NullableInstant:
+      # Zelfde tijdstip als Instant, maar de null-tak staat in het type in plaats van
+      # alleen in een description. Een aparte schema-naam en niet Instant zelf nullbaar
+      # maken: createdAt en lastUpdated zijn altijd gevuld en blijven zo streng.
+      description: "Tijdstip dat ook expliciet null mag zijn."
+      type: [string, "null"]
       format: date-time
       examples:
       - 2022-03-10T16:15:50Z
@@ -971,7 +980,10 @@ components:
       description: "Beperkt een contactgegeven of voorkeur tot een dienstverlener,\
         \ eventueel tot een dienst daarbinnen. Een leeg object betekent geen scope.\
         \ Een dienstNaam zonder dienstverlenerNaam levert een 400."
-      type: object
+      # De null-tak hoort hier en niet in een anyOf bij het veld: anyOf met een null-tak
+      # maakt de $ref-tak onbereikbaar, waardoor pattern en type van dit schema niet meer
+      # gecontroleerd worden.
+      type: [object, "null"]
       properties:
         dienstverlenerNaam:
           type: [string, "null"]
@@ -1068,7 +1080,7 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
     VoorkeurResponse:
       description: "Voorkeur van een partij. teVerwijderenOp is null zolang er geen verwijderdatum is gezet."
       # Zie ContactgegevenResponse voor waarom required hier staat.
@@ -1092,7 +1104,7 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         scopes:
           type: array
           items:
@@ -1128,6 +1140,6 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         id:
           $ref: "#/components/schemas/UUID"

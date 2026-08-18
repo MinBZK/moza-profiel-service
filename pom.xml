@@ -228,7 +228,7 @@
         <dependency>
             <groupId>com.atlassian.oai</groupId>
             <artifactId>swagger-request-validator-restassured</artifactId>
-            <version>2.44.1</version>
+            <version>3.0.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -308,7 +308,7 @@
                                  quarkiverse-varianten zijn intern aan de
                                  ConstraintViolationExceptionMapper. -->
                             <schemaMappings>
-                                Instant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType,HttpProblem=io.quarkiverse.httpproblem.HttpProblem
+                                Instant=java.time.Instant,NullableInstant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType,HttpProblem=io.quarkiverse.httpproblem.HttpProblem
                             </schemaMappings>
                         </configuration>
                     </execution>
