@@ -53,9 +53,11 @@ Productie-configuratie staat in de deployment-repo.
 het Logboek Dataverwerkingen met een keyed HMAC-SHA-256. De sleutel komt uit
 `hash.pepper`; zonder die sleutel is een hash over een BSN triviaal terug te rekenen.
 
-`application.properties` bevat een dev/test-placeholder. Elke deployomgeving zet een
-eigen geheime waarde (via het secret, of `HASH_PEPPER` als env var op ZAD): de
-`%prod`/`%acc`-override is leeg, dus zonder waarde start de applicatie niet op.
+`application.properties` bevat een dev/test-placeholder. Prod en acc krijgen een eigen
+geheime waarde uit het secret; de lege `%prod`/`%acc`-override staat in de
+deployment-repo, dus daar start de applicatie niet op zonder waarde. Deze repo zet die
+override niet, dus een ZAD-preview zonder `HASH_PEPPER` valt terug op de placeholder
+hierboven in plaats van te falen. Zie `docs/zad-deploy.md`.
 
 Het pseudoniem is stabiel zolang de pepper gelijk blijft. Bij het roteren van de pepper
 krijgen alle subjecten een nieuw pseudoniem en correleren oude logboekregels niet meer
