@@ -2,13 +2,13 @@ package nl.rijksoverheid.moz.fuzzing;
 
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import nl.rijksoverheid.moz.dto.request.DienstRequest;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
-import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstRequest;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
 
 /**
  * Standalone fuzz target for ClusterFuzzLite.

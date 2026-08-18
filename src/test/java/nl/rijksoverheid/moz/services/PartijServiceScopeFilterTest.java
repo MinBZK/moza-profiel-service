@@ -9,12 +9,12 @@ import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
-import nl.rijksoverheid.moz.dto.request.PartijRequest;
-import nl.rijksoverheid.moz.dto.request.ScopeRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.dto.response.PartijResponse;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
+import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -152,16 +152,16 @@ class PartijServiceScopeFilterTest {
 
     private PartijRequest partijRequest(String dienstverlener, String dienstNaam) {
         PartijRequest request = new PartijRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = BSN_NUMMER;
-        request.dienstverlener = dienstverlener;
-        request.dienstNaam = dienstNaam;
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(BSN_NUMMER);
+        request.setDienstverlener(dienstverlener);
+        request.setDienstNaam(dienstNaam);
 
         return request;
     }
 
     private List<String> contactWaardes(PartijResponse response) {
-        return response.contactgegevens.stream().map(c -> c.waarde).sorted().toList();
+        return response.getContactgegevens().stream().map(c -> c.getWaarde()).sorted().toList();
     }
 
     @Test
@@ -174,8 +174,8 @@ class PartijServiceScopeFilterTest {
         // De ongescopte rij is de standaard voor alle dienstverleners en hoort er dus bij;
         // de rij van DV-B mag DV-A nooit te zien krijgen.
         Assertions.assertEquals(List.of("0600000000", "0611111111"), contactWaardes(response));
-        Assertions.assertEquals(2, response.voorkeuren.size());
-        Assertions.assertTrue(response.voorkeuren.stream().noneMatch(v -> v.voorkeurType == VoorkeurType.Aanhef),
+        Assertions.assertEquals(2, response.getVoorkeuren().size());
+        Assertions.assertTrue(response.getVoorkeuren().stream().noneMatch(v -> v.getVoorkeurType() == VoorkeurType.Aanhef),
                 "Voorkeur van DV-B mag niet lekken naar DV-A");
     }
 
@@ -197,7 +197,7 @@ class PartijServiceScopeFilterTest {
                 IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-Onbekend", null));
 
         Assertions.assertEquals(List.of("0600000000"), contactWaardes(response));
-        Assertions.assertEquals(1, response.voorkeuren.size());
+        Assertions.assertEquals(1, response.getVoorkeuren().size());
     }
 
     @Test
@@ -276,8 +276,8 @@ class PartijServiceScopeFilterTest {
                 IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-A", null));
 
         Assertions.assertEquals(List.of("0644444444"), contactWaardes(response));
-        Assertions.assertEquals(1, response.voorkeuren.size());
-        Assertions.assertEquals(2, response.contactgegevens.getFirst().scopes.size(),
+        Assertions.assertEquals(1, response.getVoorkeuren().size());
+        Assertions.assertEquals(2, response.getContactgegevens().getFirst().getScopes().size(),
                 "Beide scopes horen wel in de response te staan, alleen de rij zelf niet dubbel");
     }
 
@@ -315,7 +315,7 @@ class PartijServiceScopeFilterTest {
                 IdentificatieType.BSN, BSN_NUMMER, partijRequest("DV-A", "Dienst-A"));
 
         Assertions.assertEquals(List.of("0655555555"), contactWaardes(response));
-        Assertions.assertEquals(1, response.voorkeuren.size());
+        Assertions.assertEquals(1, response.getVoorkeuren().size());
     }
 
     @Test
@@ -347,12 +347,12 @@ class PartijServiceScopeFilterTest {
                 IdentificatieType.BSN, BSN_NUMMER, partijRequest(null, null));
 
         Assertions.assertEquals(List.of("0600000000", "0611111111", "0622222222"), contactWaardes(response));
-        Assertions.assertEquals(3, response.voorkeuren.size());
+        Assertions.assertEquals(3, response.getVoorkeuren().size());
     }
 
     @Test
     void alleenDienstNaamZonderDienstverlener_FiltertOpDienst() {
-        // PartijRequest.isEmpty() moet ook false zijn als alléén dienstNaam is gezet.
+        // getPartijResponse mag de ongefilterde tak niet kiezen als alléén dienstNaam is gezet.
         scenarioMetDrieScopes();
 
         PartijResponse response = partijService.getPartijResponse(
@@ -382,11 +382,11 @@ class PartijServiceScopeFilterTest {
     void scopeZonderDienstverlenerNaam_LevertGeenScope() {
         // Een leeg scope-object is geen fout, maar levert een ongescopte rij op.
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = BSN_NUMMER;
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
-        request.scope = new ScopeRequest();
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(BSN_NUMMER);
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0612345678");
+        request.setScope(new ScopeRequest());
 
         var result = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request);
 
@@ -398,12 +398,12 @@ class PartijServiceScopeFilterTest {
     @Test
     void scopeMetDienstNaamZonderDienstverlenerNaam_IsOngeldig() {
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = BSN_NUMMER;
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
-        request.scope = new ScopeRequest();
-        request.scope.dienstNaam = "Dienst-A";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(BSN_NUMMER);
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0612345678");
+        request.setScope(new ScopeRequest());
+        request.getScope().setDienstNaam("Dienst-A");
 
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request));
@@ -419,12 +419,12 @@ class PartijServiceScopeFilterTest {
         });
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = BSN_NUMMER;
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
-        request.scope = new ScopeRequest();
-        request.scope.dienstverlenerNaam = "DV-A";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(BSN_NUMMER);
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0612345678");
+        request.setScope(new ScopeRequest());
+        request.getScope().setDienstverlenerNaam("DV-A");
 
         var result = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request);
 
@@ -441,12 +441,12 @@ class PartijServiceScopeFilterTest {
     @Test
     void scopeMetOnbekendeDienstverlener_IsNotFound() {
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = BSN_NUMMER;
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
-        request.scope = new ScopeRequest();
-        request.scope.dienstverlenerNaam = "BestaatNiet";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(BSN_NUMMER);
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0612345678");
+        request.setScope(new ScopeRequest());
+        request.getScope().setDienstverlenerNaam("BestaatNiet");
 
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request));
@@ -495,14 +495,14 @@ class PartijServiceScopeFilterTest {
 
         // De eerste voorkeur naar de scope van de tweede duwen botst op de invariant.
         VoorkeurUpdateRequest update = new VoorkeurUpdateRequest();
-        update.id = eerste.voorkeur().id;
-        update.identificatieType = IdentificatieType.BSN;
-        update.identificatieNummer = BSN_NUMMER;
-        update.voorkeurType = VoorkeurType.WebsiteTaal;
-        update.waarde = "de";
-        update.scope = new ScopeRequest();
-        update.scope.dienstverlenerNaam = "DV-B";
-        update.scope.dienstNaam = "Dienst-B";
+        update.setId(eerste.voorkeur().id);
+        update.setIdentificatieType(IdentificatieType.BSN);
+        update.setIdentificatieNummer(BSN_NUMMER);
+        update.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        update.setWaarde("de");
+        update.setScope(new ScopeRequest());
+        update.getScope().setDienstverlenerNaam("DV-B");
+        update.getScope().setDienstNaam("Dienst-B");
 
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
                 () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, update));
@@ -511,13 +511,13 @@ class PartijServiceScopeFilterTest {
 
     private VoorkeurRequest voorkeurRequest(VoorkeurType type, String waarde, String dvNaam, String dienstNaam) {
         VoorkeurRequest request = new VoorkeurRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = BSN_NUMMER;
-        request.voorkeurType = type;
-        request.waarde = waarde;
-        request.scope = new ScopeRequest();
-        request.scope.dienstverlenerNaam = dvNaam;
-        request.scope.dienstNaam = dienstNaam;
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(BSN_NUMMER);
+        request.setVoorkeurType(type);
+        request.setWaarde(waarde);
+        request.setScope(new ScopeRequest());
+        request.getScope().setDienstverlenerNaam(dvNaam);
+        request.getScope().setDienstNaam(dienstNaam);
 
         return request;
     }
@@ -527,10 +527,10 @@ class PartijServiceScopeFilterTest {
         QuarkusTransaction.requiringNew().run(() -> maakLink("DV-A", "Dienst-A"));
 
         VoorkeurRequest zonderScope = new VoorkeurRequest();
-        zonderScope.identificatieType = IdentificatieType.BSN;
-        zonderScope.identificatieNummer = BSN_NUMMER;
-        zonderScope.voorkeurType = VoorkeurType.WebsiteTaal;
-        zonderScope.waarde = "nl";
+        zonderScope.setIdentificatieType(IdentificatieType.BSN);
+        zonderScope.setIdentificatieNummer(BSN_NUMMER);
+        zonderScope.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        zonderScope.setWaarde("nl");
 
         partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER, zonderScope);
         partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,

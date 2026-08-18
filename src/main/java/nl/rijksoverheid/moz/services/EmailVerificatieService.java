@@ -6,8 +6,8 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.common.ContactType;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
@@ -44,7 +44,7 @@ public class EmailVerificatieService {
 
     @Transactional
     public boolean verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
-        Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.identificatieType, emailVerificatieRequest.identificatieNummer);
+        Partij partij = Partij.findByIdentificatie(emailVerificatieRequest.getIdentificatieType(), emailVerificatieRequest.getIdentificatieNummer());
 
         if (partij == null) {
             LOG.warn("Verificatie mislukt: Partij niet gevonden");
@@ -52,7 +52,7 @@ public class EmailVerificatieService {
         }
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.email))
+                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(emailVerificatieRequest.getEmail()))
                 .findFirst()
                 .orElse(null);
 
@@ -63,7 +63,7 @@ public class EmailVerificatieService {
 
         VerificationRequest request = new VerificationRequest();
         request.setReferenceId(contact.getVerificatieReferentieId());
-        request.setCode(emailVerificatieRequest.verificatieCode);
+        request.setCode(emailVerificatieRequest.getVerificatieCode());
 
         try {
             var response = verificatieServiceGuard.get().call(() -> emailVerificatieApi.verifyPost(request), VerificationResponse.class);
@@ -95,7 +95,7 @@ public class EmailVerificatieService {
 
     @Transactional
     public int vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest aanvraag) {
-        Partij partij = Partij.findByIdentificatie(aanvraag.identificatieType, aanvraag.identificatieNummer);
+        Partij partij = Partij.findByIdentificatie(aanvraag.getIdentificatieType(), aanvraag.getIdentificatieNummer());
 
         if (partij == null) {
             LOG.warn("Verificatie code aanvraag mislukt: Partij niet gevonden");
@@ -103,7 +103,7 @@ public class EmailVerificatieService {
         }
 
         Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(aanvraag.email))
+                .filter(c -> c.getType() == ContactType.Email && c.getWaarde().equalsIgnoreCase(aanvraag.getEmail()))
                 .findFirst()
                 .orElse(null);
 
@@ -112,7 +112,7 @@ public class EmailVerificatieService {
             return Response.Status.NOT_FOUND.getStatusCode();
         }
 
-        String referenceId = requestEmailVerificationCode(aanvraag.email);
+        String referenceId = requestEmailVerificationCode(aanvraag.getEmail());
         if (referenceId == null) {
             return Response.Status.SERVICE_UNAVAILABLE.getStatusCode();
         }
