@@ -2,20 +2,19 @@ package nl.rijksoverheid.moz.validation;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
 
-public class IdentificatieNummerValidator implements ConstraintValidator<ValidIdentificatieNummer, EmailVerificatieRequest> {
+public class IdentificatieNummerValidator implements ConstraintValidator<ValidIdentificatieNummer, HeeftIdentificatie> {
 
     @Override
-    public boolean isValid(EmailVerificatieRequest request, ConstraintValidatorContext context) {
-        if (request == null || request.identificatieNummer == null || request.identificatieType == null) {
+    public boolean isValid(HeeftIdentificatie request, ConstraintValidatorContext context) {
+        if (request == null || request.getIdentificatieNummer() == null || request.getIdentificatieType() == null) {
             return true; // Let @NotNull handle null checks
         }
 
-        return switch (request.identificatieType) {
-            case BSN -> isValidBSN(request.identificatieNummer);
-            case KVK -> isValidKVK(request.identificatieNummer);
-            case RSIN -> isValidRSIN(request.identificatieNummer);
+        return switch (request.getIdentificatieType()) {
+            case BSN -> isValidBSN(request.getIdentificatieNummer());
+            case KVK -> isValidKVK(request.getIdentificatieNummer());
+            case RSIN -> isValidRSIN(request.getIdentificatieNummer());
         };
     }
 

@@ -10,14 +10,14 @@ import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenRequest;
-import nl.rijksoverheid.moz.dto.request.ContactgegevenUpdateRequest;
-import nl.rijksoverheid.moz.dto.request.PartijRequest;
-import nl.rijksoverheid.moz.dto.request.ScopeRequest;
-import nl.rijksoverheid.moz.dto.request.TeVerwijderenOpRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurRequest;
-import nl.rijksoverheid.moz.dto.request.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.dto.response.PartijResponse;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
+import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
+import nl.rijksoverheid.moz.api.generated.model.TeVerwijderenOpRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -138,8 +138,8 @@ public class PartijServiceTest {
         Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "test@test.com";
+        request.setType(ContactType.Email);
+        request.setWaarde("test@test.com");
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -155,8 +155,8 @@ public class PartijServiceTest {
     @Test
     void addContactgegeven_NewPartij() {
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0612345678");
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -172,8 +172,8 @@ public class PartijServiceTest {
         Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "test@test.com";
+        request.setType(ContactType.Email);
+        request.setWaarde("test@test.com");
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -189,8 +189,8 @@ public class PartijServiceTest {
         });
 
         VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
 
         partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
@@ -221,9 +221,9 @@ public class PartijServiceTest {
         Mockito.doReturn("new-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = contactId.get();
-        request.type = ContactType.Email;
-        request.waarde = "new@test.com";
+        request.setId(contactId.get());
+        request.setType(ContactType.Email);
+        request.setWaarde("new@test.com");
 
         boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -238,9 +238,9 @@ public class PartijServiceTest {
     @Test
     void updateContactgegeven_PartijNotFound() {
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = UUID.randomUUID();
-        request.type = ContactType.Email;
-        request.waarde = "test@test.com";
+        request.setId(UUID.randomUUID());
+        request.setType(ContactType.Email);
+        request.setWaarde("test@test.com");
 
         boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "999999999", request);
 
@@ -264,9 +264,9 @@ public class PartijServiceTest {
         });
 
         VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = voorkeurId.get();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "en";
+        request.setId(voorkeurId.get());
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("en");
 
         boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
 
@@ -354,16 +354,16 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest unscoped = new ContactgegevenRequest();
-        unscoped.type = ContactType.Email;
-        unscoped.waarde = "scope@test.com";
+        unscoped.setType(ContactType.Email);
+        unscoped.setWaarde("scope@test.com");
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", unscoped);
 
         ContactgegevenRequest scoped = new ContactgegevenRequest();
-        scoped.type = ContactType.Email;
-        scoped.waarde = "scope@test.com";
-        scoped.scope = new ScopeRequest();
-        scoped.scope.dienstverlenerNaam = "TestDV";
-        scoped.scope.dienstNaam = "TestDienst";
+        scoped.setType(ContactType.Email);
+        scoped.setWaarde("scope@test.com");
+        scoped.setScope(new ScopeRequest());
+        scoped.getScope().setDienstverlenerNaam("TestDV");
+        scoped.getScope().setDienstNaam("TestDienst");
 
         PartijService.AddContactgegevenResult result = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
 
@@ -385,11 +385,11 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest scoped = new ContactgegevenRequest();
-        scoped.type = ContactType.Email;
-        scoped.waarde = "match@test.com";
-        scoped.scope = new ScopeRequest();
-        scoped.scope.dienstverlenerNaam = "TestDV";
-        scoped.scope.dienstNaam = "TestDienst";
+        scoped.setType(ContactType.Email);
+        scoped.setWaarde("match@test.com");
+        scoped.setScope(new ScopeRequest());
+        scoped.getScope().setDienstverlenerNaam("TestDV");
+        scoped.getScope().setDienstNaam("TestDienst");
 
         PartijService.AddContactgegevenResult first =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", scoped);
@@ -411,8 +411,8 @@ public class PartijServiceTest {
         Mockito.doReturn("first-ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "unverified@test.com";
+        request.setType(ContactType.Email);
+        request.setWaarde("unverified@test.com");
 
         PartijService.AddContactgegevenResult first = partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
         Assertions.assertTrue(first.wasCreated());
@@ -437,8 +437,8 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "verified@test.com";
+        request.setType(ContactType.Email);
+        request.setWaarde("verified@test.com");
 
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -457,8 +457,8 @@ public class PartijServiceTest {
     @Test
     void addVoorkeur_Duplicate_NoScope_ReturnsExisting() {
         VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
 
         PartijService.AddVoorkeurResult first =
                 partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
@@ -484,9 +484,9 @@ public class PartijServiceTest {
         });
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = UUID.randomUUID();
-        request.type = ContactType.Email;
-        request.waarde = "test@test.com";
+        request.setId(UUID.randomUUID());
+        request.setType(ContactType.Email);
+        request.setWaarde("test@test.com");
 
         boolean result = partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
         Assertions.assertFalse(result);
@@ -501,9 +501,9 @@ public class PartijServiceTest {
         });
 
         VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = UUID.randomUUID();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "en";
+        request.setId(UUID.randomUUID());
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("en");
 
         boolean result = partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
         Assertions.assertFalse(result);
@@ -573,12 +573,12 @@ public class PartijServiceTest {
         });
 
         PartijRequest request = new PartijRequest();
-        request.dienstNaam = "TestDienst";
+        request.setDienstNaam("TestDienst");
         PartijResponse result = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", request);
 
         Assertions.assertNotNull(result);
         // Returned: scoped-TestDienst contact + unscoped phone. Excluded: phone scoped to OtherDienst.
-        Assertions.assertEquals(2, result.contactgegevens.size());
+        Assertions.assertEquals(2, result.getContactgegevens().size());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
@@ -590,10 +590,10 @@ public class PartijServiceTest {
     @Test
     void resolveDienstverlenerDienst_DienstNaamWithoutDienstverlenerNaam_ThrowsBadRequest() {
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "test@test.com";
-        request.scope = new ScopeRequest();
-        request.scope.dienstNaam = "TestDienst";
+        request.setType(ContactType.Email);
+        request.setWaarde("test@test.com");
+        request.setScope(new ScopeRequest());
+        request.getScope().setDienstNaam("TestDienst");
 
         BusinessException ex = Assertions.assertThrows(
                 BusinessException.class,
@@ -625,11 +625,11 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Email;
-        request.waarde = "cross@test.com";
-        request.scope = new ScopeRequest();
-        request.scope.dienstverlenerNaam = "DV-A";
-        request.scope.dienstNaam = "B-Vergunning";
+        request.setType(ContactType.Email);
+        request.setWaarde("cross@test.com");
+        request.setScope(new ScopeRequest());
+        request.getScope().setDienstverlenerNaam("DV-A");
+        request.getScope().setDienstNaam("B-Vergunning");
 
         BusinessException ex = Assertions.assertThrows(
                 BusinessException.class,
@@ -665,10 +665,10 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = secondId.get();
-        request.type = ContactType.Email;
-        request.waarde = "b@test.com";
-        request.isDefault = true;
+        request.setId(secondId.get());
+        request.setType(ContactType.Email);
+        request.setWaarde("b@test.com");
+        request.setIsDefault(true);
 
         Assertions.assertTrue(partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
 
@@ -700,9 +700,9 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = id.get();
-        request.type = ContactType.Email;
-        request.waarde = "a@test.com";
+        request.setId(id.get());
+        request.setType(ContactType.Email);
+        request.setWaarde("a@test.com");
         // isDefault explicitly omitted -> null -> no change
 
         partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
@@ -732,10 +732,10 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = id.get();
-        request.type = ContactType.Email;
-        request.waarde = "a@test.com";
-        request.isDefault = false;
+        request.setId(id.get());
+        request.setType(ContactType.Email);
+        request.setWaarde("a@test.com");
+        request.setIsDefault(false);
 
         partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -762,10 +762,10 @@ public class PartijServiceTest {
         });
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = id.get();
-        request.type = ContactType.Email;
-        request.waarde = "user@test.com";
-        request.isDefault = true;
+        request.setId(id.get());
+        request.setType(ContactType.Email);
+        request.setWaarde("user@test.com");
+        request.setIsDefault(true);
 
         partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request);
 
@@ -805,9 +805,9 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = targetId.get();
-        request.type = ContactType.Email;
-        request.waarde = "a@test.com";
+        request.setId(targetId.get());
+        request.setType(ContactType.Email);
+        request.setWaarde("a@test.com");
 
         BusinessException ex = Assertions.assertThrows(
                 BusinessException.class,
@@ -820,14 +820,14 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest first = new ContactgegevenRequest();
-        first.type = ContactType.Email;
-        first.waarde = "User@Test.COM";
+        first.setType(ContactType.Email);
+        first.setWaarde("User@Test.COM");
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", first);
 
         // A second POST with different case should be treated as duplicate (no new row).
         ContactgegevenRequest second = new ContactgegevenRequest();
-        second.type = ContactType.Email;
-        second.waarde = "USER@TEST.COM";
+        second.setType(ContactType.Email);
+        second.setWaarde("USER@TEST.COM");
         PartijService.AddContactgegevenResult result =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", second);
         Assertions.assertFalse(result.wasCreated());
@@ -845,9 +845,9 @@ public class PartijServiceTest {
         Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
 
         VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = teVerwijderenOp;
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
+        request.setTeVerwijderenOp(teVerwijderenOp);
 
         PartijService.AddVoorkeurResult result = partijService.addVoorkeur(IdentificatieType.BSN, "123456789", request);
 
@@ -860,9 +860,9 @@ public class PartijServiceTest {
     @Test
     void addVoorkeur_WithPastTeVerwijderenOp_ThrowsBadRequest() {
         VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = Instant.now().minus(Duration.ofDays(1));
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
+        request.setTeVerwijderenOp(Instant.now().minus(Duration.ofDays(1)));
 
         BusinessException ex = Assertions.assertThrows(
                 BusinessException.class,
@@ -875,9 +875,9 @@ public class PartijServiceTest {
         Instant beyondMax = Instant.now().atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).plusDays(1).toInstant();
 
         VoorkeurRequest request = new VoorkeurRequest();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = beyondMax;
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
+        request.setTeVerwijderenOp(beyondMax);
 
         BusinessException ex = Assertions.assertThrows(
                 BusinessException.class,
@@ -904,10 +904,10 @@ public class PartijServiceTest {
         Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
 
         VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = voorkeurId.get();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
-        request.teVerwijderenOp = teVerwijderenOp;
+        request.setId(voorkeurId.get());
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
+        request.setTeVerwijderenOp(teVerwijderenOp);
 
         partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
 
@@ -937,9 +937,9 @@ public class PartijServiceTest {
         });
 
         VoorkeurUpdateRequest request = new VoorkeurUpdateRequest();
-        request.id = voorkeurId.get();
-        request.voorkeurType = VoorkeurType.WebsiteTaal;
-        request.waarde = "nl";
+        request.setId(voorkeurId.get());
+        request.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        request.setWaarde("nl");
         // teVerwijderenOp intentionally omitted
 
         partijService.updateVoorkeur(IdentificatieType.BSN, "123456789", request);
@@ -958,9 +958,9 @@ public class PartijServiceTest {
         Mockito.doReturn("ref").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
 
         ContactgegevenRequest request = new ContactgegevenRequest();
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0612345678";
-        request.teVerwijderenOp = teVerwijderenOp;
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0612345678");
+        request.setTeVerwijderenOp(teVerwijderenOp);
 
         PartijService.AddContactgegevenResult result =
                 partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request);
@@ -999,11 +999,11 @@ public class PartijServiceTest {
         Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
 
         TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
-        request.id = voorkeurId.get();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.dienstverlenerNaam = "TestDV";
-        request.teVerwijderenOp = teVerwijderenOp;
+        request.setId(voorkeurId.get());
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setDienstverlenerNaam("TestDV");
+        request.setTeVerwijderenOp(teVerwijderenOp);
 
         boolean result = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
 
@@ -1031,11 +1031,11 @@ public class PartijServiceTest {
         });
 
         TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
-        request.id = voorkeurId.get();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.dienstverlenerNaam = "OnbekendeDV";
-        request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
+        request.setId(voorkeurId.get());
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setDienstverlenerNaam("OnbekendeDV");
+        request.setTeVerwijderenOp(Instant.now().plus(Duration.ofDays(365)));
 
         AuthorizationException ex = Assertions.assertThrows(
                 AuthorizationException.class,
@@ -1052,11 +1052,11 @@ public class PartijServiceTest {
         });
 
         TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
-        request.id = UUID.randomUUID();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.dienstverlenerNaam = "TestDV";
-        request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
+        request.setId(UUID.randomUUID());
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setDienstverlenerNaam("TestDV");
+        request.setTeVerwijderenOp(Instant.now().plus(Duration.ofDays(365)));
 
         boolean result = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
         Assertions.assertFalse(result);
@@ -1092,12 +1092,12 @@ public class PartijServiceTest {
         });
 
         TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
-        request.id = voorkeurId.get();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.dienstverlenerNaam = "TestDV";
-        request.dienstNaam = "AndereDienst";
-        request.teVerwijderenOp = Instant.now().plus(Duration.ofDays(365));
+        request.setId(voorkeurId.get());
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setDienstverlenerNaam("TestDV");
+        request.setDienstNaam("AndereDienst");
+        request.setTeVerwijderenOp(Instant.now().plus(Duration.ofDays(365)));
 
         AuthorizationException ex = Assertions.assertThrows(
                 AuthorizationException.class,
@@ -1134,11 +1134,11 @@ public class PartijServiceTest {
         Instant teVerwijderenOp = Instant.now().plus(Duration.ofDays(365)).truncatedTo(ChronoUnit.MICROS);
 
         TeVerwijderenOpRequest request = new TeVerwijderenOpRequest();
-        request.id = contactId.get();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.dienstverlenerNaam = "TestDV";
-        request.teVerwijderenOp = teVerwijderenOp;
+        request.setId(contactId.get());
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setDienstverlenerNaam("TestDV");
+        request.setTeVerwijderenOp(teVerwijderenOp);
 
         boolean result = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(request);
 
@@ -1205,10 +1205,10 @@ public class PartijServiceTest {
 
         // Change the Email-default to a Telefoonnummer while keeping isDefault=true.
         ContactgegevenUpdateRequest request = new ContactgegevenUpdateRequest();
-        request.id = emailDefaultId.get();
-        request.type = ContactType.Telefoonnummer;
-        request.waarde = "0699999999";
-        request.isDefault = true;
+        request.setId(emailDefaultId.get());
+        request.setType(ContactType.Telefoonnummer);
+        request.setWaarde("0699999999");
+        request.setIsDefault(true);
 
         Assertions.assertTrue(partijService.updateContactgegeven(IdentificatieType.BSN, "123456789", request));
 

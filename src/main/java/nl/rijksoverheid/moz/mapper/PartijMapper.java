@@ -1,10 +1,10 @@
 package nl.rijksoverheid.moz.mapper;
 
-import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
-import nl.rijksoverheid.moz.dto.response.IdentificatieResponse;
-import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.dto.response.ScopeResponse;
-import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
+import nl.rijksoverheid.moz.api.generated.model.IdentificatieResponse;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
+import nl.rijksoverheid.moz.api.generated.model.ScopeResponse;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -15,6 +15,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
 import org.mapstruct.Named;
+import org.mapstruct.ReportingPolicy;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -29,8 +30,22 @@ import java.util.List;
  * gebruikt wordt {@code lastUsedAt} bijgewerkt en een automatisch gezette verwijderdatum
  * teruggedraaid. Die business-logica is bewust handgeschreven en delegeert het kopiëren
  * naar de door MapStruct gegenereerde {@code map*}-methodes.
+ *
+ * <p>De {@code remove*Item}-doelen worden expliciet genegeerd. De generator zet bij elke
+ * lijst-property een {@code addXItem} en een {@code removeXItem} neer die de klasse zelf
+ * teruggeven; MapStruct leest zo'n methode als fluent setter en houdt er dus een
+ * doel-property {@code removeXItem} aan over die nergens vandaan te vullen is. Bij
+ * {@code addXItem} gebeurt dat niet, omdat de {@code add}-prefix hem als adder
+ * classificeert en daarmee diskwalificeert als fluent setter — gebruikt wordt hij
+ * evenmin, want de standaard {@code CollectionMappingStrategy} is {@code ACCESSOR_ONLY}
+ * en vult de lijst via de gewone setter. Vandaar dat alleen de remove-kant overblijft.
+ *
+ * <p>{@code unmappedTargetPolicy} staat op {@code ERROR}: zonder die instelling zouden de
+ * ignores alleen de waarschuwingen opruimen, en zou een échte niet-gemapte property nog
+ * steeds een regel ruis tussen de andere buildwaarschuwingen zijn.
  */
-@Mapper(componentModel = MappingConstants.ComponentModel.CDI)
+@Mapper(componentModel = MappingConstants.ComponentModel.CDI,
+        unmappedTargetPolicy = ReportingPolicy.ERROR)
 public abstract class PartijMapper {
 
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
@@ -43,6 +58,9 @@ public abstract class PartijMapper {
     @Mapping(target = "identificaties", source = "partij.identificaties")
     @Mapping(target = "contactgegevens", source = "contactgegevens", qualifiedByName = "contactgegevenMetGebruik")
     @Mapping(target = "voorkeuren", source = "voorkeuren", qualifiedByName = "voorkeurMetGebruik")
+    @Mapping(target = "removeIdentificatiesItem", ignore = true)
+    @Mapping(target = "removeContactgegevensItem", ignore = true)
+    @Mapping(target = "removeVoorkeurenItem", ignore = true)
     public abstract PartijResponse toResponse(
             Partij partij,
             List<Contactgegeven> contactgegevens,
@@ -56,8 +74,8 @@ public abstract class PartijMapper {
         ContactgegevenResponse cr = mapContactgegeven(cg);
 
         if (clearedAt != null) {
-            cr.lastUpdated = clearedAt;
-            cr.teVerwijderenOp = null;
+            cr.setLastUpdated(clearedAt);
+            cr.setTeVerwijderenOp(null);
         }
 
         return cr;
@@ -69,15 +87,17 @@ public abstract class PartijMapper {
         VoorkeurResponse vr = mapVoorkeur(voorkeur);
 
         if (clearedAt != null) {
-            vr.lastUpdated = clearedAt;
-            vr.teVerwijderenOp = null;
+            vr.setLastUpdated(clearedAt);
+            vr.setTeVerwijderenOp(null);
         }
 
         return vr;
     }
 
+    @Mapping(target = "removeScopesItem", ignore = true)
     abstract ContactgegevenResponse mapContactgegeven(Contactgegeven cg);
 
+    @Mapping(target = "removeScopesItem", ignore = true)
     abstract VoorkeurResponse mapVoorkeur(Voorkeur voorkeur);
 
     @Mapping(target = "dienstverlenerNaam", source = "dienstverlenerDienst.dienstverlener.naam")
