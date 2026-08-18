@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = IdentificatieNummerValidator.class)
 public @interface ValidIdentificatieNummer {
-    String message() default "Invalid identificatieNummer length for the given identificatieType";
+    String message() default "identificatieNummer is niet geldig voor het opgegeven identificatieType";
     Class<?>[] groups() default {};
     Class<? extends Payload>[] payload() default {};
 }

@@ -24,10 +24,14 @@ import java.nio.charset.StandardCharsets;
  *   plain string/UUID path params and fails. All path params in this API are strings or UUIDs —
  *   none have numeric or enum schemas — so no real violation can be masked. Revisit if a
  *   constrained (non-string) path parameter is ever added.
- * - validation.response.body.missing: false positive caused by SmallRye's class-level @Produces
- *   annotation generating an implicit content entry for responses that intentionally carry no
- *   body (e.g. 200 from updateContactgegeven / postEmailVerificatie). IGNORE is correct here:
- *   the check is structurally wrong for these endpoints, not a real spec gap.
+ *
+ * validation.response.body.missing used to be suppressed here as well. That suppression was
+ * written when SmallRye still derived the document from the class-level @Produces annotation and
+ * generated an implicit content entry for responses that carry no body. Since the contract became
+ * the source of truth (mp.openapi.scan.disable=true) nothing derives anything: the six 200s that
+ * declared a body they never send were plain contract errors and have been corrected in
+ * META-INF/openapi.yaml. The check is enabled again, so a handler that stops returning a
+ * documented body now fails the tests that use this filter.
  */
 abstract class OpenApiValidationTest {
 
@@ -47,7 +51,6 @@ abstract class OpenApiValidationTest {
         var validator = OpenApiInteractionValidator.createFor(specJson)
                 .withLevelResolver(LevelResolver.create()
                         .withLevel("validation.request.parameter.schema.invalidJson", ValidationReport.Level.IGNORE)
-                        .withLevel("validation.response.body.missing", ValidationReport.Level.IGNORE)
                         .build())
                 .build();
         validationFilter = new OpenApiValidationFilter(validator);

@@ -6,9 +6,9 @@ import jakarta.inject.Inject;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
-import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
-import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -56,15 +56,15 @@ class PartijMapperTest {
 
         ContactgegevenResponse response = partijMapper.toContactgegevensResponse(cg);
 
-        Assertions.assertEquals(cg.id, response.id);
-        Assertions.assertEquals(ContactType.Email, response.type);
-        Assertions.assertEquals("test@example.com", response.waarde);
-        Assertions.assertTrue(response.isGeverifieerd);
-        Assertions.assertTrue(response.isDefault);
-        Assertions.assertEquals(cg.getTeVerwijderenOp(), response.teVerwijderenOp);
-        Assertions.assertEquals(1, response.scopes.size());
-        Assertions.assertEquals("Gemeente Amsterdam", response.scopes.get(0).dienstverlenerNaam);
-        Assertions.assertEquals("Verhuizen", response.scopes.get(0).dienstNaam);
+        Assertions.assertEquals(cg.id, response.getId());
+        Assertions.assertEquals(ContactType.Email, response.getType());
+        Assertions.assertEquals("test@example.com", response.getWaarde());
+        Assertions.assertTrue(response.getIsGeverifieerd());
+        Assertions.assertTrue(response.getIsDefault());
+        Assertions.assertEquals(cg.getTeVerwijderenOp(), response.getTeVerwijderenOp());
+        Assertions.assertEquals(1, response.getScopes().size());
+        Assertions.assertEquals("Gemeente Amsterdam", response.getScopes().get(0).getDienstverlenerNaam());
+        Assertions.assertEquals("Verhuizen", response.getScopes().get(0).getDienstNaam());
     }
 
     @Test
@@ -75,8 +75,8 @@ class PartijMapperTest {
 
         ContactgegevenResponse response = partijMapper.toContactgegevensResponse(cg);
 
-        Assertions.assertEquals("Gemeente Utrecht", response.scopes.get(0).dienstverlenerNaam);
-        Assertions.assertNull(response.scopes.get(0).dienstNaam);
+        Assertions.assertEquals("Gemeente Utrecht", response.getScopes().get(0).getDienstverlenerNaam());
+        Assertions.assertNull(response.getScopes().get(0).getDienstNaam());
     }
 
     @Test
@@ -87,12 +87,12 @@ class PartijMapperTest {
 
         VoorkeurResponse response = partijMapper.toVoorkeurResponse(voorkeur);
 
-        Assertions.assertEquals(voorkeur.id, response.id);
-        Assertions.assertEquals(VoorkeurType.WebsiteTaal, response.voorkeurType);
-        Assertions.assertEquals("nl", response.waarde);
-        Assertions.assertEquals(1, response.scopes.size());
-        Assertions.assertEquals("Gemeente Rotterdam", response.scopes.get(0).dienstverlenerNaam);
-        Assertions.assertEquals("Parkeren", response.scopes.get(0).dienstNaam);
+        Assertions.assertEquals(voorkeur.id, response.getId());
+        Assertions.assertEquals(VoorkeurType.WebsiteTaal, response.getVoorkeurType());
+        Assertions.assertEquals("nl", response.getWaarde());
+        Assertions.assertEquals(1, response.getScopes().size());
+        Assertions.assertEquals("Gemeente Rotterdam", response.getScopes().get(0).getDienstverlenerNaam());
+        Assertions.assertEquals("Parkeren", response.getScopes().get(0).getDienstNaam());
     }
 
     @Test
@@ -105,14 +105,14 @@ class PartijMapperTest {
 
         PartijResponse response = partijMapper.toResponse(partij);
 
-        Assertions.assertEquals(partij.id, response.partijId);
-        Assertions.assertEquals(1, response.identificaties.size());
-        Assertions.assertEquals(IdentificatieType.BSN, response.identificaties.get(0).identificatieType);
-        Assertions.assertEquals("123456789", response.identificaties.get(0).identificatieNummer);
-        Assertions.assertEquals(1, response.contactgegevens.size());
-        Assertions.assertEquals("a@example.com", response.contactgegevens.get(0).waarde);
-        Assertions.assertEquals(1, response.voorkeuren.size());
-        Assertions.assertEquals("nl", response.voorkeuren.get(0).waarde);
+        Assertions.assertEquals(partij.id, response.getPartijId());
+        Assertions.assertEquals(1, response.getIdentificaties().size());
+        Assertions.assertEquals(IdentificatieType.BSN, response.getIdentificaties().get(0).getIdentificatieType());
+        Assertions.assertEquals("123456789", response.getIdentificaties().get(0).getIdentificatieNummer());
+        Assertions.assertEquals(1, response.getContactgegevens().size());
+        Assertions.assertEquals("a@example.com", response.getContactgegevens().get(0).getWaarde());
+        Assertions.assertEquals(1, response.getVoorkeuren().size());
+        Assertions.assertEquals("nl", response.getVoorkeuren().get(0).getWaarde());
     }
 
     @Test
@@ -122,9 +122,9 @@ class PartijMapperTest {
 
         PartijResponse response = partijMapper.toResponse(partij);
 
-        Assertions.assertTrue(response.identificaties.isEmpty());
-        Assertions.assertTrue(response.contactgegevens.isEmpty());
-        Assertions.assertTrue(response.voorkeuren.isEmpty());
+        Assertions.assertTrue(response.getIdentificaties().isEmpty());
+        Assertions.assertTrue(response.getContactgegevens().isEmpty());
+        Assertions.assertTrue(response.getVoorkeuren().isEmpty());
     }
 
     // ---------------------------------------------------------------------
@@ -140,10 +140,10 @@ class PartijMapperTest {
         QuarkusTransaction.requiringNew().run(() ->
                 response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
 
-        Assertions.assertNull(response.get().teVerwijderenOp,
+        Assertions.assertNull(response.get().getTeVerwijderenOp(),
                 "Een automatisch gezette verwijderdatum moet in de response zijn teruggedraaid");
-        Assertions.assertNotNull(response.get().lastUpdated);
-        Assertions.assertFalse(response.get().lastUpdated.isBefore(voorMapping),
+        Assertions.assertNotNull(response.get().getLastUpdated());
+        Assertions.assertFalse(response.get().getLastUpdated().isBefore(voorMapping),
                 "lastUpdated moet het moment van teruggedraaien weerspiegelen");
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -162,7 +162,7 @@ class PartijMapperTest {
         QuarkusTransaction.requiringNew().run(() ->
                 response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
 
-        Assertions.assertEquals(handmatig, response.get().teVerwijderenOp,
+        Assertions.assertEquals(handmatig, response.get().getTeVerwijderenOp(),
                 "Een handmatig gezette verwijderdatum mag niet worden teruggedraaid");
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -184,7 +184,7 @@ class PartijMapperTest {
         QuarkusTransaction.requiringNew().run(() ->
                 response.set(partijMapper.toContactgegevensResponse(Contactgegeven.findById(cgId))));
 
-        Assertions.assertEquals(teVerwijderenOp, response.get().teVerwijderenOp);
+        Assertions.assertEquals(teVerwijderenOp, response.get().getTeVerwijderenOp());
 
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven cg = Contactgegeven.findById(cgId);
@@ -202,9 +202,9 @@ class PartijMapperTest {
         QuarkusTransaction.requiringNew().run(() ->
                 response.set(partijMapper.toVoorkeurResponse(Voorkeur.findById(voorkeurId))));
 
-        Assertions.assertNull(response.get().teVerwijderenOp,
+        Assertions.assertNull(response.get().getTeVerwijderenOp(),
                 "Een automatisch gezette verwijderdatum moet in de response zijn teruggedraaid");
-        Assertions.assertFalse(response.get().lastUpdated.isBefore(voorMapping),
+        Assertions.assertFalse(response.get().getLastUpdated().isBefore(voorMapping),
                 "lastUpdated moet het moment van teruggedraaien weerspiegelen");
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -226,7 +226,7 @@ class PartijMapperTest {
         QuarkusTransaction.requiringNew().run(() ->
                 response.set(partijMapper.toVoorkeurResponse(Voorkeur.findById(voorkeurId))));
 
-        Assertions.assertEquals(handmatig, response.get().teVerwijderenOp,
+        Assertions.assertEquals(handmatig, response.get().getTeVerwijderenOp(),
                 "Een handmatig gezette verwijderdatum mag niet worden teruggedraaid");
 
         QuarkusTransaction.requiringNew().run(() -> {

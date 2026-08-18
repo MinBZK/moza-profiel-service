@@ -1,0 +1,229 @@
+# Deploy naar ZAD (Operations Manager) via RijksICTGilde/zad-actions.
+#
+#   - Elke Pull Request → een ephemeral 'pr-<n>'-omgeving, zodat de PR daar getest
+#     kan worden. Bij sluiten van de PR wordt die omgeving opgeruimd.
+#   - Elke push/merge naar main → de persistente 'stable'-deployment.
+#
+# ZAD is uitsluitend de PR-preview-/ontwikkelomgeving. De bestaande POC-deployment
+# op het Standaard Platform (OpenShift TEST, namespace logius-moz-poc) en de landing
+# op LPC blijven hierbuiten — zie Docs/structurizr/profielservicedocs/10-deployment.md
+# in de MijnOverheidZakelijk-repo (niet in deze repo).
+#
+# Vereiste repo-secrets:
+#   ZAD_API_KEY      — ZAD Operations Manager API key
+#   GH_ADMIN_TOKEN   — PAT met repo-admin (voor opruimen GitHub environment). Heet
+#                      bewust niet GITHUB_ADMIN_TOKEN: GitHub verbiedt secret-namen
+#                      met het gereserveerde GITHUB_-prefix (foutmelding bij
+#                      aanmaken: "Secret names must not start with GITHUB_").
+#
+# De applicatieconfiguratie (DB-url/credentials, verificatie-service-url, NotifyNL-
+# keys, ...) komt NIET uit deze workflow maar uit de ZAD-deploymentconfig. Die staat
+# éénmalig per deployment in Operations Manager: op 'stable' voor de main-deploy, op
+# 'feature' als base waarvan PR-deploys via `clone-from` erven. Zie docs/zad-deploy.md.
+#
+# Verschil met de NMC-variant van deze workflow: de management-interface
+# (quarkus.management.enabled) draait /q/health/ready standaard op een aparte poort
+# (9090), niet de publieke poort. quarkus.management.enabled zelf is build-time fixed
+# en dus niet via een env var op de deployment uit te zetten. In plaats daarvan zet
+# de build hieronder `-Dquarkus.smallrye-health.management.enabled=false`, wat alleen
+# de health-checks (niet metrics) terug op de publieke poort zet — zelfde patroon als
+# de bestaande `quarkus.smallrye-openapi.management.enabled=false` in
+# application.properties. Omdat dit image alléén op ZAD draait (nooit op het
+# Standaard Platform), is dit veilig
+# voor zowel de pr-<n>- als de stable-deploy.
+#
+# TODO(#10): Deze env-vars worden nu handmatig op de 'feature'- en 'stable'-deployment
+# gezet. ZAD heeft een Operations Manager API — dit zou via een script geautomatiseerd
+# kunnen worden (idempotent env-vars zetten i.p.v. handmatige eenmalige setup).
+
+name: ZAD Deploy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  push:
+    branches: [main]
+
+# Eén deploy-run tegelijk per PR; een nieuwe push wacht op de lopende i.p.v. die af
+# te breken (cancel-in-progress: false) — een halverwege afgebroken ZAD-deploy kan de
+# deployment in een inconsistente staat achterlaten.
+concurrency:
+  group: zad-deploy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # GHCR vereist lowercase; github.repository is MinBZK/... (hoofdletters) → hardcode lowercase.
+  IMAGE_NAME: minbzk/moza-profiel-service
+  ZAD_PROJECT_ID: psd-law
+
+jobs:
+  build:
+    # Bouwen op push naar main en op elke PR-actie behalve 'closed' (dan enkel
+    # opruimen). Fork-PR's en bekende bot-PR's (dependabot) overslaan: die krijgen
+    # een read-only GITHUB_TOKEN, waarmee de jib-push naar GHCR toch met een 403
+    # zou falen — dus liever een schone skip dan een rode build elke week.
+    # Check de PR-AUTEUR, niet github.actor: bij "Update branch" op een
+    # dependabot-PR is de actor een mens, terwijl de auteur (en dus ook wat
+    # zad-actions' eigen skip-bot-prs checkt) nog steeds dependabot[bot] is. Op
+    # actor checken zou dan een image pushen en een pr-<n>-environment aanmaken
+    # die deploy/cleanup daarna alsnog intern overslaan — een weesimage/-environment
+    # die nooit wordt opgeruimd.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.action != 'closed' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.login != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # image pushen naar GHCR
+    outputs:
+      digest: ${{ steps.build.outputs.digest }} # immutable digest voor verse pull
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven # Maven-dependency-tree cachen tussen runs
+      - name: Build + push image (jib)
+        id: build
+        # Variabele waarden via env i.p.v. inline interpolatie (defense-in-depth injectie).
+        # Het GHCR-token gaat via QUARKUS_CONTAINER_IMAGE_PASSWORD i.p.v. een -D-flag, zodat
+        # het secret niet in de proceslijst (ps) of build-output belandt. jib pusht direct
+        # naar GHCR (geen Docker-daemon).
+        # jib.serialize=true pusht blobs serieel i.p.v. parallel: GHCR geeft bij parallelle
+        # uploads soms een flaky "BLOB_UPLOAD_UNKNOWN" (blob-sessie-race). Kost wat build-tijd,
+        # maar maakt de push betrouwbaar.
+        # Swagger UI staat al globaal aan via application.properties (geen extra flag nodig,
+        # anders dan bij de NMC). De health-management-flag zet /q/health/ready terug op de
+        # publieke poort — zie toelichting bovenaan dit bestand.
+        env:
+          GROUP: minbzk # lowercase GHCR-owner (moet matchen met IMAGE_NAME)
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.number }}
+          GHCR_USER: ${{ github.actor }}
+          QUARKUS_CONTAINER_IMAGE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Tag per event: PR → mutable pr-<n>; push naar main → main-<sha7>. Beide worden
+          # verderop op immutable digest gedeployd (verse pull i.p.v. gecachete tag).
+          if [ "$EVENT" = "push" ]; then
+            TAG="main-${GITHUB_SHA::7}"
+          else
+            TAG="pr-$PR_NUMBER"
+          fi
+          ./mvnw -B package -DskipTests -Djib.serialize=true \
+            -Dquarkus.container-image.build=true \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry="$REGISTRY" \
+            -Dquarkus.container-image.group="$GROUP" \
+            -Dquarkus.container-image.tag="$TAG" \
+            -Dquarkus.container-image.username="$GHCR_USER" \
+            -Dquarkus.smallrye-health.management.enabled=false
+          # Immutable digest voor de deploy-step (verse pull i.p.v. gecachete tag).
+          # -s (niet enkel bestaan-check): een leeg bestand zou anders alsnog een
+          # lege "digest="-output opleveren i.p.v. deze stap hard te laten falen.
+          test -s target/jib-image.digest
+          echo "digest=$(cat target/jib-image.digest)" >> "$GITHUB_OUTPUT"
+
+  deploy-preview:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # deploy-URL als PR-comment posten
+      deployments: write # GitHub environment/deployment aanmaken
+    environment:
+      name: pr-${{ github.event.pull_request.number }}
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Deploy to ZAD
+        id: deploy
+        uses: RijksICTGilde/zad-actions/deploy@b844c76eba3502b40a19be868cdf0586e322f4b8 # v4.1.0
+        with:
+          api-key: ${{ secrets.ZAD_API_KEY }}
+          project-id: ${{ env.ZAD_PROJECT_ID }}
+          deployment-name: pr-${{ github.event.pull_request.number }}
+          component: profielservice
+          # Deploy op digest (niet de mutable pr-N tag) zodat ZAD altijd de net
+          # gebouwde image pullt i.p.v. een gecachete oude versie van dezelfde tag.
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
+          # Erf DB + secrets + env van de 'feature'-deployment (component profielservice
+          # heeft daar DB-url/creds, verificatie-service-url, NotifyNL-keys, scheduler-
+          # uitschakeling gezet). Zie docs/zad-deploy.md.
+          clone-from: feature
+          comment-on-pr: 'true'
+          # Wacht tot de app daadwerkelijk up is; readiness bevat de datasource-check
+          # (bereikbaar op de publieke poort dankzij de management-health-flag hierboven).
+          wait-for-ready: 'true'
+          health-endpoint: /q/health/ready
+
+  cleanup-preview:
+    # Alleen bij sluiten van de PR: omgeving + image + GitHub environment opruimen.
+    # Zelfde fork/auteur-guard als build (zie toelichting daar): voor die PR's is
+    # er nooit een preview geweest (build sloeg al over), dus cleanup zou hier
+    # alleen een zinloze API-aanroep met lege secrets doen.
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      deployments: write
+      packages: write
+      pull-requests: write
+    steps:
+      - name: Cleanup ZAD environment
+        uses: RijksICTGilde/zad-actions/cleanup@b844c76eba3502b40a19be868cdf0586e322f4b8 # v4.1.0
+        with:
+          api-key: ${{ secrets.ZAD_API_KEY }}
+          project-id: ${{ env.ZAD_PROJECT_ID }}
+          deployment-name: pr-${{ github.event.pull_request.number }}
+          # GitHub-environment verwijderen vereist GH_ADMIN_TOKEN (repo-admin PAT,
+          # aanwezig als repo-secret).
+          delete-github-env: 'true'
+          delete-github-deployments: 'true'
+          # De gepinde cleanup-action verwijdert bij een DELETE-weigering ("you
+          # cannot delete the last tagged version") het HELE GHCR-package i.p.v.
+          # alleen de gesloten PR's tag. Veilig zolang het package altijd 2+ tags
+          # heeft — sinds de eerste geslaagde stable-deploy staat er ook een
+          # main-*-tag naast de pr-<n>-tags, dus een pr-<n>-tag is nooit meer de
+          # laatste. (Stond tijdelijk op 'false' vóór die eerste stable-deploy.)
+          delete-container: 'true'
+          container-org: minbzk # lowercase; moet matchen met push-tag
+          container-name: ${{ github.event.repository.name }}
+          container-tag: pr-${{ github.event.pull_request.number }}
+          github-admin-token: ${{ secrets.GH_ADMIN_TOKEN }}
+
+  # Push/merge naar main → de persistente 'stable'-deployment (de baseline-omgeving).
+  # Config (DB-url/creds, verificatie-service-url, NotifyNL-keys, ...) staat éénmalig op
+  # de 'stable'-deployment in Operations Manager — deze workflow draagt geen env, dus
+  # géén clone-from (in tegenstelling tot de PR-preview, die van 'feature' erft).
+  deploy-stable:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write # GitHub environment/deployment aanmaken
+    environment:
+      name: stable
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Deploy to ZAD (stable)
+        id: deploy
+        uses: RijksICTGilde/zad-actions/deploy@b844c76eba3502b40a19be868cdf0586e322f4b8 # v4.1.0
+        with:
+          api-key: ${{ secrets.ZAD_API_KEY }}
+          project-id: ${{ env.ZAD_PROJECT_ID }}
+          deployment-name: stable
+          component: profielservice
+          # Deploy op digest (niet de mutable main-<sha7> tag) zodat ZAD altijd de net
+          # gebouwde image pullt i.p.v. een gecachete oude versie van dezelfde tag.
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build.outputs.digest }}
+          # Wacht tot de app daadwerkelijk up is; readiness bevat de datasource-check.
+          wait-for-ready: 'true'
+          health-endpoint: /q/health/ready

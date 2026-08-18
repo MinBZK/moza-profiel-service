@@ -9,8 +9,8 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -71,10 +71,10 @@ public class EmailVerificatieServiceTest {
     @Test
     void verifieerEmail_PartijNotFound() {
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
-        request.verificatieCode = "123456";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
+        request.setVerificatieCode("123456");
 
         boolean result = service.verifieerEmail(request);
         Assertions.assertFalse(result);
@@ -100,10 +100,10 @@ public class EmailVerificatieServiceTest {
         Mockito.doReturn(response).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
-        request.verificatieCode = "123456";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
+        request.setVerificatieCode("123456");
 
         boolean result = service.verifieerEmail(request);
         Assertions.assertTrue(result);
@@ -137,10 +137,10 @@ public class EmailVerificatieServiceTest {
         });
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
-        request.verificatieCode = "123456";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
+        request.setVerificatieCode("123456");
 
         boolean result = service.verifieerEmail(request);
         Assertions.assertFalse(result);
@@ -163,9 +163,9 @@ public class EmailVerificatieServiceTest {
         Mockito.doReturn("new-reference-id").when(emailVerificatieApi).requestPost(Mockito.any());
 
         EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
 
         int result = service.vraagEmailVerificatieCodeAan(request);
         Assertions.assertEquals(Response.Status.OK.getStatusCode(), result);
@@ -187,9 +187,9 @@ public class EmailVerificatieServiceTest {
         Mockito.doThrow(createWebApplicationException(400)).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
 
         int result = service.vraagEmailVerificatieCodeAan(request);
         Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
@@ -240,10 +240,10 @@ public class EmailVerificatieServiceTest {
         });
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
-        request.verificatieCode = "123456";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
+        request.setVerificatieCode("123456");
 
         boolean result = service.verifieerEmail(request);
         Assertions.assertFalse(result);
@@ -301,9 +301,9 @@ public class EmailVerificatieServiceTest {
         });
 
         EmailVerificatieCodeAanvraagRequest aanvraag = new EmailVerificatieCodeAanvraagRequest();
-        aanvraag.identificatieType = IdentificatieType.BSN;
-        aanvraag.identificatieNummer = "111111104";
-        aanvraag.email = "test@test.com";
+        aanvraag.setIdentificatieType(IdentificatieType.BSN);
+        aanvraag.setIdentificatieNummer("111111104");
+        aanvraag.setEmail("test@test.com");
 
         Assertions.assertEquals(404, service.vraagEmailVerificatieCodeAan(aanvraag));
     }
@@ -316,7 +316,7 @@ public class EmailVerificatieServiceTest {
         Mockito.doReturn(ok).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = makeVerifyRequest("111111105");
-        request.email = "TEST@TEST.COM";
+        request.setEmail("TEST@TEST.COM");
 
         Assertions.assertTrue(service.verifieerEmail(request));
     }
@@ -371,9 +371,9 @@ public class EmailVerificatieServiceTest {
         });
 
         EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "111111105";
-        request.email = "test@test.com";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("111111105");
+        request.setEmail("test@test.com");
 
         int result = service.vraagEmailVerificatieCodeAan(request);
         Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
@@ -397,9 +397,9 @@ public class EmailVerificatieServiceTest {
         Mockito.doReturn("new-ref-id").when(emailVerificatieApi).requestPost(Mockito.any());
 
         EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "111111106";
-        request.email = "test@test.com";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("111111106");
+        request.setEmail("test@test.com");
 
         int result = service.vraagEmailVerificatieCodeAan(request);
         Assertions.assertEquals(Response.Status.OK.getStatusCode(), result);
@@ -421,9 +421,9 @@ public class EmailVerificatieServiceTest {
         Mockito.doReturn(null).when(emailVerificatieApi).requestPost(Mockito.any());
 
         EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "111111107";
-        request.email = "test@test.com";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("111111107");
+        request.setEmail("test@test.com");
 
         int result = service.vraagEmailVerificatieCodeAan(request);
         Assertions.assertEquals(Response.Status.SERVICE_UNAVAILABLE.getStatusCode(), result);
@@ -455,10 +455,10 @@ public class EmailVerificatieServiceTest {
 
     private EmailVerificatieRequest makeVerifyRequest(String bsn) {
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = bsn;
-        request.email = "test@test.com";
-        request.verificatieCode = "123456";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer(bsn);
+        request.setEmail("test@test.com");
+        request.setVerificatieCode("123456");
         return request;
     }
 
@@ -505,10 +505,10 @@ public class EmailVerificatieServiceTest {
         Mockito.doReturn(response).when(emailVerificatieApi).verifyPost(Mockito.any());
 
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieType = IdentificatieType.BSN;
-        request.identificatieNummer = "123456789";
-        request.email = "test@test.com";
-        request.verificatieCode = "123456";
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("123456789");
+        request.setEmail("test@test.com");
+        request.setVerificatieCode("123456");
 
         boolean result = service.verifieerEmail(request);
 

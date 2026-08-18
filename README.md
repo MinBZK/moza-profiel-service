@@ -20,6 +20,12 @@ Levenscyclus: **development** (zie `publiccode.yml`). De service draait in een P
 
 De API volgt de [NL GOV API Design Rules 2.1.0](https://gitdocumentatie.logius.nl/publicatie/api/adr/2.1.0/). Foutmeldingen volgen RFC 9457 (`application/problem+json`).
 
+### Contract-first
+
+Het contract in `src/main/resources/META-INF/openapi.yaml` is de bron. Annotatie-scanning staat uit (`mp.openapi.scan.disable=true`), dus datzelfde bestand wordt statisch op `/openapi.json` geserveerd én voedt de codegen: `openapi-generator-maven-plugin` maakt er tijdens `generate-sources` de request- en response-DTO's uit, in `nl.rijksoverheid.moz.api.generated.model`.
+
+Praktisch betekent dat: **schrijf geen DTO met de hand en bewerk niets onder `target/generated-sources`** — pas het contract aan en draai de build opnieuw. De controllers zijn wél handgeschreven (`generateApis=false`, zie de toelichting in `pom.xml`); `RouteDekkingTest` bewaakt dat ze paden en methodes van het contract blijven volgen.
+
 ## Lokaal draaien
 
 Vereisten:
@@ -72,7 +78,7 @@ De Profiel Service maakt gebruik van contracttesting om te waarborgen dat wijzig
 
 ### Hoe het werkt
 
-- **OpenAPI-schemavalidatie**: elke integratietest valideert automatisch dat verzoeken en antwoorden overeenkomen met de live OpenAPI-specificatie van de service (`/openapi.json`).
+- **OpenAPI-schemavalidatie**: elke integratietest valideert automatisch dat verzoeken en antwoorden overeenkomen met de OpenAPI-specificatie die de draaiende service publiceert (`/openapi.json`).
 - **Pact-providerverificatie**: pact-bestanden (JSON) in `src/test/resources/pacts/` beschrijven de verwachte contracten. De provider test verifieert dat de service hieraan voldoet. Het huidige bestand `moza-profiel-service.json` is een zelftestcontract van de provider zelf.
 
 ### Contracten bijdragen als consument

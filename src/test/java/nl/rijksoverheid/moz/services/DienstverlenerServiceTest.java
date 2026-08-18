@@ -4,8 +4,9 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import nl.rijksoverheid.moz.exception.BusinessException;
-import nl.rijksoverheid.moz.dto.request.DienstRequest;
-import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
+import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
@@ -28,8 +29,8 @@ public class DienstverlenerServiceTest {
     @Test
     void addDienstverlener_NewDienstverlener() {
         DienstverlenerRequest request = new DienstverlenerRequest();
-        request.naam = "TestDienstverlener";
-        request.beschrijving = "Een test dienstverlener";
+        request.setNaam("TestDienstverlener");
+        request.setBeschrijving("Een test dienstverlener");
 
         dienstverlenerService.addDienstverlener(request);
 
@@ -49,7 +50,7 @@ public class DienstverlenerServiceTest {
         });
 
         DienstverlenerRequest request = new DienstverlenerRequest();
-        request.naam = "ExistingDV";
+        request.setNaam("ExistingDV");
 
         dienstverlenerService.addDienstverlener(request);
 
@@ -57,6 +58,54 @@ public class DienstverlenerServiceTest {
             long count = Dienstverlener.count("lower(naam) = lower(?1)", "ExistingDV");
             Assertions.assertEquals(1, count);
         });
+    }
+
+    /**
+     * De beschrijving van een bestaande dienstverlener werd stil genegeerd: de aanroeper kreeg
+     * een 201 met de oude waarde terug. Dat is dezelfde afweging als bij een dienst met een
+     * andere beschrijving, en het contract documenteerde de 409 al.
+     */
+    @Test
+    void addDienstverlener_ExistingDienstverlenerMetAndereBeschrijving_Conflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dienstverlener = new Dienstverlener();
+            dienstverlener.setNaam("ExistingDV");
+            dienstverlener.setBeschrijving("originele beschrijving");
+            dienstverlener.persist();
+        });
+
+        DienstverlenerRequest request = new DienstverlenerRequest();
+        request.setNaam("ExistingDV");
+        request.setBeschrijving("andere beschrijving");
+
+        BusinessException fout = Assertions.assertThrows(BusinessException.class,
+                () -> dienstverlenerService.addDienstverlener(request));
+
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, fout.getKind());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener onveranderd = Dienstverlener.find("naam", "ExistingDV").firstResult();
+            Assertions.assertEquals("originele beschrijving", onveranderd.getBeschrijving());
+        });
+    }
+
+    /**
+     * {@code addDienstToDienstverlener} maakt de dienstverlener aan met een lege beschrijving.
+     * Een {@code null} legt dus niets vast en mag nooit botsen, ook niet als er al een
+     * beschrijving staat.
+     */
+    @Test
+    void findOrCreateDienstverlener_ZonderBeschrijving_GeenConflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dienstverlener = new Dienstverlener();
+            dienstverlener.setNaam("ExistingDV");
+            dienstverlener.setBeschrijving("originele beschrijving");
+            dienstverlener.persist();
+        });
+
+        Dienstverlener gevonden = dienstverlenerService.findOrCreateDienstverlener("ExistingDV", null);
+
+        Assertions.assertEquals("originele beschrijving", gevonden.getBeschrijving());
     }
 
     @Test
@@ -88,8 +137,8 @@ public class DienstverlenerServiceTest {
         });
 
         DienstRequest request = new DienstRequest();
-        request.naam = "NieuweDienst";
-        request.beschrijving = "Optionele toelichting";
+        request.setNaam("NieuweDienst");
+        request.setBeschrijving("Optionele toelichting");
 
         Dienst result = dienstverlenerService.addDienstToDienstverlener("TestDV", request);
 
@@ -120,8 +169,8 @@ public class DienstverlenerServiceTest {
         });
 
         DienstRequest request = new DienstRequest();
-        request.naam = "Vergunning";
-        request.beschrijving = "andere beschrijving";
+        request.setNaam("Vergunning");
+        request.setBeschrijving("andere beschrijving");
 
         BusinessException ex = Assertions.assertThrows(
                 BusinessException.class,
@@ -147,7 +196,7 @@ public class DienstverlenerServiceTest {
         });
 
         DienstRequest request = new DienstRequest();
-        request.naam = "Vergunning";
+        request.setNaam("Vergunning");
 
         Dienst result = dienstverlenerService.addDienstToDienstverlener("DV-B", request);
 
@@ -158,6 +207,32 @@ public class DienstverlenerServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Assertions.assertEquals(1, Dienst.count("naam", "Vergunning"));
             Assertions.assertEquals(2, DienstverlenerDienst.count());
+        });
+    }
+
+    /**
+     * Tweemaal dezelfde dienst op dezelfde dienstverlener hoort de bestaande koppeling terug te
+     * geven, niet een tweede rij of een botsing op de unique constraint.
+     */
+    @Test
+    void addDienstToDienstverlener_TweemaalDezelfdeDienst_IsIdempotent() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("DV-Idem");
+            dv.persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("Vergunning");
+
+        Dienst eerste = dienstverlenerService.addDienstToDienstverlener("DV-Idem", request);
+        Dienst tweede = dienstverlenerService.addDienstToDienstverlener("DV-Idem", request);
+
+        Assertions.assertEquals(eerste.id, tweede.id);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(1, Dienst.count("naam", "Vergunning"));
+            Assertions.assertEquals(1, DienstverlenerDienst.count());
         });
     }
 

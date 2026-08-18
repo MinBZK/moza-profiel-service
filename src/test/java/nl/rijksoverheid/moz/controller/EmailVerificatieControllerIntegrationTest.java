@@ -4,8 +4,8 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieCodeAanvraagRequest;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -28,10 +28,10 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
         Mockito.doReturn(true).when(emailVerificatieService).verifieerEmail(Mockito.any());
 
         var body = new EmailVerificatieRequest();
-        body.email = "email@email.com";
-        body.verificatieCode = "123456";
-        body.identificatieNummer = "123456782";
-        body.identificatieType = IdentificatieType.BSN;
+        body.setEmail("email@email.com");
+        body.setVerificatieCode("123456");
+        body.setIdentificatieNummer("123456782");
+        body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
                 .filter(validationFilter)
@@ -48,10 +48,10 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
         Mockito.doReturn(false).when(emailVerificatieService).verifieerEmail(Mockito.any());
 
         var body = new EmailVerificatieRequest();
-        body.email = "email@email.com";
-        body.verificatieCode = "123456";
-        body.identificatieNummer = "123456782";
-        body.identificatieType = IdentificatieType.BSN;
+        body.setEmail("email@email.com");
+        body.setVerificatieCode("123456");
+        body.setIdentificatieNummer("123456782");
+        body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
                 .contentType(ContentType.JSON)
@@ -67,9 +67,9 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
         Mockito.doReturn(OK).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
 
         var body = new EmailVerificatieCodeAanvraagRequest();
-        body.email = "email@email.com";
-        body.identificatieNummer = "123";
-        body.identificatieType = IdentificatieType.BSN;
+        body.setEmail("email@email.com");
+        body.setIdentificatieNummer("123456782");
+        body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
                 .filter(validationFilter)
@@ -86,9 +86,9 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
         Mockito.doReturn(NOT_FOUND).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
 
         var body = new EmailVerificatieCodeAanvraagRequest();
-        body.email = "email@email.com";
-        body.identificatieNummer = "123";
-        body.identificatieType = IdentificatieType.BSN;
+        body.setEmail("email@email.com");
+        body.setIdentificatieNummer("123456782");
+        body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
                 .filter(validationFilter)
@@ -107,9 +107,9 @@ public class EmailVerificatieControllerIntegrationTest extends OpenApiValidation
         Mockito.doReturn(SERVICE_UNAVAILABLE).when(emailVerificatieService).vraagEmailVerificatieCodeAan(Mockito.any());
 
         var body = new EmailVerificatieCodeAanvraagRequest();
-        body.email = "email@email.com";
-        body.identificatieNummer = "123";
-        body.identificatieType = IdentificatieType.BSN;
+        body.setEmail("email@email.com");
+        body.setIdentificatieNummer("123456782");
+        body.setIdentificatieType(IdentificatieType.BSN);
 
         given()
                 .filter(validationFilter)

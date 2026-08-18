@@ -53,6 +53,9 @@ for fuzzer in $(grep -rl "fuzzerTestOneInput" src/test/java/ || true); do
     cat > "$OUT/$simple_name" << 'WRAPPER_EOF'
 #!/bin/bash
 # LLVMFuzzerTestOneInput for jvm
+# Same net as the build script: without it an empty this_dir would turn the rm -rf
+# and chown below into root-level operations on the wrong path.
+set -eu
 # Absolute, because the paths below are handed to a shell running as another user.
 this_dir=$(cd "$(dirname "$0")" && pwd)
 
@@ -68,39 +71,61 @@ PGDIR="$this_dir/postgres"
 PGDATA="$this_dir/pgdata"
 PGPORT=5433
 
-rm -rf "$PGDATA"
-mkdir -p "$PGDATA"
-
 # initdb and postgres refuse to run as root, which is what the fuzz runner uses.
+# The helpers take argv, not a command string: a string is re-parsed by the second
+# shell, so any path with a space would be word-split.
 if [ "$(id -u)" = "0" ]; then
   id -u pgfuzz >/dev/null 2>&1 || useradd -m pgfuzz
   # The harness runs fuzzers from a mkdtemp directory (mode 0700, owned by root),
   # which pgfuzz cannot traverse. Widen that one directory only: walking up the
   # ancestors would strip 0700 from whatever else happens to be on the path.
   chmod o+rx "$this_dir" 2>/dev/null || true
-  chown -R pgfuzz "$PGDATA" "$PGDIR"
-  as_postgres() { su pgfuzz -c "$1"; }
+  if command -v runuser >/dev/null 2>&1; then
+    as_postgres() { runuser -u pgfuzz -- "$@"; }
+  else
+    # su only accepts a command string; %q quotes every argument so the shell it
+    # spawns cannot re-split them.
+    as_postgres() { su pgfuzz -c "$(printf '%q ' "$@")"; }
+  fi
 else
-  as_postgres() { sh -c "$1"; }
+  as_postgres() { "$@"; }
+fi
+
+stop_postgres() {
+  as_postgres "$PGDIR/bin/pg_ctl" -D "$PGDATA" -m immediate stop >/dev/null 2>&1 || true
+}
+
+# A run killed by a timeout never reaches the EXIT trap, leaving a postgres that
+# still holds PGPORT and this data directory. Wiping the directory underneath it
+# would make every later run fail on a port that is already in use.
+if [ -s "$PGDATA/postmaster.pid" ]; then
+  echo "EndpointFuzzer: stopping PostgreSQL left behind by an earlier run" >&2
+  stop_postgres
+fi
+
+rm -rf "$PGDATA"
+mkdir -p "$PGDATA"
+
+if [ "$(id -u)" = "0" ]; then
+  chown -R pgfuzz "$PGDATA" "$PGDIR"
 fi
 
 # The bundle ships only initdb, pg_ctl and postgres, so the schema goes into the
 # default `postgres` database rather than one created with createdb.
-as_postgres "$PGDIR/bin/initdb -D $PGDATA -U profiel --auth=trust -E UTF8" || {
+as_postgres "$PGDIR/bin/initdb" -D "$PGDATA" -U profiel --auth=trust -E UTF8 || {
   echo "EndpointFuzzer: initdb failed" >&2
   exit 1
 }
 # Log inside PGDATA: after the chmod above $this_dir is traversable but not
 # writable by pgfuzz, while PGDATA belongs to it.
-as_postgres "$PGDIR/bin/pg_ctl -D $PGDATA -o '-p $PGPORT -k /tmp' -l $PGDATA/postgres.log -w start" || {
+as_postgres "$PGDIR/bin/pg_ctl" -D "$PGDATA" -o "-p $PGPORT -k /tmp" -l "$PGDATA/postgres.log" -w start || {
   echo "EndpointFuzzer: PostgreSQL failed to start" >&2
   cat "$PGDATA/postgres.log" >&2 || true
   exit 1
 }
-
-stop_postgres() {
-  as_postgres "$PGDIR/bin/pg_ctl -D $PGDATA -m immediate stop" >/dev/null 2>&1 || true
-}
+# Armed here, not after Quarkus starts: everything below can still exit non-zero,
+# and postgres is already running.
+trap stop_postgres EXIT
 
 # Start Quarkus as a background process against that PostgreSQL.
 JAVA_HOME="$this_dir/open-jdk-25" \
