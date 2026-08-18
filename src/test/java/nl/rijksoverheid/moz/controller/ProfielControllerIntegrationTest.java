@@ -663,6 +663,34 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .statusCode(BAD_REQUEST);
     }
 
+    /**
+     * De twee tests hierboven sturen geen body en worden door {@code RequireBodyReaderInterceptor}
+     * beantwoord, vóór de bean-validatie. Deze twee sturen een body die het contract schendt en
+     * raken daarmee de {@code @Valid} op de DELETE-parameter; zonder die annotatie blijft het
+     * verzoek staan tot de service er een 404 van maakt.
+     */
+    @Test
+    void deleteContactgegeven_BlancoIdentificatieNummer_GeeftViolations() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"identificatieType\":\"KVK\",\"identificatieNummer\":\" \"}")
+                .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
+                .then()
+                .statusCode(BAD_REQUEST)
+                .body("violations.field", hasItem("identificatieNummer"));
+    }
+
+    @Test
+    void deleteVoorkeur_BlancoIdentificatieNummer_GeeftViolations() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"identificatieType\":\"KVK\",\"identificatieNummer\":\" \"}")
+                .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
+                .then()
+                .statusCode(BAD_REQUEST)
+                .body("violations.field", hasItem("identificatieNummer"));
+    }
+
     @Test
     void deleteVoorkeur_Success() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();

@@ -49,8 +49,7 @@ paths:
         "404":
           $ref: "#/components/responses/ContactgegevenOfScopeNietGevonden"
         "409":
-          description: "Combinatie van type en waarde bestaat al voor deze partij, of een\
-            \ gelijktijdige write botste op een unique constraint"
+          description: Combinatie van type en waarde bestaat al voor deze partij
           content:
             application/problem+json:
               schema:
@@ -183,8 +182,7 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
-          description: "Dienstverlener bestaat al met een andere beschrijving, of een\
-            \ gelijktijdige write botste op een unique constraint"
+          description: Dienstverlener bestaat al met een andere beschrijving
           content:
             application/problem+json:
               schema:
@@ -222,8 +220,7 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
         "409":
-          description: "Dienst bestaat al met een andere beschrijving, of een gelijktijdige\
-            \ write botste op een unique constraint"
+          description: Dienst bestaat al met een andere beschrijving
           content:
             application/problem+json:
               schema:
@@ -418,8 +415,7 @@ paths:
         "404":
           $ref: "#/components/responses/VoorkeurOfScopeNietGevonden"
         "409":
-          description: "Andere voorkeur bestaat al voor deze partij, type en scope, of een\
-            \ gelijktijdige write botste op een unique constraint"
+          description: "Andere voorkeur bestaat al voor deze partij, type en scope"
           content:
             application/problem+json:
               schema:
@@ -570,9 +566,12 @@ components:
       # Lookup-dan-persist: twee gelijktijdige writes kunnen de voorcontrole passeren en pas
       # bij flush op een unique index botsen (onder meer uk_identificatie,
       # uk_contactgegeven_dedup, uk_dvdienst_dv_broad).
-      # DatabaseConstraintViolationMapper is bedoeld om dat naar deze 409 te vertalen; dat
-      # de vertaling in dit pad ook echt aanslaat is niet vastgelegd — de race is over HTTP
-      # niet betrouwbaar te reproduceren.
+      # DatabaseConstraintViolationMapper vertaalt dat naar deze 409, maar alleen als de
+      # violation de mapper kaal bereikt: gemeten geeft een ConstraintViolationException die
+      # in een andere exception verpakt binnenkomt een 500, omdat RESTEasy dan bij de
+      # catch-all mapUnhandledException(Exception) uitkomt en niet meer uitpakt. Wanneer een
+      # race in welk pad ook opduikt is over HTTP niet betrouwbaar te reproduceren, dus deze
+      # 409 is wat een client mág verwachten, geen garantie.
       description: Gelijktijdige write botste op een unique constraint
       content:
         application/problem+json:
