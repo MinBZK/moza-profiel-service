@@ -224,6 +224,32 @@ public class DienstverlenerServiceTest {
         });
     }
 
+    /**
+     * Tweemaal dezelfde dienst op dezelfde dienstverlener hoort de bestaande koppeling terug te
+     * geven, niet een tweede rij of een botsing op de unique constraint.
+     */
+    @Test
+    void addDienstToDienstverlener_TweemaalDezelfdeDienst_IsIdempotent() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("DV-Idem");
+            dv.persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("Vergunning");
+
+        Dienst eerste = dienstverlenerService.addDienstToDienstverlener("DV-Idem", request);
+        Dienst tweede = dienstverlenerService.addDienstToDienstverlener("DV-Idem", request);
+
+        Assertions.assertEquals(eerste.id, tweede.id);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(1, Dienst.count("naam", "Vergunning"));
+            Assertions.assertEquals(1, DienstverlenerDienst.count());
+        });
+    }
+
     @Test
     void findOrCreateDienstverlener_CaseInsensitive() {
         QuarkusTransaction.requiringNew().run(() -> {

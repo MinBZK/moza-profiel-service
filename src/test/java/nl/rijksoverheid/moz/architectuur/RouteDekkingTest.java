@@ -16,6 +16,7 @@ import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,10 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Bewaakt dat het contract en de JAX-RS-routes elkaar dekken, in beide richtingen: pad en
@@ -34,6 +38,9 @@ import java.util.TreeSet;
 class RouteDekkingTest {
 
     private static final String CONTROLLER_PAKKET = "nl.rijksoverheid.moz.controller";
+
+    /** JAX-RS staat een reguliere expressie toe achter de naam: {@code {id: [0-9]+}}. */
+    private static final Pattern PAD_PARAMETER = Pattern.compile("\\{\\s*([^}:\\s]+)\\s*(?::[^}]*)?}");
 
     /**
      * Alle HTTP-methoden die JAX-RS kent, ook de methoden die dit contract vandaag niet gebruikt.
@@ -48,9 +55,17 @@ class RouteDekkingTest {
             HEAD.class, "head",
             OPTIONS.class, "options");
 
+    /**
+     * Een resource-methode met haar route: de eigenaar staat erbij zodat een dubbele mapping te
+     * herleiden is, en om een geërfde methode die onder twee klassen opduikt één keer te tellen.
+     */
+    private record Route(String route, String eigenaar, List<String> padParameters,
+                         List<String> pathParams) {
+    }
+
     @Test
     void contractEnRoutesDekkenElkaar() throws Exception {
-        TreeSet<String> routes = new TreeSet<>(routesUitDeCode());
+        TreeSet<String> routes = new TreeSet<>(routesUitDeCode().stream().map(Route::route).toList());
         TreeSet<String> operaties = new TreeSet<>(operatiesUitHetContract());
 
         Assertions.assertFalse(routes.isEmpty(),
@@ -76,14 +91,54 @@ class RouteDekkingTest {
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
     }
 
-    private static List<String> routesUitDeCode() {
+    /**
+     * Twee resource-methoden op dezelfde methode + pad is voor JAX-RS een dubbelzinnige mapping;
+     * het contract kan zo'n paar niet beschrijven, want daar is één operatie per combinatie.
+     */
+    @Test
+    void geenTweeResourceMethodenOpDezelfdeRoute() {
+        Map<String, List<String>> perRoute = new TreeMap<>();
+
+        for (Route route : routesUitDeCode()) {
+            perRoute.computeIfAbsent(route.route(), sleutel -> new ArrayList<>()).add(route.eigenaar());
+        }
+
+        List<String> dubbel = perRoute.entrySet().stream()
+                .filter(entry -> new TreeSet<>(entry.getValue()).size() > 1)
+                .map(entry -> entry.getKey() + " -> " + new TreeSet<>(entry.getValue()))
+                .toList();
+
+        Assertions.assertTrue(dubbel.isEmpty(),
+                "Deze routes zijn door meer dan één resource-methode gemapt: " + dubbel);
+    }
+
+    /**
+     * Het pad en de {@code @PathParam}-namen worden apart geschreven; loopt er één uit de pas, dan
+     * blijft het pad gelijk aan het contract terwijl de parameter niet meer gebonden wordt.
+     */
+    @Test
+    void padParametersEnPathParamsDragenDezelfdeNamen() {
+        List<String> bevindingen = new ArrayList<>();
+
+        for (Route route : routesUitDeCode()) {
+            if (!new TreeSet<>(route.padParameters()).equals(new TreeSet<>(route.pathParams()))) {
+                bevindingen.add(route.eigenaar() + " (" + route.route() + ") heeft padparameters "
+                        + new TreeSet<>(route.padParameters()) + " en @PathParam-namen "
+                        + new TreeSet<>(route.pathParams()));
+            }
+        }
+
+        Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
+    }
+
+    private static List<Route> routesUitDeCode() {
         // Het hele applicatiepakket, niet alleen .controller: een resource die ooit elders komt te
         // staan zou anders buiten de sweep vallen zonder dat iets dat meldt.
         JavaClasses klassen = new ClassFileImporter()
                 .withImportOption(new ImportOption.DoNotIncludeTests())
                 .importPackages("nl.rijksoverheid.moz");
 
-        List<String> routes = new ArrayList<>();
+        Map<String, Route> routes = new TreeMap<>();
 
         for (JavaClass klasse : klassen) {
             if (!klasse.isAnnotatedWith(Path.class)) {
@@ -100,7 +155,10 @@ class RouteDekkingTest {
 
             String basisPad = klasse.getAnnotationOfType(Path.class).value();
 
-            for (JavaMethod methode : klasse.getMethods()) {
+            // getAllMethods() en niet getMethods(): dat laatste geeft alleen de gedeclareerde
+            // methoden, waardoor een geërfde resource-methode buiten de sweep zou vallen. Een
+            // override levert de methode twee keer op; de sleutel hieronder telt hem één keer.
+            for (JavaMethod methode : klasse.getAllMethods()) {
                 HTTP_METHODEN.forEach((annotatie, naam) -> {
                     if (!methode.isAnnotatedWith(annotatie)) {
                         return;
@@ -110,12 +168,34 @@ class RouteDekkingTest {
                             ? methode.getAnnotationOfType(Path.class).value()
                             : "";
 
-                    routes.add(naam + " " + normaliseer(basisPad + "/" + deelPad));
+                    String pad = normaliseer(basisPad + "/" + deelPad);
+                    String eigenaar = methode.getOwner().getSimpleName() + "#" + methode.getName();
+
+                    routes.put(eigenaar + " " + naam + " " + pad,
+                            new Route(naam + " " + pad, eigenaar, padParameters(pad), pathParams(methode)));
                 });
             }
         }
 
-        return routes;
+        return List.copyOf(routes.values());
+    }
+
+    private static List<String> padParameters(String pad) {
+        List<String> namen = new ArrayList<>();
+        Matcher treffer = PAD_PARAMETER.matcher(pad);
+
+        while (treffer.find()) {
+            namen.add(treffer.group(1));
+        }
+
+        return namen;
+    }
+
+    private static List<String> pathParams(JavaMethod methode) {
+        return methode.getParameters().stream()
+                .filter(parameter -> parameter.isAnnotatedWith(PathParam.class))
+                .map(parameter -> parameter.getAnnotationOfType(PathParam.class).value())
+                .toList();
     }
 
     private static List<String> operatiesUitHetContract() throws Exception {
