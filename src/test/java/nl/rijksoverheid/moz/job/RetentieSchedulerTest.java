@@ -123,6 +123,18 @@ public class RetentieSchedulerTest {
     }
 
     @Test
+    void voorkeur_lastUsedAtOud_LaatsteActieveKind_VerwijdertOokPartij() {
+        UUID partijId = createPartij();
+        createVoorkeur(partijId, ouderDanGrens(), null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "partij zonder actieve kinderen meer moet ook door de retentiescheduler soft-deleted worden"));
+    }
+
+    @Test
     void voorkeur_lastUsedAtNull_createdAtOud_KrijgtVerwijderdOp() {
         // lastUsedAt is null → COALESCE falls back to createdAt
         UUID partijId = createPartij();
@@ -195,6 +207,53 @@ public class RetentieSchedulerTest {
             Contactgegeven contact = Contactgegeven.findById(contactId);
             Assertions.assertNotNull(contact.getVerwijderdOp(),
                     "verwijderdOp must be set on Contactgegeven when unused for more than 7 years");
+        });
+    }
+
+    @Test
+    void contactgegeven_lastUsedAtOud_LaatsteActieveKind_VerwijdertOokPartij() {
+        UUID partijId = createPartij();
+        createContactgegeven(partijId, ouderDanGrens(), null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "partij zonder actieve kinderen meer moet ook door de retentiescheduler soft-deleted worden"));
+    }
+
+    @Test
+    void contactgegeven_lastUsedAtOud_AndereVoorkeurActief_PartijBlijftActief() {
+        UUID partijId = createPartij();
+        createContactgegeven(partijId, ouderDanGrens(), null);
+        // Niet-verlopen voorkeur op dezelfde partij: die telt als actief kind.
+        Instant recentGebruikt = Instant.now().atZone(ZoneOffset.UTC).minus(Period.ofYears(1)).toInstant();
+        createVoorkeur(partijId, recentGebruikt, null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "partij met nog een actieve voorkeur mag niet verwijderd worden"));
+    }
+
+    @Test
+    void voorkeurEnContactgegevenBeideOud_VerwijdertOokPartijInZelfdeRun() {
+        // Beide laatste actieve kinderen verlopen in dezelfde run: verwijderInactieveVoorkeuren
+        // draait eerst (eigen transactie) en cascadet nog niet, want het contactgegeven is dan nog
+        // actief; verwijderInactieveContactgegevens draait daarna (eigen transactie) en cascadet
+        // alsnog, nu beide tellingen op nul staan.
+        UUID partijId = createPartij();
+        UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), null);
+        UUID contactId = createContactgegeven(partijId, ouderDanGrens(), null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(voorkeurId).getVerwijderdOp());
+            Assertions.assertNotNull(Contactgegeven.<Contactgegeven>findById(contactId).getVerwijderdOp());
+            Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                    "partij moet ook verwijderd zijn nadat beide laatste actieve kinderen in dezelfde run geveegd zijn");
         });
     }
 

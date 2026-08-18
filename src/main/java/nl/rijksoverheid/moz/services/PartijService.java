@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.services;
 
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.exception.BusinessException.Kind;
@@ -180,17 +181,32 @@ public class PartijService {
         return link;
     }
 
+    // Partij.findByIdentificatie filtert op verwijderdOp IS NULL, dus "niet gevonden" dekt ook
+    // "alleen een eerder soft-deleted partij bestaat" — die wordt hier niet hersteld, er komt een
+    // geheel nieuwe Partij + Identificatie voor in de plaats. Dat kan zonder DB-conflict omdat
+    // uk_identificatie is vervallen (zie V5-migratie); de uniciteit onder actieve partijen wordt
+    // uitsluitend hier afgedwongen. Net als bij de Voorkeur-invariant in addVoorkeur geldt: twee
+    // gelijktijdige aanroepen voor dezelfde, nog niet bestaande identificatie kunnen dus allebei
+    // hier voorbij komen en elk hun eigen Partij + Identificatie aanmaken.
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
 
-        if (partij == null) {
-            LOG.info("Nieuwe partij aanmaken");
-            partij = new Partij();
-            partij.addIdentificatie(new Identificatie(type, nummer));
-            partij.persist();
+        if (partij != null) {
+            // Lock + lees actuele stand: zie deleteLegePartij/lockEnLeesVerwijderdOp voor de race
+            // die dit afdekt. Blijkt de partij ondertussen (net) leeggeraakt en soft-deleted te
+            // zijn, dan wordt hij hier behandeld als niet gevonden — er komt een nieuwe partij,
+            // net als wanneer findByIdentificatie hem al niet had gevonden.
+            if (lockEnLeesVerwijderdOp(partij) == null) {
+                return partij;
+            }
         }
 
-        return partij;
+        LOG.info("Nieuwe partij aanmaken");
+        Partij nieuw = new Partij();
+        nieuw.addIdentificatie(new Identificatie(type, nummer));
+        nieuw.persist();
+
+        return nieuw;
     }
 
     public Partij getPartij(IdentificatieType identificatieType, String identificatieNummer) {
@@ -335,7 +351,9 @@ public class PartijService {
         Voorkeur voorkeur = Voorkeur.findNietVerwijderdById(id);
 
         if (voorkeur != null) {
-            voorkeur.setVerwijderdOp(Instant.now());
+            Instant nu = Instant.now();
+            voorkeur.setVerwijderdOp(nu);
+            deleteLegePartij(voorkeur.getPartij(), nu);
         }
 
         return voorkeur;
@@ -348,10 +366,53 @@ public class PartijService {
         Contactgegeven contact = Contactgegeven.findNietVerwijderdById(id);
 
         if (contact != null) {
-            contact.setVerwijderdOp(Instant.now());
+            Instant nu = Instant.now();
+            contact.setVerwijderdOp(nu);
+            deleteLegePartij(contact.getPartij(), nu);
         }
 
         return contact;
+    }
+
+    // Publiek: ook aangeroepen door RetentieScheduler (ander package), na het soft-deleten van
+    // een Voorkeur/Contactgegeven aldaar. MANDATORY: de mutatie op een detached entity zou anders
+    // stilzwijgend verloren gaan zonder dat een toekomstige, niet-transactionele aanroeper dat merkt.
+    //
+    // Pessimistic lock (zie lockEnLeesVerwijderdOp): zonder lock kan dit racen met
+    // findOrCreatePartij, dat gelijktijdig juist een nieuw kind aan dezelfde partij toevoegt (de
+    // partij zou dan soft-deleted worden terwijl hij alweer een actief kind heeft), of met een
+    // tweede, gelijktijdige aanroep hiervan voor dezelfde partij (die dan allebei denken dat de
+    // partij nog niet leeg is en geen van beide cascadet). SELECT ... FOR UPDATE serialiseert
+    // beide operaties op deze ene partij-rij.
+    @Transactional(Transactional.TxType.MANDATORY)
+    public void deleteLegePartij(Partij partij, Instant nu) {
+        if (lockEnLeesVerwijderdOp(partij) != null) {
+            return;
+        }
+
+        boolean hasActiveContactgegevens = Contactgegeven.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
+        boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
+
+        if (!hasActiveContactgegevens && !hasActiveVoorkeuren) {
+            partij.setVerwijderdOp(nu);
+        }
+    }
+
+    // Vergrendelt de partij-rij en leest verwijderdOp los van de entity uit. Nodig omdat noch
+    // findById(id, lockMode) noch entityManager.lock() de veldwaarden verversen van een entity
+    // die al in de persistence context zit (alleen entityManager.refresh() doet dat, en die
+    // crasht hier intern — vermoedelijk een conflict tussen Hibernate's bytecode-enhancement en
+    // de Jacoco-instrumentatie, empirisch bevestigd: dezelfde refresh()-aanroep werkt wél zodra
+    // Jacoco is uitgeschakeld). Een losse scalar-query buiten de entity-hydratie om omzeilt beide
+    // problemen: de lock blokkeert tot een eventuele concurrente transactie commit/rollbackt, en
+    // de erop volgende query is een nieuwe SELECT die dus de actuele, net gecommitte stand ziet.
+    private Instant lockEnLeesVerwijderdOp(Partij partij) {
+        Partij.getEntityManager().lock(partij, LockModeType.PESSIMISTIC_WRITE);
+
+        return Partij.getEntityManager()
+                .createQuery("SELECT p.verwijderdOp FROM Partij p WHERE p.id = :id", Instant.class)
+                .setParameter("id", partij.id)
+                .getSingleResult();
     }
 
     @Transactional
@@ -365,7 +426,7 @@ public class PartijService {
                 .flatMap(entry -> {
                     List<Partij> found = Partij.list(
                             "SELECT p FROM Partij p JOIN p.identificaties i " +
-                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2",
+                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2 AND p.verwijderdOp IS NULL",
                             entry.getKey(), entry.getValue());
 
                     return found.stream();

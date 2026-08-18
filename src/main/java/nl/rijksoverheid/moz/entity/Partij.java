@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.entity;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -7,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.annotation.Nullable;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -23,6 +25,9 @@ public class Partij extends PanacheEntityBase {
     @GeneratedValue
     public UUID id;
 
+    @Nullable
+    private Instant verwijderdOp;
+
     @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Identificatie> identificaties = new ArrayList<>();
 
@@ -31,6 +36,15 @@ public class Partij extends PanacheEntityBase {
 
     @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Voorkeur> voorkeuren = new ArrayList<>();
+
+    @Nullable
+    public Instant getVerwijderdOp() {
+        return verwijderdOp;
+    }
+
+    public void setVerwijderdOp(Instant verwijderdOp) {
+        this.verwijderdOp = verwijderdOp;
+    }
 
     public List<Voorkeur> getVoorkeuren() {
         return Collections.unmodifiableList(voorkeuren);
@@ -47,6 +61,7 @@ public class Partij extends PanacheEntityBase {
         JOIN p.identificaties i
         WHERE i.identificatieType = ?1
           AND i.identificatieNummer = ?2
+          AND p.verwijderdOp IS NULL
     """, type, nummer).firstResult();
     }
 

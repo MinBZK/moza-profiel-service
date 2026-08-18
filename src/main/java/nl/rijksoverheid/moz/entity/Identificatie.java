@@ -9,21 +9,19 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
 import java.util.UUID;
 
+// Geen @UniqueConstraint op (identificatieType, identificatieNummer): een Partij is
+// soft-deletable (zie Partij.verwijderdOp), en een DB-constraint kan niet conditioneren op een
+// kolom uit een andere tabel. Uniciteit onder actieve partijen wordt daarom uitsluitend in
+// applicatiecode afgedwongen, in PartijService.findOrCreatePartij (via het al gefilterde
+// Partij.findByIdentificatie) — hetzelfde geaccepteerde patroon als de Voorkeur-invariant in
+// PartijService.addVoorkeur, die ook geen DB-index heeft.
 @Entity
-@Table(
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_identificatie",
-                columnNames = {"identificatie_type", "identificatie_nummer"}
-        )
-)
 @Audited
 public class Identificatie extends PanacheEntityBase {
 

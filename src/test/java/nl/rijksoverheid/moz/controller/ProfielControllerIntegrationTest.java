@@ -748,7 +748,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void verwijderVoorkeur_DanGet_VerdwijntUitResponse() {
+    void verwijderVoorkeur_LaatsteActieveKind_PartijNietMeerOpvraagbaar() {
         AtomicReference<UUID> voorkeurId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -773,12 +773,47 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         given().filter(validationFilter).contentType(ContentType.JSON).body(request)
                 .post("/api/profielservice/v1/partij")
                 .then()
-                .statusCode(OK)
-                .body("voorkeuren", org.hamcrest.Matchers.empty());
+                .statusCode(NOT_FOUND);
     }
 
     @Test
-    void verwijderContactgegeven_DanGet_VerdwijntUitResponse() {
+    void verwijderVoorkeur_AndereContactgegevenActief_PartijBlijftOpvraagbaar() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111128"));
+            p.persist();
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+            voorkeurId.set(v.id);
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
+                .then().statusCode(NO_CONTENT);
+
+        var request = new PartijRequest();
+        request.identificatieType = BSN;
+        request.identificatieNummer = "111111128";
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(request)
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK)
+                .body("voorkeuren", org.hamcrest.Matchers.empty())
+                .body("contactgegevens", org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty()));
+    }
+
+    @Test
+    void verwijderContactgegeven_LaatsteActieveKind_PartijNietMeerOpvraagbaar() {
         AtomicReference<UUID> contactId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij p = new Partij();
@@ -803,8 +838,88 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
         given().filter(validationFilter).contentType(ContentType.JSON).body(request)
                 .post("/api/profielservice/v1/partij")
                 .then()
+                .statusCode(NOT_FOUND);
+    }
+
+    @Test
+    void verwijderContactgegeven_AndereVoorkeurActief_PartijBlijftOpvraagbaar() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111129"));
+            p.persist();
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+            Voorkeur v = new Voorkeur();
+            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            v.setWaarde("nl");
+            v.setPartij(p);
+            v.persist();
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
+                .then().statusCode(NO_CONTENT);
+
+        var request = new PartijRequest();
+        request.identificatieType = BSN;
+        request.identificatieNummer = "111111129";
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(request)
+                .post("/api/profielservice/v1/partij")
+                .then()
                 .statusCode(OK)
-                .body("contactgegevens", org.hamcrest.Matchers.empty());
+                .body("contactgegevens", org.hamcrest.Matchers.empty())
+                .body("voorkeuren", org.hamcrest.Matchers.not(org.hamcrest.Matchers.empty()));
+    }
+
+    @Test
+    void verwijderContactgegeven_LaatsteActieveKind_DanOpnieuwToevoegen_MaaktNieuwePartij() {
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij p = new Partij();
+            p.addIdentificatie(new Identificatie(BSN, "111111130"));
+            p.persist();
+            Contactgegeven c = new Contactgegeven();
+            c.setType(ContactType.Telefoonnummer);
+            c.setWaarde("0612345678");
+            c.setPartij(p);
+            c.persist();
+            contactId.set(c.id);
+        });
+
+        given().filter(validationFilter)
+                .delete("/api/profielservice/v1/contactgegeven/" + contactId.get())
+                .then().statusCode(NO_CONTENT);
+
+        var getRequest = new PartijRequest();
+        getRequest.identificatieType = BSN;
+        getRequest.identificatieNummer = "111111130";
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(getRequest)
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(NOT_FOUND);
+
+        var addRequest = new ContactgegevenRequest();
+        addRequest.identificatieType = BSN;
+        addRequest.identificatieNummer = "111111130";
+        addRequest.type = ContactType.Telefoonnummer;
+        addRequest.waarde = "0687654321";
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(addRequest)
+                .post("/api/profielservice/v1/contactgegeven")
+                .then().statusCode(CREATED);
+
+        given().filter(validationFilter).contentType(ContentType.JSON).body(getRequest)
+                .post("/api/profielservice/v1/partij")
+                .then()
+                .statusCode(OK)
+                .body("contactgegevens", org.hamcrest.Matchers.hasSize(1));
     }
 
     @Test

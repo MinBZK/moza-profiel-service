@@ -225,7 +225,9 @@ public class ProfielController {
     @RequireBody
     @Operation(
             summary = "Toevoegen nieuwe contactgegeven voor een partij",
-            description = "Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende partijen."
+            description = "Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende partijen "
+                    + "— ook wanneer een eerdere partij met deze identificatie inmiddels (soft-)verwijderd "
+                    + "is, wordt een nieuwe partij aangemaakt in plaats van de oude te herstellen."
     )
     @APIResponses({
             @APIResponse(
@@ -319,7 +321,9 @@ public class ProfielController {
     @RequireBody
     @Operation(
             summary = "Toevoegen nieuwe voorkeur voor een partij",
-            description = "Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende partijen."
+            description = "Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende partijen "
+                    + "— ook wanneer een eerdere partij met deze identificatie inmiddels (soft-)verwijderd "
+                    + "is, wordt een nieuwe partij aangemaakt in plaats van de oude te herstellen."
     )
     @APIResponses({
             @APIResponse(
@@ -401,7 +405,9 @@ public class ProfielController {
     @Operation(
             summary = "Verwijder voorkeur (soft-delete)",
             description = "Markeert de voorkeur als verwijderd. De voorkeur is daarna niet meer "
-                    + "opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel."
+                    + "opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel. Was dit de "
+                    + "laatste actieve voorkeur of contactgegeven van de partij, dan wordt de partij "
+                    + "zelf ook soft-deleted en is deze niet meer opvraagbaar via GET partij."
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Voorkeur succesvol verwijderd"),
@@ -432,7 +438,9 @@ public class ProfielController {
     @Operation(
             summary = "Verwijder contactgegeven (soft-delete)",
             description = "Markeert het contactgegeven als verwijderd. Het contactgegeven is daarna "
-                    + "niet meer opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel."
+                    + "niet meer opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel. Was "
+                    + "dit het laatste actieve contactgegeven of voorkeur van de partij, dan wordt de "
+                    + "partij zelf ook soft-deleted en is deze niet meer opvraagbaar via GET partij."
     )
     @APIResponses({
             @APIResponse(responseCode = "204", description = "Contactgegeven succesvol verwijderd"),

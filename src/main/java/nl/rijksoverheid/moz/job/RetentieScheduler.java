@@ -16,13 +16,16 @@ import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.helper.HashHelper;
+import nl.rijksoverheid.moz.services.PartijService;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -56,13 +59,15 @@ public class RetentieScheduler {
     private final HashHelper hashHelper;
     private final ProcessingHandler processingHandler;
     private final MeterRegistry meterRegistry;
+    private final PartijService partijService;
 
     private final AtomicLong laatsteRunEpochSeconds = new AtomicLong(0);
 
-    public RetentieScheduler(HashHelper hashHelper, ProcessingHandler processingHandler, MeterRegistry meterRegistry) {
+    public RetentieScheduler(HashHelper hashHelper, ProcessingHandler processingHandler, MeterRegistry meterRegistry, PartijService partijService) {
         this.hashHelper = hashHelper;
         this.processingHandler = processingHandler;
         this.meterRegistry = meterRegistry;
+        this.partijService = partijService;
     }
 
     @PostConstruct
@@ -106,6 +111,11 @@ public class RetentieScheduler {
         }
 
         int verwijderd = 0;
+        // Verzamel de geraakte partijen i.p.v. per rij te cascaden: de cascade-check is een paar
+        // count()-query's, en die hoeft maar één keer per partij te draaien, niet één keer per
+        // verwijderde rij (een partij met meerdere verlopen voorkeuren zou anders evenzoveel keer
+        // opnieuw gecontroleerd worden).
+        Set<Partij> geraaktePartijen = new LinkedHashSet<>();
 
         for (Voorkeur voorkeur : kandidaten) {
             // Logging (en dus identiteitsresolutie) vóór de mutatie: een rij mag niet als
@@ -115,8 +125,11 @@ public class RetentieScheduler {
             }
 
             voorkeur.setVerwijderdOp(nu);
+            geraaktePartijen.add(voorkeur.getPartij());
             verwijderd++;
         }
+
+        geraaktePartijen.forEach(partij -> partijService.deleteLegePartij(partij, nu));
 
         meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
         LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
@@ -134,6 +147,8 @@ public class RetentieScheduler {
         }
 
         int verwijderd = 0;
+        // Zie toelichting bij verwijderInactieveVoorkeuren: cascade-check één keer per partij.
+        Set<Partij> geraaktePartijen = new LinkedHashSet<>();
 
         for (Contactgegeven contact : kandidaten) {
             if (!logVerwijderingOfSlaOver("verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, contact.getPartij(), contact.id, "contactgegeven")) {
@@ -141,8 +156,11 @@ public class RetentieScheduler {
             }
 
             contact.setVerwijderdOp(nu);
+            geraaktePartijen.add(contact.getPartij());
             verwijderd++;
         }
+
+        geraaktePartijen.forEach(partij -> partijService.deleteLegePartij(partij, nu));
 
         meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
         LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
