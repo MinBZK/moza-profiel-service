@@ -274,12 +274,6 @@ tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 
 ## Bekend, niet opgelost in deze workflow
 
-- **LDV-snapshot-dependency**: de build trekt
-  `nl.mijnoverheidzakelijk.ldv:logboekdataverwerking-wrapper:1.4.0-SNAPSHOT` uit
-  central-portal-snapshots. Snapshots zijn niet reproduceerbaar en kunnen
-  verdwijnen; zie
-  [#613](https://github.com/MinBZK/moza-profiel-service/issues/613). Als de
-  deploy-build hierop faalt, is dit de eerste plek om te kijken.
 - Overgeërfde open ZAD-issues die ook hier gelden: deploy-verificatie (#882),
   reaper voor verweesde `pr-<n>`-deployments (#884), vaste GitHub-environment
   (#885), verweesde GHCR-versies (#888), cleanup die fail-open faalt (#891), bewijs

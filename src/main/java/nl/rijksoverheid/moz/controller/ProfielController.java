@@ -1,9 +1,7 @@
 
 package nl.rijksoverheid.moz.controller;
 
-import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.context.Context;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -19,7 +17,6 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
-import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
@@ -42,9 +39,7 @@ import org.jboss.logging.Logger;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * REST controller voor partijen. Contract-first (#651): de request/response-DTO's
@@ -65,19 +60,16 @@ public class ProfielController {
     private final PartijMapper partijMapper;
     private final LogboekContext logboekContext;
     private final HashHelper hashHelper;
-    private final ProcessingHandler processingHandler;
 
     public ProfielController(
             PartijService partijService,
             PartijMapper partijMapper,
             LogboekContext logboekContext,
-            HashHelper hashHelper,
-            ProcessingHandler processingHandler) {
+            HashHelper hashHelper) {
         this.partijService = partijService;
         this.partijMapper = partijMapper;
         this.logboekContext = logboekContext;
         this.hashHelper = hashHelper;
-        this.processingHandler = processingHandler;
     }
 
     @POST
@@ -107,31 +99,25 @@ public class ProfielController {
     @Path("/partijen/bulk")
     @Transactional
     @RequireBody
+    @Logboek(name = "getPartijBulk", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
-        List<PartijResponse> results = partijService.getPartijResponseBulk(request.getIdentificaties());
-
-        Set<String> foundKeys = results.stream()
-                .flatMap(r -> r.getIdentificaties().stream())
-                .map(id -> id.getIdentificatieType() + ":" + id.getIdentificatieNummer())
-                .collect(Collectors.toSet());
-
+        // The LDV standard wants one logregel per betrokkene; addSubject turns each into
+        // a child logregel of the action, so a not-found party is logged as looked up too.
         for (var identificatie : request.getIdentificaties()) {
-            boolean found = foundKeys.contains(identificatie.getIdentificatieType() + ":" + identificatie.getIdentificatieNummer());
-            LogboekContext ctx = new LogboekContext();
-            ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
-            ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()));
-            ctx.setDataSubjectType(String.valueOf(identificatie.getIdentificatieType()));
-            ctx.setStatus(found ? StatusCode.OK : StatusCode.UNSET);
-            Span span = processingHandler.startSpan("getPartijBulk", Context.current());
-            processingHandler.addLogboekContextToSpan(span, ctx);
-            span.end();
+            logboekContext.addSubject(
+                    hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()),
+                    String.valueOf(identificatie.getIdentificatieType()));
         }
+
+        List<PartijResponse> results = partijService.getPartijResponseBulk(request.getIdentificaties());
 
         if (results.isEmpty()) {
             LOG.warn("Geen partijen gevonden in bulk request");
             throw Problems.notFound("Partijen niet gevonden", "Geen van de opgegeven partijen is gevonden.");
         }
+
+        logboekContext.setStatus(StatusCode.OK);
 
         if (results.size() < request.getIdentificaties().size()) {
             LOG.info("Bulk partijen gedeeltelijk opgehaald");
