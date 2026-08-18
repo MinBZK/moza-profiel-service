@@ -59,7 +59,7 @@
             <dependency>
                 <groupId>org.apache.tika</groupId>
                 <artifactId>tika-core</artifactId>
-                <version>3.2.2</version>
+                <version>3.3.2</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.commons</groupId>
@@ -234,7 +234,7 @@
         <dependency>
             <groupId>au.com.dius.pact.provider</groupId>
             <artifactId>junit5</artifactId>
-            <version>4.6.18</version>
+            <version>4.7.5</version>
             <scope>test</scope>
         </dependency>
 
@@ -463,7 +463,6 @@
             </plugin>
         </plugins>
     </build>
-
 
     <profiles>
         <profile>

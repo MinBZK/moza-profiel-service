@@ -139,6 +139,18 @@ class UpdateSchemaPariteitTest {
             }
         }
 
+        // En de omgekeerde richting: verplicht in het update-schema en niet in het create-schema
+        // maakt het bijwerken strenger dan het aanmaken, zonder dat de extras dat verklaren.
+        Set<String> alleenVerplichtBijUpdate = new TreeSet<>(updateVerplicht);
+        alleenVerplichtBijUpdate.removeAll(createVerplicht);
+        alleenVerplichtBijUpdate.removeAll(verplichteExtras);
+
+        if (!alleenVerplichtBijUpdate.isEmpty()) {
+            bevindingen.add(alleenVerplichtBijUpdate + " is verplicht in " + updateNaam
+                    + " maar niet in " + createNaam + ", en staat niet in de bekende extras "
+                    + new TreeSet<>(verplichteExtras));
+        }
+
         Assertions.assertTrue(bevindingen.isEmpty(), String.join("\n", bevindingen));
     }
 
