@@ -1,29 +1,22 @@
-
 package nl.rijksoverheid.moz.controller;
 
 import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.api.generated.api.EmailVerificatieApi;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.jboss.logging.Logger;
 
 /**
- * REST controller voor e-mailverificatie. Contract-first (#651): DTO's gegenereerd uit
- * META-INF/openapi.yaml. Concrete resource (Quarkus REST ondersteunt geen interface-resources).
+ * REST controller voor e-mailverificatie. Contract-first (#651, #751): implementeert de uit
+ * META-INF/openapi.yaml gegenereerde {@link EmailVerificatieApi}, die de paden, HTTP-methodes,
+ * mediatypes en parametervalidatie draagt. Die annotaties horen hier daarom niet herhaald te
+ * worden; bean-validatieconstraints op een interface mogen door de implementatie zelfs niet
+ * opnieuw gedeclareerd worden.
  */
-@Path("/api/profielservice/v1")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class EmailVerificatieController {
+public class EmailVerificatieController implements EmailVerificatieApi {
 
     private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
 
@@ -33,11 +26,9 @@ public class EmailVerificatieController {
         this.emailVerificatieService = emailVerificatieService;
     }
 
-    @POST
-    @Path("/emailverificatie/code")
-    @RequireBody
-    public Response vraagEmailVerificatieCodeAan(@Valid EmailVerificatieCodeAanvraagRequest aanvraag) {
-        int result = emailVerificatieService.vraagEmailVerificatieCodeAan(aanvraag);
+    @Override
+    public Response vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest emailVerificatieCodeAanvraagRequest) {
+        int result = emailVerificatieService.vraagEmailVerificatieCodeAan(emailVerificatieCodeAanvraagRequest);
 
         if (result == Response.Status.OK.getStatusCode()) {
             LOG.info("Email verificatie code aanvraag succesvol");
@@ -57,18 +48,16 @@ public class EmailVerificatieController {
         }
     }
 
-    @POST
-    @Path("/emailverificatie")
-    @RequireBody
-    public Response verifieerEmail(@Valid EmailVerificatieRequest emailVerificatieRequest) {
+    @Override
+    public Response verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
 
         if (succes) {
             LOG.info("Email verificatie succesvol");
             return Response.ok().build();
-        } else {
-            LOG.warn("Email verificatie mislukt");
-            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Email verificatie mislukt");
         }
+
+        LOG.warn("Email verificatie mislukt");
+        throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Email verificatie mislukt");
     }
 }

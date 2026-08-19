@@ -1085,7 +1085,10 @@ components:
     UUID:
       type: string
       format: uuid
-      pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+      # Bewust geen pattern ernaast: format legt de vorm al vast, en op een path-parameter
+      # zet de generator er @Pattern van op een java.util.UUID (de schemaMapping). Hibernate
+      # Validator heeft voor die combinatie geen validator en werpt HV000030, wat elke DELETE
+      # op een 500 zet. In de DTO's speelt dat niet: daar laat de generator de pattern weg.
     Violation:
       type: object
       description: Validation constraint violation details

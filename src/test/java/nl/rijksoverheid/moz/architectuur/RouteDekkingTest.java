@@ -39,6 +39,9 @@ class RouteDekkingTest {
 
     private static final String CONTROLLER_PAKKET = "nl.rijksoverheid.moz.controller";
 
+    /** De uit het contract gegenereerde server-interfaces die de controllers implementeren (#751). */
+    private static final String SERVER_API_PAKKET = "nl.rijksoverheid.moz.api.generated.api";
+
     /** JAX-RS staat een reguliere expressie toe achter de naam: {@code {id: [0-9]+}}. */
     private static final Pattern PAD_PARAMETER = Pattern.compile("\\{\\s*([^}:\\s]+)\\s*(?::[^}]*)?}");
 
@@ -145,11 +148,14 @@ class RouteDekkingTest {
                 continue;
             }
 
-            // Interfaces buiten het controllerpakket zijn REST-clients: de gegenereerde
-            // VerificationControllerApi draagt @Path("") en beschrijft wat wij áánroepen. Binnen
-            // het controllerpakket telt een interface wél mee, zodat een handgeschreven resource
-            // met een implementatie zonder eigen @Path niet onzichtbaar wordt.
-            if (klasse.isInterface() && !klasse.getPackageName().equals(CONTROLLER_PAKKET)) {
+            // Onze routes staan sinds #751 op de gegenereerde server-interfaces, die de
+            // controllers implementeren; die tellen dus mee, net als een handgeschreven
+            // interface in het controllerpakket. Andere interfaces met @Path zijn REST-clients:
+            // de gegenereerde VerificationControllerApi draagt @Path("") en beschrijft wat wij
+            // áánroepen, niet wat wij aanbieden.
+            if (klasse.isInterface()
+                    && !klasse.getPackageName().equals(CONTROLLER_PAKKET)
+                    && !klasse.getPackageName().equals(SERVER_API_PAKKET)) {
                 continue;
             }
 

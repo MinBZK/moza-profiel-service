@@ -294,20 +294,26 @@
                             <generatorName>jaxrs-spec</generatorName>
                             <output>${project.build.directory}/generated-sources/server</output>
                             <modelPackage>nl.rijksoverheid.moz.api.generated.model</modelPackage>
-                            <!-- Alleen DTO's genereren. Quarkus REST (RESTEasy Reactive) ondersteunt
-                                 geen server-resources via gegenereerde JAX-RS interfaces (parameter-binding
-                                 gaat verloren), dus de interfaces zijn niet bruikbaar; de controllers zijn
-                                 concrete resources die het contract implementeren. Zie #651. -->
-                            <generateApis>false</generateApis>
+                            <apiPackage>nl.rijksoverheid.moz.api.generated.api</apiPackage>
+                            <!-- Naast de DTO's ook een interface per tag, die de controllers
+                                 implementeren. Paden, HTTP-methodes en parameterbinding komen
+                                 daarmee uit het contract in plaats van uit handgeschreven
+                                 annotaties. Zie #751. -->
+                            <generateApis>true</generateApis>
                             <generateApiTests>false</generateApiTests>
                             <generateModelTests>false</generateModelTests>
                             <generateApiDocumentation>false</generateApiDocumentation>
                             <generateModelDocumentation>false</generateModelDocumentation>
                             <generateSupportingFiles>false</generateSupportingFiles>
-                            <!-- interfaceOnly/returnResponse/useTags en apiPackage zijn hier
-                                 weggelaten: die sturen alleen de API-generatie aan, en die staat
-                                 uit. -->
                             <configOptions>
+                                <!-- Alleen de interface, geen implementatiestubs: de controllers
+                                     zijn de implementatie. useTags groepeert per tag, zodat er één
+                                     interface per controller ontstaat. returnResponse laat elke
+                                     methode Response teruggeven, nodig omdat de controllers zelf
+                                     de statuscode en de Location-header bepalen. -->
+                                <interfaceOnly>true</interfaceOnly>
+                                <returnResponse>true</returnResponse>
+                                <useTags>true</useTags>
                                 <useJakartaEe>true</useJakartaEe>
                                 <useSwaggerAnnotations>false</useSwaggerAnnotations>
                                 <useBeanValidation>true</useBeanValidation>

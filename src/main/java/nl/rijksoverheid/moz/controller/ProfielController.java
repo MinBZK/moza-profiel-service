@@ -5,21 +5,12 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import jakarta.transaction.Transactional;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.PATCH;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
+import nl.rijksoverheid.moz.api.generated.api.ProfielApi;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
@@ -31,7 +22,6 @@ import nl.rijksoverheid.moz.api.generated.model.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurResponse;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
@@ -47,17 +37,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * REST controller voor partijen. Contract-first (#651): de request/response-DTO's
- * worden uit {@code META-INF/openapi.yaml} gegenereerd ({@code api.generated.model}).
- * Er worden geen JAX-RS interfaces gegenereerd ({@code generateApis=false}): Quarkus REST
- * (RESTEasy Reactive) ondersteunt geen server-resources via een interface, want dan gaat
- * de parameter-binding verloren. Deze controller is dus een concrete resource die de
- * paden uit het contract implementeert.
+ * REST controller voor partijen. Contract-first (#651, #751): implementeert de uit
+ * {@code META-INF/openapi.yaml} gegenereerde {@link ProfielApi}, die de paden, HTTP-methodes,
+ * mediatypes en parametervalidatie draagt. Die annotaties horen hier daarom niet herhaald te
+ * worden; bean-validatieconstraints op een interface mogen door de implementatie zelfs niet
+ * opnieuw gedeclareerd worden.
  */
-@Path("/api/profielservice/v1")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class ProfielController {
+public class ProfielController implements ProfielApi {
 
     private static final Logger LOG = Logger.getLogger(ProfielController.class);
 
@@ -80,17 +66,15 @@ public class ProfielController {
         this.processingHandler = processingHandler;
     }
 
-    @POST
-    @Path("/partij")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "getPartij", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
-    public Response getPartij(@Valid PartijRequest request) {
+    public Response getPartij(PartijRequest partijRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(partijRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(partijRequest.getIdentificatieType()));
 
-        PartijResponse result = partijService.getPartijResponse(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
+        PartijResponse result = partijService.getPartijResponse(partijRequest.getIdentificatieType(), partijRequest.getIdentificatieNummer(), partijRequest);
 
         if (result == null) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -103,20 +87,18 @@ public class ProfielController {
         return Response.ok(result).build();
     }
 
-    @POST
-    @Path("/partijen/bulk")
+    @Override
     @Transactional
-    @RequireBody
-    public Response getPartijBulk(@Valid PartijBulkRequest request) {
+    public Response getPartijBulk(PartijBulkRequest partijBulkRequest) {
 
-        List<PartijResponse> results = partijService.getPartijResponseBulk(request.getIdentificaties());
+        List<PartijResponse> results = partijService.getPartijResponseBulk(partijBulkRequest.getIdentificaties());
 
         Set<String> foundKeys = results.stream()
                 .flatMap(r -> r.getIdentificaties().stream())
                 .map(id -> id.getIdentificatieType() + ":" + id.getIdentificatieNummer())
                 .collect(Collectors.toSet());
 
-        for (var identificatie : request.getIdentificaties()) {
+        for (var identificatie : partijBulkRequest.getIdentificaties()) {
             boolean found = foundKeys.contains(identificatie.getIdentificatieType() + ":" + identificatie.getIdentificatieNummer());
             LogboekContext ctx = new LogboekContext();
             ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
@@ -133,7 +115,7 @@ public class ProfielController {
             throw Problems.notFound("Partijen niet gevonden", "Geen van de opgegeven partijen is gevonden.");
         }
 
-        if (results.size() < request.getIdentificaties().size()) {
+        if (results.size() < partijBulkRequest.getIdentificaties().size()) {
             LOG.info("Bulk partijen gedeeltelijk opgehaald");
             return Response.status(Response.Status.PARTIAL_CONTENT).entity(results).build();
         }
@@ -142,20 +124,18 @@ public class ProfielController {
         return Response.ok(results).build();
     }
 
-    @POST
-    @Path("/contactgegeven")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "addContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-142")
-    public Response addContactgegeven(@Valid ContactgegevenRequest request) {
+    public Response addContactgegeven(ContactgegevenRequest contactgegevenRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(contactgegevenRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(contactgegevenRequest.getIdentificatieType()));
 
-        AddContactgegevenResult result = partijService.addContactgegeven(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
+        AddContactgegevenResult result = partijService.addContactgegeven(contactgegevenRequest.getIdentificatieType(), contactgegevenRequest.getIdentificatieNummer(), contactgegevenRequest);
         ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
 
-        URI uri = UriBuilder.fromResource(ProfielController.class)
+        URI uri = UriBuilder.fromResource(ProfielApi.class)
                 .path("contactgegeven").path("{id}")
                 .build(result.contactgegeven().id);
         logboekContext.setStatus(StatusCode.OK);
@@ -168,17 +148,15 @@ public class ProfielController {
         return Response.ok(body).location(uri).build();
     }
 
-    @PUT
-    @Path("/contactgegeven")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "updateContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-367")
-    public Response updateContactgegeven(@Valid ContactgegevenUpdateRequest request) {
+    public Response updateContactgegeven(ContactgegevenUpdateRequest contactgegevenUpdateRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(contactgegevenUpdateRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(contactgegevenUpdateRequest.getIdentificatieType()));
 
-        boolean updated = partijService.updateContactgegeven(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
+        boolean updated = partijService.updateContactgegeven(contactgegevenUpdateRequest.getIdentificatieType(), contactgegevenUpdateRequest.getIdentificatieNummer(), contactgegevenUpdateRequest);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -191,19 +169,17 @@ public class ProfielController {
         return Response.ok().build();
     }
 
-    @DELETE
-    @Path("/contactgegeven/{contactgegevenId}")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
     public Response deleteContactgegeven(
-            @PathParam("contactgegevenId") UUID contactgegevenId,
-            @Valid PartijIdentificatieRequest request) {
+            UUID contactgegevenId,
+            PartijIdentificatieRequest partijIdentificatieRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(partijIdentificatieRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(partijIdentificatieRequest.getIdentificatieType()));
 
-        boolean deleted = partijService.deleteContactgegeven(request.getIdentificatieType(), request.getIdentificatieNummer(), contactgegevenId);
+        boolean deleted = partijService.deleteContactgegeven(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), contactgegevenId);
 
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -216,21 +192,19 @@ public class ProfielController {
         return Response.noContent().build();
     }
 
-    @POST
-    @Path("/voorkeur")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "addVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-824")
-    public Response addVoorkeur(@Valid VoorkeurRequest request) {
+    public Response addVoorkeur(VoorkeurRequest voorkeurRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(voorkeurRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(voorkeurRequest.getIdentificatieType()));
 
-        AddVoorkeurResult result = partijService.addVoorkeur(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
+        AddVoorkeurResult result = partijService.addVoorkeur(voorkeurRequest.getIdentificatieType(), voorkeurRequest.getIdentificatieNummer(), voorkeurRequest);
         VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
 
         logboekContext.setStatus(StatusCode.OK);
-        URI uri = UriBuilder.fromResource(ProfielController.class)
+        URI uri = UriBuilder.fromResource(ProfielApi.class)
                 .path("voorkeur").path("{id}")
                 .build(result.voorkeur().id);
 
@@ -247,17 +221,15 @@ public class ProfielController {
         return Response.ok(body).location(uri).build();
     }
 
-    @PUT
-    @Path("/voorkeur")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "updateVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-256")
-    public Response updateVoorkeur(@Valid VoorkeurUpdateRequest request) {
+    public Response updateVoorkeur(VoorkeurUpdateRequest voorkeurUpdateRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(voorkeurUpdateRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(voorkeurUpdateRequest.getIdentificatieType()));
 
-        boolean updated = partijService.updateVoorkeur(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
+        boolean updated = partijService.updateVoorkeur(voorkeurUpdateRequest.getIdentificatieType(), voorkeurUpdateRequest.getIdentificatieNummer(), voorkeurUpdateRequest);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -270,19 +242,17 @@ public class ProfielController {
         return Response.ok().build();
     }
 
-    @DELETE
-    @Path("/voorkeur/{voorkeurId}")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
     public Response deleteVoorkeur(
-            @PathParam("voorkeurId") UUID voorkeurId,
-            @Valid PartijIdentificatieRequest request) {
+            UUID voorkeurId,
+            PartijIdentificatieRequest partijIdentificatieRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(partijIdentificatieRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(partijIdentificatieRequest.getIdentificatieType()));
 
-        boolean deleted = partijService.deleteVoorkeur(request.getIdentificatieType(), request.getIdentificatieNummer(), voorkeurId);
+        boolean deleted = partijService.deleteVoorkeur(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), voorkeurId);
 
         if (!deleted) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -295,16 +265,14 @@ public class ProfielController {
         return Response.noContent().build();
     }
 
-    @PATCH
-    @Path("/voorkeur/te-verwijderen-op")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
-    public Response updateVoorkeurTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+    public Response updateVoorkeurTeVerwijderenOp(TeVerwijderenOpRequest teVerwijderenOpRequest) {
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(teVerwijderenOpRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(teVerwijderenOpRequest.getIdentificatieType()));
 
-        boolean updated = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
+        boolean updated = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(teVerwijderenOpRequest);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);
@@ -317,17 +285,15 @@ public class ProfielController {
         return Response.ok().build();
     }
 
-    @PATCH
-    @Path("/contactgegeven/te-verwijderen-op")
+    @Override
     @Transactional
-    @RequireBody
     @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
-    public Response updateContactgegevenTeVerwijderenOp(@Valid TeVerwijderenOpRequest request) {
+    public Response updateContactgegevenTeVerwijderenOp(TeVerwijderenOpRequest teVerwijderenOpRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(request.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(request.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(teVerwijderenOpRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(teVerwijderenOpRequest.getIdentificatieType()));
 
-        boolean updated = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(request);
+        boolean updated = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(teVerwijderenOpRequest);
 
         if (!updated) {
             logboekContext.setStatus(StatusCode.ERROR);

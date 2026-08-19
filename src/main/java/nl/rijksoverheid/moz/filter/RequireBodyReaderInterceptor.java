@@ -17,9 +17,14 @@ import java.io.IOException;
  * <p>De check kijkt naar het gedeserialiseerde resultaat in plaats van naar
  * transport-headers (Content-Length): dat dekt zowel een ontbrekende body als een
  * letterlijke {@code null} body.
+ *
+ * <p>Bewust zonder name binding. Sinds de resources via gegenereerde interfaces zijn
+ * gedeclareerd (#751) leest JAX-RS de name binding van de interface, niet van de
+ * implementatie, waardoor een {@code @RequireBody} op de controller niets meer deed.
+ * Een binding voegt hier ook niets toe: elke request body in het contract is
+ * {@code required: true}, en zonder body draait deze interceptor sowieso niet.
  */
 @Provider
-@RequireBody
 public class RequireBodyReaderInterceptor implements ReaderInterceptor {
 
     @Override
