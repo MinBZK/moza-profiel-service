@@ -19,9 +19,11 @@ import java.net.URI;
 /**
  * REST controller voor dienstverleners. Contract-first (#651, #751): implementeert de uit
  * META-INF/openapi.yaml gegenereerde {@link DienstverlenerApi}, die de paden, HTTP-methodes,
- * mediatypes en parametervalidatie draagt. Die annotaties horen hier daarom niet herhaald te
- * worden; bean-validatieconstraints op een interface mogen door de implementatie zelfs niet
- * opnieuw gedeclareerd worden.
+ * mediatypes en de validatie van de body-parameter draagt. Die annotaties mogen hier niet
+ * herhaald worden: draagt een implementatiemethode ook maar één JAX-RS-annotatie, dan negeert
+ * JAX-RS die van de interface volledig (JAX-RS 3.1 §3.6), waardoor een half overgenomen set
+ * de route stilzwijgend onbereikbaar maakt. Een parameterconstraint opnieuw declareren is
+ * zelfs een harde fout: dat laat de applicatie niet meer starten (HV000151).
  */
 public class DienstverlenerController implements DienstverlenerApi {
 
@@ -69,7 +71,7 @@ public class DienstverlenerController implements DienstverlenerApi {
     @Override
     @Transactional
     public Response addDienstToDienstverlener(String dienstverlenerNaam, DienstRequest dienstRequest) {
-        // Zie addDienstverlener: de lege body wordt door de interceptor afgevangen.
+        // Een lege body is al door RequireBodyReaderInterceptor afgewezen.
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, dienstRequest);
         LOG.info("Dienst toegevoegd aan dienstverlener");
         URI uri = UriBuilder.fromResource(DienstverlenerApi.class)

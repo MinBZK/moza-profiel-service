@@ -12,9 +12,11 @@ import org.jboss.logging.Logger;
 /**
  * REST controller voor e-mailverificatie. Contract-first (#651, #751): implementeert de uit
  * META-INF/openapi.yaml gegenereerde {@link EmailVerificatieApi}, die de paden, HTTP-methodes,
- * mediatypes en parametervalidatie draagt. Die annotaties horen hier daarom niet herhaald te
- * worden; bean-validatieconstraints op een interface mogen door de implementatie zelfs niet
- * opnieuw gedeclareerd worden.
+ * mediatypes en de validatie van de body-parameter draagt. Die annotaties mogen hier niet
+ * herhaald worden: draagt een implementatiemethode ook maar één JAX-RS-annotatie, dan negeert
+ * JAX-RS die van de interface volledig (JAX-RS 3.1 §3.6), waardoor een half overgenomen set
+ * de route stilzwijgend onbereikbaar maakt. Een parameterconstraint opnieuw declareren is
+ * zelfs een harde fout: dat laat de applicatie niet meer starten (HV000151).
  */
 public class EmailVerificatieController implements EmailVerificatieApi {
 

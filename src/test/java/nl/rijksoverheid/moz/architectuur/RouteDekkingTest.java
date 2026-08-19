@@ -25,10 +25,12 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Bewaakt dat het contract en de JAX-RS-routes elkaar dekken, in beide richtingen: pad en
@@ -141,6 +143,18 @@ class RouteDekkingTest {
                 .withImportOption(new ImportOption.DoNotIncludeTests())
                 .importPackages("nl.rijksoverheid.moz");
 
+        // Elke interface die door een concrete klasse geïmplementeerd wordt. Een gegenereerde
+        // server-interface telt alleen als route wanneer hij hierin voorkomt. Zonder die eis
+        // vergelijkt deze test het contract met zichzelf: beide zijden komen dan uit
+        // openapi.yaml. Een operatie onder een nieuwe tag levert dan een interface op die
+        // niemand implementeert, waarna de build slaagt, deze test groen blijft en het endpoint
+        // in productie een 404 geeft.
+        Set<String> geimplementeerdeInterfaces = klassen.stream()
+                .filter(klasse -> !klasse.isInterface())
+                .flatMap(klasse -> klasse.getAllRawInterfaces().stream())
+                .map(JavaClass::getName)
+                .collect(Collectors.toSet());
+
         Map<String, Route> routes = new TreeMap<>();
 
         for (JavaClass klasse : klassen) {
@@ -149,13 +163,14 @@ class RouteDekkingTest {
             }
 
             // Onze routes staan sinds #751 op de gegenereerde server-interfaces, die de
-            // controllers implementeren; die tellen dus mee, net als een handgeschreven
-            // interface in het controllerpakket. Andere interfaces met @Path zijn REST-clients:
-            // de gegenereerde VerificationControllerApi draagt @Path("") en beschrijft wat wij
-            // áánroepen, niet wat wij aanbieden.
+            // controllers implementeren; die tellen mee zodra er een implementatie is, net als
+            // een handgeschreven interface in het controllerpakket. Andere interfaces met @Path
+            // zijn REST-clients: de gegenereerde VerificationControllerApi draagt @Path("") en
+            // beschrijft wat wij áánroepen, niet wat wij aanbieden.
             if (klasse.isInterface()
                     && !klasse.getPackageName().equals(CONTROLLER_PAKKET)
-                    && !klasse.getPackageName().equals(SERVER_API_PAKKET)) {
+                    && !(klasse.getPackageName().equals(SERVER_API_PAKKET)
+                            && geimplementeerdeInterfaces.contains(klasse.getName()))) {
                 continue;
             }
 
