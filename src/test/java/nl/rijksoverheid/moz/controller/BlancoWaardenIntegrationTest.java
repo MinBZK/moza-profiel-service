@@ -27,7 +27,6 @@ import java.util.stream.IntStream;
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
@@ -248,7 +247,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificaties")));
+                .body("violations.field", hasItem("identificaties"));
     }
 
     /**
@@ -270,7 +269,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificaties")));
+                .body("violations.field", hasItem("identificaties"));
     }
 
     /**
@@ -294,7 +293,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificatieNummer")));
+                .body("violations.field", hasItem("identificaties[0].identificatieNummer"));
     }
 
     /**

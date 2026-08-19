@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import jakarta.ws.rs.DELETE;
@@ -149,8 +150,12 @@ class RouteDekkingTest {
         // openapi.yaml. Een operatie onder een nieuwe tag levert dan een interface op die
         // niemand implementeert, waarna de build slaagt, deze test groen blijft en het endpoint
         // in productie een 404 geeft.
+        // Abstract telt niet mee: JAX-RS registreert een abstracte klasse nooit als resource,
+        // dus zou een abstracte implementatie wel aan deze eis voldoen terwijl het endpoint
+        // niet bestaat.
         Set<String> geimplementeerdeInterfaces = klassen.stream()
-                .filter(klasse -> !klasse.isInterface())
+                .filter(klasse -> !klasse.isInterface()
+                        && !klasse.getModifiers().contains(JavaModifier.ABSTRACT))
                 .flatMap(klasse -> klasse.getAllRawInterfaces().stream())
                 .map(JavaClass::getName)
                 .collect(Collectors.toSet());

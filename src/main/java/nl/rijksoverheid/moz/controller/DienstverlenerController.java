@@ -19,11 +19,12 @@ import java.net.URI;
 /**
  * REST controller voor dienstverleners. Contract-first (#651, #751): implementeert de uit
  * META-INF/openapi.yaml gegenereerde {@link DienstverlenerApi}, die de paden, HTTP-methodes,
- * mediatypes en de validatie van de body-parameter draagt. Die annotaties mogen hier niet
- * herhaald worden: draagt een implementatiemethode ook maar één JAX-RS-annotatie, dan negeert
- * JAX-RS die van de interface volledig (JAX-RS 3.1 §3.6), waardoor een half overgenomen set
- * de route stilzwijgend onbereikbaar maakt. Een parameterconstraint opnieuw declareren is
- * zelfs een harde fout: dat laat de applicatie niet meer starten (HV000151).
+ * mediatypes en de validatie van de body-parameter draagt. Herhaal ze hier niet. Gemeten op
+ * Quarkus REST 3.38: een HTTP-methode-annotatie op de implementatie breekt de mapping — de
+ * route antwoordt dan met 405 — terwijl een {@code @Consumes} of {@code @Produces} juist
+ * stilzwijgend wordt genegeerd, want die van de interface wint. Beide kanten leveren dus
+ * verwarring op, in tegengestelde richting. Een parameterconstraint opnieuw declareren is
+ * bovendien een harde fout: dan start de applicatie niet meer (HV000151).
  */
 public class DienstverlenerController implements DienstverlenerApi {
 

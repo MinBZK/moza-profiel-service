@@ -32,6 +32,13 @@ tags:
 # Dat wordt bewust geaccepteerd: `content: application/json` op zo'n respons zou
 # het oplossen maar declareert een body die niet bestaat, en OpenApiValidationTest
 # keurt dat terecht af. AcceptHeaderIntegrationTest legt het gedrag vast.
+#
+# Die 406 staat bewust bij géén enkele operatie als response. Anders dan de
+# foutcodes die hier wél gedocumenteerd zijn, komt hij niet uit de applicatie maar
+# uit de content-onderhandeling van JAX-RS, en kan elke operatie hem geven:
+# `POST /partij` declareert application/json en antwoordt op `Accept: text/xml`
+# net zo goed met een 406. Hem op alleen de operaties zonder responsebody zetten
+# zou dus suggereren dat de andere hem niet kunnen geven.
 paths:
   /api/profielservice/v1/contactgegeven:
     put:
