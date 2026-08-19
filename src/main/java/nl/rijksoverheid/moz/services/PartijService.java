@@ -181,13 +181,8 @@ public class PartijService {
         return link;
     }
 
-    // Partij.findByIdentificatie filtert op verwijderdOp IS NULL, dus "niet gevonden" dekt ook
-    // "alleen een eerder soft-deleted partij bestaat" — die wordt hier niet hersteld, er komt een
-    // geheel nieuwe Partij + Identificatie voor in de plaats. Dat kan zonder DB-conflict omdat
-    // uk_identificatie is vervallen (zie V5-migratie); de uniciteit onder actieve partijen wordt
-    // uitsluitend hier afgedwongen. Net als bij de Voorkeur-invariant in addVoorkeur geldt: twee
-    // gelijktijdige aanroepen voor dezelfde, nog niet bestaande identificatie kunnen dus allebei
-    // hier voorbij komen en elk hun eigen Partij + Identificatie aanmaken.
+    // Geen resurrection: een eerder soft-deleted partij wordt niet hersteld, er komt een nieuwe
+    // Partij + Identificatie. Kan zonder DB-conflict, want uk_identificatie is vervallen (V5).
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
 
@@ -202,11 +197,11 @@ public class PartijService {
         }
 
         LOG.info("Nieuwe partij aanmaken");
-        Partij nieuw = new Partij();
-        nieuw.addIdentificatie(new Identificatie(type, nummer));
-        nieuw.persist();
+        Partij nieuwePartij = new Partij();
+        nieuwePartij.addIdentificatie(new Identificatie(type, nummer));
+        nieuwePartij.persist();
 
-        return nieuw;
+        return nieuwePartij;
     }
 
     public Partij getPartij(IdentificatieType identificatieType, String identificatieNummer) {

@@ -135,6 +135,25 @@ public class RetentieSchedulerTest {
     }
 
     @Test
+    void voorkeur_lastUsedAtOud_AndereContactgegevenActief_PartijBlijftActief() {
+        // Bewijst dat de cascade-check in deleteLegePartij symmetrisch is: het maakt niet uit of
+        // de retentiescheduler een Voorkeur of een Contactgegeven soft-delete, de cascade kijkt
+        // altijd naar beide typen. verwijderInactieveVoorkeuren draait vóór
+        // verwijderInactieveContactgegevens, dus dit toetst ook dat de partij niet per ongeluk
+        // cascadet vanuit de eerste van de twee loops terwijl er nog een actief contactgegeven is.
+        UUID partijId = createPartij();
+        createVoorkeur(partijId, ouderDanGrens(), null);
+        Instant recentGebruikt = Instant.now().atZone(ZoneOffset.UTC).minus(Period.ofYears(1)).toInstant();
+        createContactgegeven(partijId, recentGebruikt, null);
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "partij met nog een actief contactgegeven mag niet verwijderd worden"));
+    }
+
+    @Test
     void voorkeur_lastUsedAtNull_createdAtOud_KrijgtVerwijderdOp() {
         // lastUsedAt is null → COALESCE falls back to createdAt
         UUID partijId = createPartij();

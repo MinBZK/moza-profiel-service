@@ -225,9 +225,7 @@ public class ProfielController {
     @RequireBody
     @Operation(
             summary = "Toevoegen nieuwe contactgegeven voor een partij",
-            description = "Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende partijen "
-                    + "— ook wanneer een eerdere partij met deze identificatie inmiddels (soft-)verwijderd "
-                    + "is, wordt een nieuwe partij aangemaakt in plaats van de oude te herstellen."
+            description = "Voegt een nieuwe contactgegeven toe. Creëert automatisch ontbrekende partijen."
     )
     @APIResponses({
             @APIResponse(
@@ -321,9 +319,7 @@ public class ProfielController {
     @RequireBody
     @Operation(
             summary = "Toevoegen nieuwe voorkeur voor een partij",
-            description = "Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende partijen "
-                    + "— ook wanneer een eerdere partij met deze identificatie inmiddels (soft-)verwijderd "
-                    + "is, wordt een nieuwe partij aangemaakt in plaats van de oude te herstellen."
+            description = "Voegt een nieuwe voorkeur toe. Creëert automatisch ontbrekende partijen."
     )
     @APIResponses({
             @APIResponse(
