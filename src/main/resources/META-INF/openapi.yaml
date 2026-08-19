@@ -24,6 +24,14 @@ tags:
 # server-interfaces gegenereerd worden (#751) leidt de generator er @Produces uit
 # af, en kiest JAX-RS de eerste vermelde media type als standaard. Staat een
 # foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
+#
+# Om dezelfde reden bepaalt het geheel van gedeclareerde mediatypes wélke Accept-
+# header een operatie bedient. Bij een succesrespons zonder body blijft alleen
+# application/problem+json over, en wijst JAX-RS een verzoek af dat uitsluitend
+# application/json accepteert — met een 406, nog voordat de resource draait.
+# Dat wordt bewust geaccepteerd: `content: application/json` op zo'n respons zou
+# het oplossen maar declareert een body die niet bestaat, en OpenApiValidationTest
+# keurt dat terecht af. AcceptHeaderIntegrationTest legt het gedrag vast.
 paths:
   /api/profielservice/v1/contactgegeven:
     put:
