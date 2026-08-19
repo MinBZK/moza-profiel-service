@@ -80,6 +80,20 @@ build blijft daarbij groen omdat de stubs shadow zijn, dus CI waarschuwt je
 niet. De pin onderdrukt ook security-updates voor dat artefact; de voorwaarden
 om hem op te heffen staan in `dependabot.yml`.
 
+### ADR-lint
+
+Wijzig je het contract, controleer het dan tegen de NLGov ADR-ruleset. Geen CI
+doet dit:
+
+```bash
+npx @stoplight/spectral-cli lint src/main/resources/META-INF/openapi.yaml \
+  --ruleset https://static.developer.overheid.nl/adr/ruleset.yaml
+```
+
+Het contract haalt dit vandaag niet schoon — vergelijk vóór en ná, en maak er
+geen bevindingen bíj. De bekende afwijkingen staan in `CONTRIBUTING.md`; de
+`servers`-afwijking is bewust en wordt door `OpenApiMetadataTest` vastgelegd.
+
 ### Grens van de contractvalidatie
 
 De contractvalidatie is geen vangnet voor alles. Een `anyOf` met een null-tak
