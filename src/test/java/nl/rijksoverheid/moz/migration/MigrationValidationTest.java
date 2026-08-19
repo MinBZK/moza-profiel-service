@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Draait de Flyway-migraties (V1..V4) tegen een echte Postgres en laat Hibernate ze daarna
+ * Draait de Flyway-migraties (V1..V5) tegen een echte Postgres en laat Hibernate ze daarna
  * valideren ({@code hbm2ddl.auto=validate}, hetzelfde als productie's
  * {@code schema-management.strategy=validate}) — anders dan de rest van de testsuite, die Flyway
  * overslaat en op H2 drop-and-create draait (zie src/test/resources/application.properties).
@@ -116,16 +116,18 @@ class MigrationValidationTest {
     }
 
     @Test
-    void v4IndexesZijnDaadwerkelijkPartieel() throws SQLException {
+    void partieleIndexesZijnDaadwerkelijkPartieel() throws SQLException {
         // Hibernate's validate-mode controleert tabellen/kolommen/types, geen indexen of
-        // constraints — dus die partiële WHERE-clausules uit V4 worden hierboven niet geraakt.
+        // constraints — dus die partiële WHERE-clausules uit V4/V5 worden hierboven niet geraakt.
         // Rechtstreekse controle tegen pg_indexes om te bevestigen dat het niet per ongeluk
         // gewone (niet-partiële) indexen zijn geworden.
         Set<String> verwachteIndexes = Set.of(
                 "uk_contactgegeven_dedup",
                 "contactgegeven_default_per_type",
                 "idx_voorkeur_retentie",
-                "idx_contactgegeven_retentie"
+                "idx_contactgegeven_retentie",
+                "uk_identificatie",
+                "uk_identificatie_per_partij"
         );
 
         Map<String, String> definities = new HashMap<>();
@@ -140,7 +142,7 @@ class MigrationValidationTest {
             }
         }
 
-        Assertions.assertEquals(verwachteIndexes, definities.keySet(), "verwachte V4-indexen niet (allemaal) aangetroffen");
+        Assertions.assertEquals(verwachteIndexes, definities.keySet(), "verwachte partiële indexen niet (allemaal) aangetroffen");
         definities.forEach((naam, def) ->
                 Assertions.assertTrue(def.toUpperCase().contains("WHERE"), naam + " moet een partiële index zijn: " + def));
     }

@@ -182,7 +182,9 @@ public class PartijService {
     }
 
     // Geen resurrection: een eerder soft-deleted partij wordt niet hersteld, er komt een nieuwe
-    // Partij + Identificatie. Kan zonder DB-conflict, want uk_identificatie is vervallen (V5).
+    // Partij + Identificatie. Kan zonder DB-conflict: uk_identificatie (V5) is partieel, en de
+    // oude identificatie is mee-gecascadet toen haar partij leegraakte (zie deleteLegePartij),
+    // dus die rij zit al buiten de index.
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
 
@@ -374,11 +376,11 @@ public class PartijService {
     // stilzwijgend verloren gaan zonder dat een toekomstige, niet-transactionele aanroeper dat merkt.
     //
     // Pessimistic lock (zie lockEnLeesVerwijderdOp): zonder lock kan dit racen met
-    // findOrCreatePartij, dat gelijktijdig juist een nieuw kind aan dezelfde partij toevoegt (de
-    // partij zou dan soft-deleted worden terwijl hij alweer een actief kind heeft), of met een
-    // tweede, gelijktijdige aanroep hiervan voor dezelfde partij (die dan allebei denken dat de
-    // partij nog niet leeg is en geen van beide cascadet). SELECT ... FOR UPDATE serialiseert
-    // beide operaties op deze ene partij-rij.
+    // findOrCreatePartij, dat gelijktijdig juist een nieuwe actieve child aan dezelfde partij
+    // toevoegt (de partij zou dan soft-deleted worden terwijl hij alweer een actieve child heeft),
+    // of met een tweede, gelijktijdige aanroep hiervan voor dezelfde partij (die dan allebei
+    // denken dat de partij nog niet leeg is en geen van beide cascadet). SELECT ... FOR UPDATE
+    // serialiseert beide operaties op deze ene partij-rij.
     @Transactional(Transactional.TxType.MANDATORY)
     public void deleteLegePartij(Partij partij, Instant nu) {
         if (lockEnLeesVerwijderdOp(partij) != null) {
@@ -390,6 +392,10 @@ public class PartijService {
 
         if (!hasActiveContactgegevens && !hasActiveVoorkeuren) {
             partij.setVerwijderdOp(nu);
+            // Zonder dit blijft de oude identificatie binnen uk_identificatie's WHERE verwijderd_op
+            // IS NULL staan en blokkeert ze findOrCreatePartij's nieuwe insert voor dezelfde
+            // (type, nummer) — zie V5-migratie.
+            partij.getIdentificaties().forEach(i -> i.setVerwijderdOp(nu));
         }
     }
 
@@ -401,6 +407,12 @@ public class PartijService {
     // Jacoco is uitgeschakeld). Een losse scalar-query buiten de entity-hydratie om omzeilt beide
     // problemen: de lock blokkeert tot een eventuele concurrente transactie commit/rollbackt, en
     // de erop volgende query is een nieuwe SELECT die dus de actuele, net gecommitte stand ziet.
+    //
+    // Ligt er al een lock op deze rij? entityManager.lock() blokkeert tot de andere transactie
+    // commit of rollbackt — dat is de bedoeling, zo worden de twee operaties geserialiseerd i.p.v.
+    // dat ze racen. Geen lock-timeout ingesteld, dus de wachttijd is in principe onbegrensd
+    // (behalve een eventuele transactie-timeout). Zie RetentieScheduler.cascadeDeleteLegePartijen
+    // voor waarom dat geen deadlock kan geven.
     private Instant lockEnLeesVerwijderdOp(Partij partij) {
         Partij.getEntityManager().lock(partij, LockModeType.PESSIMISTIC_WRITE);
 

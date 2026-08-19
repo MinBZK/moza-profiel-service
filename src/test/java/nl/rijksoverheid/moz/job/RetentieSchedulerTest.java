@@ -129,9 +129,13 @@ public class RetentieSchedulerTest {
 
         retentieScheduler.verwijderInactieveRecords();
 
-        QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
-                        "partij zonder actieve kinderen meer moet ook door de retentiescheduler soft-deleted worden"));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId);
+            Assertions.assertNotNull(partij.getVerwijderdOp(),
+                    "partij zonder actieve children meer moet ook door de retentiescheduler soft-deleted worden");
+            Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
+                    "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
+        });
     }
 
     @Test
@@ -236,16 +240,20 @@ public class RetentieSchedulerTest {
 
         retentieScheduler.verwijderInactieveRecords();
 
-        QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
-                        "partij zonder actieve kinderen meer moet ook door de retentiescheduler soft-deleted worden"));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId);
+            Assertions.assertNotNull(partij.getVerwijderdOp(),
+                    "partij zonder actieve children meer moet ook door de retentiescheduler soft-deleted worden");
+            Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
+                    "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
+        });
     }
 
     @Test
     void contactgegeven_lastUsedAtOud_AndereVoorkeurActief_PartijBlijftActief() {
         UUID partijId = createPartij();
         createContactgegeven(partijId, ouderDanGrens(), null);
-        // Niet-verlopen voorkeur op dezelfde partij: die telt als actief kind.
+        // Niet-verlopen voorkeur op dezelfde partij: die telt als actieve child.
         Instant recentGebruikt = Instant.now().atZone(ZoneOffset.UTC).minus(Period.ofYears(1)).toInstant();
         createVoorkeur(partijId, recentGebruikt, null);
 
@@ -258,10 +266,10 @@ public class RetentieSchedulerTest {
 
     @Test
     void voorkeurEnContactgegevenBeideOud_VerwijdertOokPartijInZelfdeRun() {
-        // Beide laatste actieve kinderen verlopen in dezelfde run: verwijderInactieveVoorkeuren
-        // draait eerst (eigen transactie) en cascadet nog niet, want het contactgegeven is dan nog
-        // actief; verwijderInactieveContactgegevens draait daarna (eigen transactie) en cascadet
-        // alsnog, nu beide tellingen op nul staan.
+        // Beide laatste actieve children verlopen in dezelfde run: verwijderInactieveVoorkeuren en
+        // verwijderInactieveContactgegevens verzamelen elk alleen de partij-id (eigen transactie,
+        // cascaden zelf niet meer); verwijderInactieveRecords combineert beide sets tot één, en de
+        // cascade-check draait daarna, ná beide commits, precies één keer in cascadeDeleteLegePartijen.
         UUID partijId = createPartij();
         UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), null);
         UUID contactId = createContactgegeven(partijId, ouderDanGrens(), null);
@@ -271,8 +279,11 @@ public class RetentieSchedulerTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(voorkeurId).getVerwijderdOp());
             Assertions.assertNotNull(Contactgegeven.<Contactgegeven>findById(contactId).getVerwijderdOp());
-            Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
-                    "partij moet ook verwijderd zijn nadat beide laatste actieve kinderen in dezelfde run geveegd zijn");
+            Partij partij = Partij.findById(partijId);
+            Assertions.assertNotNull(partij.getVerwijderdOp(),
+                    "partij moet ook verwijderd zijn nadat beide laatste actieve children in dezelfde run geveegd zijn");
+            Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
+                    "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
         });
     }
 

@@ -979,9 +979,12 @@ public class PartijServiceTest {
 
         partijService.verwijderVoorkeur(voorkeurId.get());
 
-        QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertNotNull(Partij.<Partij>findById(partijId.get()).getVerwijderdOp(),
-                        "partij zonder actieve kinderen meer moet ook soft-deleted worden"));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId.get());
+            Assertions.assertNotNull(partij.getVerwijderdOp(), "partij zonder actieve children meer moet ook soft-deleted worden");
+            Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
+                    "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
+        });
     }
 
     @Test
@@ -1102,9 +1105,12 @@ public class PartijServiceTest {
 
         partijService.verwijderContactgegeven(contactId.get());
 
-        QuarkusTransaction.requiringNew().run(() ->
-                Assertions.assertNotNull(Partij.<Partij>findById(partijId.get()).getVerwijderdOp(),
-                        "partij zonder actieve kinderen meer moet ook soft-deleted worden"));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId.get());
+            Assertions.assertNotNull(partij.getVerwijderdOp(), "partij zonder actieve children meer moet ook soft-deleted worden");
+            Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
+                    "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
+        });
     }
 
     @Test
@@ -1198,7 +1204,7 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertNotNull(Partij.<Partij>findById(partijId.get()).getVerwijderdOp(),
-                        "een al eerder verwijderd contactgegeven mag niet meetellen als actief kind"));
+                        "een al eerder verwijderd contactgegeven mag niet meetellen als actieve child"));
     }
 
     @Test
@@ -1342,8 +1348,16 @@ public class PartijServiceTest {
         AtomicReference<UUID> oudePartijId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            Identificatie identificatie = new Identificatie(IdentificatieType.BSN, "123456789");
+            partij.addIdentificatie(identificatie);
+            Instant verwijderdOp = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            // Zoals deleteLegePartij het echt doet: partij én haar identificatie(s) samen
+            // gecascadet. Dit toetst de servicelaag (findOrCreatePartij mag de rij niet
+            // herstellen), niet de partiële unique index zelf — H2's testschema kent uk_identificatie
+            // niet (zie de klasse-comment op Identificatie). Dat de index in productie ook echt
+            // partieel is, verifieert MigrationValidationTest tegen echte Postgres.
+            partij.setVerwijderdOp(verwijderdOp);
+            identificatie.setVerwijderdOp(verwijderdOp);
             partij.persist();
             oudePartijId.set(partij.id);
         });
@@ -1366,7 +1380,7 @@ public class PartijServiceTest {
      * find-lookup in addContactgegeven: elke cyclus moet een nieuwe rij aanmaken, ook als er
      * al meerdere soft deleted rijen met dezelfde waarde bestaan.
      * <p>
-     * De partij houdt via een altijd-actieve voorkeur een actief kind, zodat verwijderContactgegeven
+     * De partij houdt via een altijd-actieve voorkeur een actieve child, zodat verwijderContactgegeven
      * de partij niet tussentijds cascadet (zie PartijService.deleteLegePartij) — anders zou elke
      * cyclus op een verse partij draaien in plaats van herhaaldelijk op dezelfde, en zou deze test
      * de bedoelde regressie (find-lookup die vastloopt op een soft deleted rij van dezelfde partij)
@@ -1491,8 +1505,16 @@ public class PartijServiceTest {
         AtomicReference<UUID> oudePartijId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
-            partij.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            Identificatie identificatie = new Identificatie(IdentificatieType.BSN, "123456789");
+            partij.addIdentificatie(identificatie);
+            Instant verwijderdOp = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            // Zoals deleteLegePartij het echt doet: partij én haar identificatie(s) samen
+            // gecascadet. Dit toetst de servicelaag (findOrCreatePartij mag de rij niet
+            // herstellen), niet de partiële unique index zelf — H2's testschema kent uk_identificatie
+            // niet (zie de klasse-comment op Identificatie). Dat de index in productie ook echt
+            // partieel is, verifieert MigrationValidationTest tegen echte Postgres.
+            partij.setVerwijderdOp(verwijderdOp);
+            identificatie.setVerwijderdOp(verwijderdOp);
             partij.persist();
             oudePartijId.set(partij.id);
         });

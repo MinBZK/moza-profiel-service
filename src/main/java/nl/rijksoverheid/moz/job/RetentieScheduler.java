@@ -26,6 +26,7 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -78,20 +79,31 @@ public class RetentieScheduler {
     }
 
     // concurrentExecution = SKIP: een langlopende run (grote tabel) mag niet overlappen met de
-    // volgende vuring. Geen @Transactional hier: de twee deel-runs moeten elk hun eigen transactie
-    // hebben zodat een fout in de ene de andere niet stil terugdraait of verbergt.
+    // volgende vuring. Geen @Transactional hier: elke deel-fase heeft zijn eigen transactie zodat
+    // een fout in de ene de andere niet stil terugdraait of verbergt.
     @Scheduled(cron = "{retentie.scheduler.cron}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void verwijderInactieveRecords() {
+        // Eén gecombineerde set i.p.v. losse cascade-aanroepen per fase: een partij met zowel een
+        // verlopen voorkeur als een verlopen contactgegeven in dezelfde run zou anders twee keer
+        // gecontroleerd worden terwijl één keer volstaat.
+        Set<UUID> geraaktePartijIds = new LinkedHashSet<>();
+
         try {
-            verwijderInactieveVoorkeuren();
+            geraaktePartijIds.addAll(verwijderInactieveVoorkeuren());
         } catch (Exception e) {
             LOG.error("Retentiescheduler: verwijderen van voorkeuren mislukt", e);
         }
 
         try {
-            verwijderInactieveContactgegevens();
+            geraaktePartijIds.addAll(verwijderInactieveContactgegevens());
         } catch (Exception e) {
             LOG.error("Retentiescheduler: verwijderen van contactgegevens mislukt", e);
+        }
+
+        try {
+            cascadeDeleteLegePartijen(geraaktePartijIds);
+        } catch (Exception e) {
+            LOG.error("Retentiescheduler: cascade-verwijdering van lege partijen mislukt", e);
         }
 
         laatsteRunEpochSeconds.set(Instant.now().getEpochSecond());
@@ -100,22 +112,22 @@ public class RetentieScheduler {
     // Niet private: @Transactional is een CDI interceptor binding, en ArC intercepteert door een
     // subclass te genereren die de methode overridet. Dat kan niet bij een private methode,
     // @Transactional zou dan niets doen, zonder dat dat uit de code zelf blijkt.
+    //
+    // Geeft de geraakte partij-id's terug i.p.v. zelf te cascaden: de cascade-check gebeurt in een
+    // aparte, latere transactie (cascadeDeleteLegePartijen) zodat hij ook de partijen uit de
+    // andere helft (contactgegevens) kan meenemen — zie verwijderInactieveRecords.
     @Transactional
-    void verwijderInactieveVoorkeuren() {
+    Set<UUID> verwijderInactieveVoorkeuren() {
         Instant nu = Instant.now();
         List<Voorkeur> kandidaten = Voorkeur.find(
                 "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", berekenGrens(nu)).list();
 
         if (overschrijdtMaxPerRun("voorkeur", kandidaten.size())) {
-            return;
+            return Set.of();
         }
 
         int verwijderd = 0;
-        // Verzamel de geraakte partijen i.p.v. per rij te cascaden: de cascade-check is een paar
-        // count()-query's, en die hoeft maar één keer per partij te draaien, niet één keer per
-        // verwijderde rij (een partij met meerdere verlopen voorkeuren zou anders evenzoveel keer
-        // opnieuw gecontroleerd worden).
-        Set<Partij> geraaktePartijen = new LinkedHashSet<>();
+        Set<UUID> geraaktePartijIds = new LinkedHashSet<>();
 
         for (Voorkeur voorkeur : kandidaten) {
             // Logging (en dus identiteitsresolutie) vóór de mutatie: een rij mag niet als
@@ -125,30 +137,29 @@ public class RetentieScheduler {
             }
 
             voorkeur.setVerwijderdOp(nu);
-            geraaktePartijen.add(voorkeur.getPartij());
+            geraaktePartijIds.add(voorkeur.getPartij().id);
             verwijderd++;
         }
 
-        geraaktePartijen.forEach(partij -> partijService.deleteLegePartij(partij, nu));
-
         meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
         LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
+
+        return geraaktePartijIds;
     }
 
     // Niet private: zie toelichting bij verwijderInactieveVoorkeuren.
     @Transactional
-    void verwijderInactieveContactgegevens() {
+    Set<UUID> verwijderInactieveContactgegevens() {
         Instant nu = Instant.now();
         List<Contactgegeven> kandidaten = Contactgegeven.find(
                 "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", berekenGrens(nu)).list();
 
         if (overschrijdtMaxPerRun("contactgegeven", kandidaten.size())) {
-            return;
+            return Set.of();
         }
 
         int verwijderd = 0;
-        // Zie toelichting bij verwijderInactieveVoorkeuren: cascade-check één keer per partij.
-        Set<Partij> geraaktePartijen = new LinkedHashSet<>();
+        Set<UUID> geraaktePartijIds = new LinkedHashSet<>();
 
         for (Contactgegeven contact : kandidaten) {
             if (!logVerwijderingOfSlaOver("verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, contact.getPartij(), contact.id, "contactgegeven")) {
@@ -156,14 +167,39 @@ public class RetentieScheduler {
             }
 
             contact.setVerwijderdOp(nu);
-            geraaktePartijen.add(contact.getPartij());
+            geraaktePartijIds.add(contact.getPartij().id);
             verwijderd++;
         }
 
-        geraaktePartijen.forEach(partij -> partijService.deleteLegePartij(partij, nu));
-
         meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
         LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
+
+        return geraaktePartijIds;
+    }
+
+    // Niet private: zie toelichting bij verwijderInactieveVoorkeuren. Eigen transactie, ná de
+    // twee soft-delete-fasen: een fout hier draait dus niet de al gecommitte voorkeur/
+    // contactgegeven-verwijderingen terug, en omgekeerd blokkeert een fout dáár deze fase niet
+    // (verwijderInactieveRecords vangt elke fase apart af).
+    //
+    // Dit is de enige plek die meerdere partij-rijen ná elkaar vergrendelt binnen één transactie
+    // (zie PartijService.lockEnLeesVerwijerdOp). TreeSet sorteert op UUID vóór het vergrendelen:
+    // zonder een vaste volgorde zouden twee gelijktijdige runs van deze methode (bv. bij falende
+    // cluster-failover van concurrentExecution = SKIP, dat process-lokaal is, niet cluster-breed)
+    // in principe elkaars rijen in omgekeerde volgorde kunnen vergrendelen — een klassieke
+    // deadlock. Met een vaste volgorde is dat structureel uitgesloten, ongeacht of zo'n overlap
+    // zich ooit voordoet.
+    @Transactional
+    void cascadeDeleteLegePartijen(Set<UUID> partijIds) {
+        Instant nu = Instant.now();
+
+        for (UUID id : new TreeSet<>(partijIds)) {
+            Partij partij = Partij.findById(id);
+
+            if (partij != null) {
+                partijService.deleteLegePartij(partij, nu);
+            }
+        }
     }
 
     private static Instant berekenGrens(Instant nu) {

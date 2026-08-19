@@ -2,6 +2,7 @@ package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -13,14 +14,14 @@ import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
+import java.time.Instant;
 import java.util.UUID;
 
-// Geen @UniqueConstraint op (identificatieType, identificatieNummer): een Partij is
-// soft-deletable (zie Partij.verwijderdOp), en een DB-constraint kan niet conditioneren op een
-// kolom uit een andere tabel. Uniciteit onder actieve partijen wordt daarom uitsluitend in
-// applicatiecode afgedwongen, in PartijService.findOrCreatePartij (via het al gefilterde
-// Partij.findByIdentificatie) — hetzelfde geaccepteerde patroon als de Voorkeur-invariant in
-// PartijService.addVoorkeur, die ook geen DB-index heeft.
+// uk_identificatie (identificatie_type, identificatie_nummer) en uk_identificatie_per_partij
+// (partij_id, identificatie_type) bestaan in de database (zie V5-migratie) als partiële unique
+// indexes (WHERE verwijderd_op IS NULL). JPA's @UniqueConstraint kan geen WHERE-clausule
+// uitdrukken, dus staan ze hier bewust niet als annotatie — zie Contactgegeven voor dezelfde
+// afweging.
 @Entity
 @Audited
 public class Identificatie extends PanacheEntityBase {
@@ -40,6 +41,9 @@ public class Identificatie extends PanacheEntityBase {
     @ManyToOne(optional = false)
     @JoinColumn(name = "partij_id")
     private Partij partij;
+
+    @Nullable
+    private Instant verwijderdOp;
 
     public Identificatie(IdentificatieType identificatieType, String identificatieNummer) {
         this.identificatieType = identificatieType;
@@ -71,5 +75,14 @@ public class Identificatie extends PanacheEntityBase {
 
     public void setPartij(Partij partij) {
         this.partij = partij;
+    }
+
+    @Nullable
+    public Instant getVerwijderdOp() {
+        return verwijderdOp;
+    }
+
+    public void setVerwijderdOp(Instant verwijderdOp) {
+        this.verwijderdOp = verwijderdOp;
     }
 }
