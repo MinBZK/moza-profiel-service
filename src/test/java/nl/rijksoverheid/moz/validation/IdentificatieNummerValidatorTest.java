@@ -1,7 +1,7 @@
 package nl.rijksoverheid.moz.validation;
 
 import nl.rijksoverheid.moz.common.IdentificatieType;
-import nl.rijksoverheid.moz.dto.request.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,8 +33,8 @@ class IdentificatieNummerValidatorTest {
     @Test
     void isValid_NullType_ReturnsTrue() {
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieNummer = "123456782";
-        request.identificatieType = null;
+        request.setIdentificatieNummer("123456782");
+        request.setIdentificatieType(null);
         assertTrue(validator.isValid(request, null));
     }
 
@@ -96,8 +96,8 @@ class IdentificatieNummerValidatorTest {
 
     private EmailVerificatieRequest createRequest(String nummer, IdentificatieType type) {
         EmailVerificatieRequest request = new EmailVerificatieRequest();
-        request.identificatieNummer = nummer;
-        request.identificatieType = type;
+        request.setIdentificatieNummer(nummer);
+        request.setIdentificatieType(type);
         return request;
     }
 }

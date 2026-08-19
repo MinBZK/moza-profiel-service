@@ -183,7 +183,7 @@ public class RetentieScheduler {
     // (verwijderInactieveRecords vangt elke fase apart af).
     //
     // Dit is de enige plek die meerdere partij-rijen ná elkaar vergrendelt binnen één transactie
-    // (zie PartijService.lockEnLeesVerwijerdOp). TreeSet sorteert op UUID vóór het vergrendelen:
+    // (zie PartijService.lockEnLeesVerwijderdOp). TreeSet sorteert op UUID vóór het vergrendelen:
     // zonder een vaste volgorde zouden twee gelijktijdige runs van deze methode (bv. bij falende
     // cluster-failover van concurrentExecution = SKIP, dat process-lokaal is, niet cluster-breed)
     // in principe elkaars rijen in omgekeerde volgorde kunnen vergrendelen — een klassieke

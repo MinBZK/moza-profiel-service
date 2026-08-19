@@ -141,13 +141,6 @@ public class Voorkeur extends PanacheEntityBase {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
     }
 
-    // Naam wijkt bewust af van findById: die zou Panache's inherited findById(Object) shadowen.
-    // Bestaande, ongefilterde aanroepen met een UUID zouden dan stilzwijgend deze gefilterde variant raken.
-    @Nullable
-    public static Voorkeur findNietVerwijderdById(UUID id) {
-        return find("id = ?1 AND verwijderdOp IS NULL", id).firstResult();
-    }
-
     public static List<Voorkeur> find(Partij partij) {
         return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }

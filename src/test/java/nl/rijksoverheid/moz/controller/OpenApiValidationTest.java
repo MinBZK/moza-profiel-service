@@ -4,7 +4,11 @@ import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.report.LevelResolver;
 import com.atlassian.oai.validator.report.ValidationReport;
 import com.atlassian.oai.validator.restassured.OpenApiValidationFilter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
+import io.restassured.config.ObjectMapperConfig;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -24,10 +28,14 @@ import java.nio.charset.StandardCharsets;
  *   plain string/UUID path params and fails. All path params in this API are strings or UUIDs —
  *   none have numeric or enum schemas — so no real violation can be masked. Revisit if a
  *   constrained (non-string) path parameter is ever added.
- * - validation.response.body.missing: false positive caused by SmallRye's class-level @Produces
- *   annotation generating an implicit content entry for responses that intentionally carry no
- *   body (e.g. 204 from updateContactgegeven, 200 from postEmailVerificatie). IGNORE is correct here:
- *   the check is structurally wrong for these endpoints, not a real spec gap.
+ *
+ * validation.response.body.missing used to be suppressed here as well. That suppression was
+ * written when SmallRye still derived the document from the class-level @Produces annotation and
+ * generated an implicit content entry for responses that carry no body. Since the contract became
+ * the source of truth (mp.openapi.scan.disable=true) nothing derives anything: the six 200s that
+ * declared a body they never send were plain contract errors and have been corrected in
+ * META-INF/openapi.yaml. The check is enabled again, so a handler that stops returning a
+ * documented body now fails the tests that use this filter.
  */
 abstract class OpenApiValidationTest {
 
@@ -35,6 +43,14 @@ abstract class OpenApiValidationTest {
 
     @BeforeEach
     void setupValidationFilter() throws Exception {
+        // RestAssured serialiseert met een eigen ObjectMapper, die Instant zonder deze
+        // instelling als epoch-getal wegschrijft in plaats van als ISO-8601 string. Staat
+        // vóór de early return: Quarkus zet de RestAssured-config per testklasse terug.
+        RestAssured.config = RestAssured.config().objectMapperConfig(
+                new ObjectMapperConfig().jackson2ObjectMapperFactory((type, charset) -> new ObjectMapper()
+                        .registerModule(new JavaTimeModule())
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)));
+
         if (validationFilter != null) return;
         String openApiPath = ConfigProvider.getConfig()
                 .getOptionalValue("quarkus.smallrye-openapi.path", String.class)
@@ -47,7 +63,6 @@ abstract class OpenApiValidationTest {
         var validator = OpenApiInteractionValidator.createFor(specJson)
                 .withLevelResolver(LevelResolver.create()
                         .withLevel("validation.request.parameter.schema.invalidJson", ValidationReport.Level.IGNORE)
-                        .withLevel("validation.response.body.missing", ValidationReport.Level.IGNORE)
                         .build())
                 .build();
         validationFilter = new OpenApiValidationFilter(validator);

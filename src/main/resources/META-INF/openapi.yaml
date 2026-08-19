@@ -1,0 +1,1052 @@
+---
+openapi: 3.1.0
+info:
+  title: MOZa Profiel Service API
+  version: 1.0.0
+  description: "Profiel service voor MijnOverheid Zakelijk: beheer van contactgegevens
+    en communicatievoorkeuren van partijen."
+  contact:
+    name: MijnOverheid Zakelijk Team
+    email: moza@minbzk.nl
+    url: https://docs.mijnoverheidzakelijk.nl
+  license:
+    name: EUPL-1.2
+    url: https://joinup.ec.europa.eu/software/page/eupl
+tags:
+- name: Dienstverlener
+  description: Endpoints voor het beheren van dienstverleners en diensten
+- name: EmailVerificatie
+  description: Endpoints voor het verifiëren van emails
+- name: Profiel
+  description: Endpoints voor het beheren van partijen
+# De responses staan per operatie op volgorde: eerst de succescode, daarna de
+# foutcodes oplopend. Voor OpenAPI zelf is die volgorde betekenisloos, maar zodra
+# server-interfaces gegenereerd worden (#751) leidt de generator er @Produces uit
+# af, en kiest JAX-RS de eerste vermelde media type als standaard. Staat een
+# foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
+paths:
+  /api/profielservice/v1/contactgegeven:
+    put:
+      summary: Update contactgegeven van een partij
+      operationId: updateContactgegeven
+      description: "Werk type, waarde en isDefault van een contactgegeven bij en voeg optioneel\
+        \ een scope toe. Bestaande scopes blijven behouden — scope wordt toegevoegd, niet\
+        \ vervangen. Identificatie kan niet aangepast worden. isDefault weglaten of op null\
+        \ zetten laat de huidige waarde staan; op true zetten degradeert het contactgegeven dat\
+        \ nu default is voor hetzelfde type."
+      tags:
+      - Profiel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactgegevenUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: Contactgegeven succesvol bijgewerkt
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          $ref: "#/components/responses/ContactgegevenOfScopeNietGevonden"
+        "409":
+          description: Combinatie van type en waarde bestaat al voor deze partij
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+    post:
+      summary: Toevoegen nieuwe contactgegeven voor een partij
+      operationId: addContactgegeven
+      description: "Voegt een contactgegeven toe. Creëert automatisch ontbrekende partijen —\
+        \ ook wanneer een eerdere partij met deze identificatie inmiddels (soft-)verwijderd is,\
+        \ wordt een nieuwe partij aangemaakt in plaats van de oude te herstellen. Bestaat de\
+        \ combinatie (partij, type, waarde) al — voor type Email wordt de waarde daarbij\
+        \ case-insensitief vergeleken — dan wordt er niets toegevoegd of gewijzigd en volgt een\
+        \ 409. Gebruik PUT om een bestaand contactgegeven te wijzigen of er een scope aan toe\
+        \ te voegen."
+      tags:
+      - Profiel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactgegevenRequest"
+        required: true
+      responses:
+        "201":
+          description: Contactgegeven succesvol toegevoegd
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactgegevenResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          $ref: "#/components/responses/ScopeUitRequestNietGevonden"
+        "409":
+          description: Contactgegeven met dit type en deze waarde bestaat al voor deze partij.
+            Gebruik PUT om het bestaande contactgegeven te wijzigen.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/contactgegeven/{contactgegevenId}:
+    delete:
+      summary: Verwijder contactgegeven (soft-delete)
+      operationId: verwijderContactgegeven
+      description: "Markeert het contactgegeven als verwijderd. Het contactgegeven is daarna\
+        \ niet meer opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel. Was dit\
+        \ het laatste actieve contactgegeven of voorkeur van de partij, dan wordt de partij zelf\
+        \ ook soft-deleted en is deze niet meer opvraagbaar via GET partij."
+      tags:
+      - Profiel
+      parameters:
+      - name: contactgegevenId
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartijIdentificatieRequest"
+        required: true
+      responses:
+        "204":
+          description: Contactgegeven succesvol verwijderd
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          $ref: "#/components/responses/ContactgegevenNietGevonden"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/dienstverlener:
+    post:
+      summary: Voegt een dienstverlener toe
+      operationId: addDienstverlener
+      description: "Voegt een dienstverlener toe met optionele beschrijving. Bestaat de naam\
+        \ al, dan wordt de bestaande dienstverlener teruggegeven; een afwijkende beschrijving\
+        \ levert een 409 in plaats van een stille overschrijving. De beschrijving ligt daarmee\
+        \ vast bij het aanmaken: er is geen operatie om hem later te wijzigen. Let op dat een\
+        \ dienstverlener ook impliciet ontstaat via POST /dienstverlener/{dienstverlenerNaam}/diensten,\
+        \ en dan géén beschrijving krijgt; die kan achteraf niet meer worden gezet."
+      tags:
+      - Dienstverlener
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DienstverlenerRequest"
+        required: true
+      responses:
+        "201":
+          description: Dienstverlener succesvol toegevoegd of al aanwezig met dezelfde
+            beschrijving
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DienstverlenerResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "409":
+          description: Dienstverlener bestaat al met een andere beschrijving
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/dienstverlener/{dienstverlenerNaam}/diensten:
+    post:
+      summary: Voegt een dienst toe aan een dienstverlener
+      operationId: addDienstToDienstverlener
+      description: "Voegt een dienst toe aan een dienstverlener. Bestaat de dienstverlener\
+        \ nog niet, dan wordt hij aangemaakt zonder beschrijving; vandaar dat deze operatie\
+        \ geen 404 kent."
+      tags:
+      - Dienstverlener
+      parameters:
+      - name: dienstverlenerNaam
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DienstRequest"
+        required: true
+      responses:
+        "201":
+          description: Dienst succesvol toegevoegd
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DienstResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "409":
+          description: Dienst bestaat al met een andere beschrijving
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/dienstverlener/{naam}:
+    get:
+      summary: Vraagt gegevens van dienstverlener
+      operationId: getDienstverlener
+      description: "Geeft gegevens van gevraagde dienstverlener terug, inclusief de\
+        \ aangesloten diensten."
+      tags:
+      - Dienstverlener
+      parameters:
+      - name: naam
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Dienstverlener succesvol opgehaald
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DienstverlenerResponse"
+        "404":
+          description: Dienstverlener niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/emailverificatie:
+    post:
+      summary: Verifieer een email met een verificatie code
+      operationId: verifieerEmail
+      description: Verifieert een email adres aan de hand van de eerder aangevraagde
+        verificatie code.
+      tags:
+      - EmailVerificatie
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailVerificatieRequest"
+        required: true
+      responses:
+        "200":
+          description: Email verificatie succesvol
+        "400":
+          description: "Request body ontbreekt, is ongeldig (schemaviolatie of een\
+            \ identificatieNummer dat niet bij het identificatieType past; dan is\
+            \ `violations` gevuld), of de verificatie is mislukt."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/emailverificatie/code:
+    post:
+      summary: (Opnieuw) aanvragen voor een code van een (al geverifieerde) mail adres
+      operationId: vraagEmailVerificatieCodeAan
+      description: "Vraagt een email verificatie code aan. Let op, bij het aanmaken\
+        \ van een profiel wordt al een email verificatie code aangevraagd. Dit is\
+        \ voor het opnieuw aanvragen van een code."
+      tags:
+      - EmailVerificatie
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailVerificatieCodeAanvraagRequest"
+        required: true
+      responses:
+        "200":
+          description: Email verificatie code aanvraag succesvol
+        "400":
+          description: "Request body ontbreekt of is ongeldig. Bij bean-validatie is\
+            \ `violations` gevuld."
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpValidationProblem"
+        "404":
+          description: Partij of Contactgegeven niet gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+        "503":
+          description: Service tijdelijk niet beschikbaar
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+  /api/profielservice/v1/partij:
+    post:
+      summary: Ophalen profiel van een partij
+      operationId: getPartij
+      description: Haalt het profiel op van een partij
+      tags:
+      - Profiel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartijRequest"
+        required: true
+      responses:
+        "200":
+          description: Partij succesvol opgehaald
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartijResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          description: Partij niet gevonden of is verwijderd
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/partijen/bulk:
+    post:
+      summary: Ophalen profielen van meerdere partijen
+      operationId: getPartijBulk
+      description: Haalt profielen op van meerdere partijen. Niet-gevonden partijen
+        worden stilzwijgend weggelaten.
+      tags:
+      - Profiel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartijBulkRequest"
+        required: true
+      responses:
+        "200":
+          description: Alle profielen succesvol opgehaald
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartijResponse"
+        "206":
+          description: Profielen gedeeltelijk opgehaald
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartijResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          description: Geen enkel profiel gevonden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/voorkeur:
+    put:
+      summary: Update voorkeur van een partij
+      operationId: updateVoorkeur
+      description: "Werk voorkeurType, waarde en scope van een voorkeur bij. Identificatie kan\
+        \ niet aangepast worden."
+      tags:
+      - Profiel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoorkeurUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: Voorkeur succesvol bijgewerkt
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          $ref: "#/components/responses/VoorkeurOfScopeNietGevonden"
+        "409":
+          description: "Andere voorkeur bestaat al voor deze partij, type en scope"
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+    post:
+      summary: Toevoegen nieuwe voorkeur voor een partij
+      operationId: addVoorkeur
+      description: "Voegt een voorkeur toe. Creëert automatisch ontbrekende partijen — ook\
+        \ wanneer een eerdere partij met deze identificatie inmiddels (soft-)verwijderd is,\
+        \ wordt een nieuwe partij aangemaakt in plaats van de oude te herstellen. Bestaat er al\
+        \ een actieve voorkeur voor dezelfde (partij, voorkeurType, scope), dan wordt er niets\
+        \ toegevoegd of gewijzigd en volgt een 409. Gebruik PUT om een bestaande voorkeur te\
+        \ wijzigen."
+      tags:
+      - Profiel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoorkeurRequest"
+        required: true
+      responses:
+        "201":
+          description: Voorkeur succesvol toegevoegd
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VoorkeurResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          $ref: "#/components/responses/ScopeUitRequestNietGevonden"
+        "409":
+          description: Voorkeur voor deze partij, scope en voorkeurType bestaat al. Gebruik
+            PUT om de bestaande voorkeur te wijzigen.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/HttpProblem"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+  /api/profielservice/v1/voorkeur/{voorkeurId}:
+    delete:
+      summary: Verwijder voorkeur (soft-delete)
+      operationId: verwijderVoorkeur
+      description: "Markeert de voorkeur als verwijderd. De voorkeur is daarna niet meer\
+        \ opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel. Was dit de laatste\
+        \ actieve voorkeur of contactgegeven van de partij, dan wordt de partij zelf ook\
+        \ soft-deleted en is deze niet meer opvraagbaar via GET partij."
+      tags:
+      - Profiel
+      parameters:
+      - name: voorkeurId
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartijIdentificatieRequest"
+        required: true
+      responses:
+        "204":
+          description: Voorkeur succesvol verwijderd
+        "400":
+          $ref: "#/components/responses/OngeldigeRequestBody"
+        "404":
+          $ref: "#/components/responses/VoorkeurNietGevonden"
+        "500":
+          $ref: "#/components/responses/InterneServerfout"
+components:
+  responses:
+    InterneServerfout:
+      description: Interne serverfout
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    OngeldigeRequestBody:
+      description: Request body ontbreekt of is ongeldig
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpValidationProblem"
+    ContactgegevenOfScopeNietGevonden:
+      description: "Contactgegeven of partij niet gevonden, of de dienstverlener of\
+        \ dienst uit de opgegeven scope bestaat niet"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    VoorkeurOfScopeNietGevonden:
+      description: "Voorkeur of partij niet gevonden, of de dienstverlener of dienst\
+        \ uit de opgegeven scope bestaat niet"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    ContactgegevenNietGevonden:
+      description: Contactgegeven of partij niet gevonden
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    VoorkeurNietGevonden:
+      description: Voorkeur of partij niet gevonden
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    ScopeUitRequestNietGevonden:
+      description: Dienstverlener of dienst uit de scope bestaat niet
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+    GelijktijdigeWrite:
+      # Lookup-dan-persist: twee gelijktijdige writes kunnen de voorcontrole passeren en pas
+      # bij flush op een unique index botsen (onder meer uk_identificatie,
+      # uk_contactgegeven_dedup, uk_dvdienst_dv_broad).
+      # DatabaseConstraintViolationMapper vertaalt dat naar deze 409, maar alleen als de
+      # violation de mapper kaal bereikt: gemeten geeft een ConstraintViolationException die
+      # in een andere exception verpakt binnenkomt een 500, omdat RESTEasy dan bij de
+      # catch-all mapUnhandledException(Exception) uitkomt en niet meer uitpakt. Wanneer een
+      # race in welk pad ook opduikt is over HTTP niet betrouwbaar te reproduceren, dus deze
+      # 409 is wat een client mág verwachten, geen garantie.
+      description: Gelijktijdige write botste op een unique constraint
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
+  schemas:
+    # De contractvalidatie handhaaft type niet (3.1-typen komen niet door de validator);
+    # required, enum, pattern, format, minItems en maxItems wél. Nullable-typen zijn hier
+    # dus documentatie voor de consumer, geen bewaking.
+    #
+    # Nullbaarheid van een $ref-veld hoort daarom in de beschrijving van zijn schema en
+    # niet in een anyOf met een null-tak: die tak matcht alles, waarmee de $ref-tak nooit
+    # meer wordt gecontroleerd. ContractHandhavingTest legt dat vast.
+    #
+    # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
+    # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
+    # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
+    # geschreven en niet als ".*\S.*": Jakarta @Pattern doet een full match waarbij "."
+    # geen newline matcht, en de inline-vlag "(?s)" die dat repareert bestaat niet in
+    # ECMA 262 — daarmee wordt het contract ongeldig en valt de contractvalidatie op elk
+    # endpoint om. Zie BlancoWaardenIntegrationTest voor de volledige afweging.
+    ContactType:
+      type: string
+      enum:
+      - Email
+      - Telefoonnummer
+      - ApplicatieId
+    ContactgegevenRequest:
+      description: "Request object voor het toevoegen van een contactgegeven aan een partij. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven."
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - type
+      - waarde
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        type:
+          $ref: "#/components/schemas/ContactType"
+        waarde:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+    ContactgegevenResponse:
+      description: "Contactgegeven van een partij."
+      # De velden die de server altijd meestuurt staan als required, zodat een consumer niet
+      # defensief hoeft te coderen tegen nulls die niet kunnen optreden. Wat optioneel is,
+      # draagt "null" in zijn type: Jackson staat hier op de standaard ALWAYS-inclusie, dus
+      # een leeg veld gaat als expliciete null over de lijn en niet als ontbrekende sleutel.
+      #
+      # required bewaakt de mapper niet: het vraagt alleen of de sleutel er is, en die is er
+      # altijd — ook met waarde null. Het documenteert wat een consumer mag verwachten.
+      #
+      # De nullable velden staan niet in required omdat de generator er dan @NotNull op zet.
+      type: object
+      required:
+      - id
+      - type
+      - waarde
+      - isGeverifieerd
+      - isDefault
+      - createdAt
+      - lastUpdated
+      - scopes
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        type:
+          $ref: "#/components/schemas/ContactType"
+        waarde:
+          type: string
+        isGeverifieerd:
+          type: boolean
+        isDefault:
+          type: boolean
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        lastUpdated:
+          $ref: "#/components/schemas/Instant"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScopeResponse"
+    ContactgegevenUpdateRequest:
+      description: "Request object voor het bijwerken van een contactgegeven. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven."
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - type
+      - waarde
+      - id
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        type:
+          $ref: "#/components/schemas/ContactType"
+        waarde:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+        id:
+          $ref: "#/components/schemas/UUID"
+        isDefault:
+          type: [boolean, "null"]
+          description: "Weglaten of op null zetten laat de huidige waarde staan; true maakt\
+            \ dit het standaard-contactgegeven voor zijn type en degradeert het vorige."
+    DienstRequest:
+      description: Request object voor het toevoegen van een dienst aan een dienstverlener
+      type: object
+      required:
+      - naam
+      properties:
+        naam:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        beschrijving:
+          type: [string, "null"]
+    DienstResponse:
+      # Zie ContactgegevenResponse voor waarom required hier staat. beschrijving is
+      # optioneel omdat een dienst zonder beschrijving aangemaakt kan worden.
+      type: object
+      required:
+      - id
+      - naam
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        naam:
+          type: string
+        beschrijving:
+          type: [string, "null"]
+    DienstverlenerRequest:
+      description: Request object voor het toevoegen van een dienstverlener
+      type: object
+      required:
+      - naam
+      properties:
+        naam:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        beschrijving:
+          type: [string, "null"]
+    DienstverlenerResponse:
+      # Zie ContactgegevenResponse. beschrijving is optioneel; diensten is altijd
+      # aanwezig en hooguit leeg.
+      type: object
+      required:
+      - naam
+      - diensten
+      properties:
+        naam:
+          type: string
+        beschrijving:
+          type: [string, "null"]
+        diensten:
+          type: array
+          items:
+            $ref: "#/components/schemas/DienstResponse"
+    EmailVerificatieCodeAanvraagRequest:
+      # Bewust GEEN elfproef, in tegenstelling tot EmailVerificatieRequest. De
+      # endpoints die een partij kunnen aanmaken (POST /contactgegeven en POST /voorkeur,
+      # de enige twee die findOrCreatePartij aanroepen) valideren het
+      # identificatieNummer evenmin, dus een profiel kan onder een nummer bestaan dat
+      # de elfproef niet doorstaat. Zou dit endpoint de controle wel doen, dan kon zo'n
+      # gebruiker nooit meer een vervangende code aanvragen. De controle overal
+      # gelijktrekken staat als MinBZK/MijnOverheidZakelijk#923.
+      type: object
+      required:
+      - email
+      - identificatieNummer
+      - identificatieType
+      properties:
+        email:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+    EmailVerificatieRequest:
+      description: Request object voor het verifiëren van een emailadres
+      # De elfproef op BSN/RSIN en de lengtecontrole op KVK zijn niet in JSON Schema
+      # uit te drukken; de generator zet daarom deze class-level constraint op de DTO.
+      # Zie IdentificatieNummerValidator en EmailVerificatieValidatieIntegrationTest.
+      # De interface maakt de validator herbruikbaar over meerdere requests heen.
+      # Deze twee extensies worden meegepubliceerd op /openapi.json, inclusief de interne
+      # klassenamen. Bewust geaccepteerd: filteren zou een tweede bron vragen.
+      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidIdentificatieNummer"
+      x-implements:
+      - nl.rijksoverheid.moz.validation.HeeftIdentificatie
+      type: object
+      required:
+      - email
+      - identificatieNummer
+      - identificatieType
+      - verificatieCode
+      properties:
+        email:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        verificatieCode:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+    HttpProblem:
+      description: HTTP Problem Response according to RFC9457 and RFC7807
+      additionalProperties: true
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: A optional URI reference that identifies the problem type
+          examples:
+          - https://example.com/errors/not-found
+        title:
+          type: string
+          description: "A optional, short, human-readable summary of the problem type"
+          examples:
+          - Not Found
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code for this occurrence of the problem
+          examples:
+          - 404
+        detail:
+          type: string
+          description: A optional human-readable explanation specific to this occurrence
+            of the problem
+          examples:
+          - Record not found
+        instance:
+          type: string
+          format: uri-reference
+          description: A URI reference that identifies the specific occurrence of
+            the problem
+          examples:
+          - https://api.example.com/errors/123
+    HttpValidationProblem:
+      description: HTTP Validation Problem Response according to RFC9457 and RFC7807
+      additionalProperties: true
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: A optional URI reference that identifies the problem type
+          examples:
+          - https://example.com/errors/not-found
+        title:
+          type: string
+          description: "A optional, short, human-readable summary of the problem type"
+          examples:
+          - Not Found
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code for this occurrence of the problem
+          examples:
+          - 404
+        detail:
+          type: string
+          description: A optional human-readable explanation specific to this occurrence
+            of the problem
+          examples:
+          - Record not found
+        instance:
+          type: string
+          format: uri-reference
+          description: A URI reference that identifies the specific occurrence of
+            the problem
+          examples:
+          - https://api.example.com/errors/123
+        violations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Violation"
+          description: List of validation constraint violations that occurred
+    IdentificatieResponse:
+      # Zie ContactgegevenResponse.
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+    IdentificatieType:
+      type: string
+      enum:
+      - BSN
+      - KVK
+      - RSIN
+    Instant:
+      type: string
+      format: date-time
+      examples:
+      - 2022-03-10T16:15:50Z
+    NullableInstant:
+      # Zelfde tijdstip als Instant, maar de null-tak staat in het type in plaats van
+      # alleen in een description. Een aparte schema-naam en niet Instant zelf nullbaar
+      # maken: createdAt en lastUpdated zijn altijd gevuld en blijven zo streng.
+      description: "Tijdstip dat ook expliciet null mag zijn."
+      type: [string, "null"]
+      format: date-time
+      examples:
+      - 2022-03-10T16:15:50Z
+    PartijBulkRequest:
+      type: object
+      required:
+      - identificaties
+      properties:
+        identificaties:
+          # Begrenst de amplificatie: per teruggegeven rij haalt het mappen lazy collecties
+          # op en doet touchIfStale zo nodig een UPDATE. 100 ligt ruim boven normaal
+          # gebruik; overschrijding levert een 400 op.
+          type: array
+          items:
+            $ref: "#/components/schemas/PartijIdentificatieRequest"
+          minItems: 1
+          maxItems: 100
+    PartijIdentificatieRequest:
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+    PartijRequest:
+      description: "Request object voor het ophalen van een Partij. dienstverlener en\
+        \ dienstNaam filteren de contactgegevens en voorkeuren in het antwoord; laat je beide\
+        \ weg, dan komt het hele profiel terug. Gegevens zonder scope komen altijd mee.\
+        \ dienstverlener houdt daarnaast de gegevens over die op die dienstverlener gescoped\
+        \ zijn. dienstNaam houdt de gegevens over die op een dienst met die naam gescoped\
+        \ zijn, plus de dienstverlener-brede scopes (een scope zonder dienst). De twee velden\
+        \ zijn onafhankelijk: dienstNaam zonder dienstverlener filtert dus op dienstnaam over\
+        \ alle dienstverleners heen."
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        dienstverlener:
+          type: [string, "null"]
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        dienstNaam:
+          type: [string, "null"]
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+    PartijResponse:
+      # Zie ContactgegevenResponse. De drie lijsten zijn altijd aanwezig en hooguit leeg.
+      type: object
+      required:
+      - partijId
+      - identificaties
+      - voorkeuren
+      - contactgegevens
+      properties:
+        partijId:
+          $ref: "#/components/schemas/UUID"
+        identificaties:
+          type: array
+          items:
+            $ref: "#/components/schemas/IdentificatieResponse"
+        voorkeuren:
+          type: array
+          items:
+            $ref: "#/components/schemas/VoorkeurResponse"
+        contactgegevens:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactgegevenResponse"
+    ScopeRequest:
+      description: "Beperkt een contactgegeven of voorkeur tot een dienstverlener,\
+        \ eventueel tot een dienst daarbinnen. Een leeg object betekent geen scope.\
+        \ Een dienstNaam zonder dienstverlenerNaam levert een 400."
+      # De null-tak hoort hier en niet in een anyOf bij het veld: anyOf met een null-tak
+      # maakt de $ref-tak onbereikbaar, waardoor pattern en type van dit schema niet meer
+      # gecontroleerd worden.
+      type: [object, "null"]
+      properties:
+        dienstverlenerNaam:
+          type: [string, "null"]
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        dienstNaam:
+          type: [string, "null"]
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+    ScopeResponse:
+      # Zie ContactgegevenResponse. dienstNaam is bewust optioneel: een dienstverlener-brede
+      # scope heeft geen dienst (dd.dienst IS NULL) en stuurt het veld dus als null mee.
+      type: object
+      required:
+      - dienstverlenerNaam
+      properties:
+        dienstverlenerNaam:
+          type: string
+        dienstNaam:
+          type: [string, "null"]
+    UUID:
+      type: string
+      format: uuid
+      pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+    Violation:
+      type: object
+      description: Validation constraint violation details
+      properties:
+        field:
+          type: string
+          description: The field for which the validation failed
+          examples:
+          - "#/profile/email"
+        in:
+          type: string
+          description: "Part of the http request where the validation error occurred\
+            \ such as query, path, header, form, body"
+          examples:
+          - query
+          - path
+          - header
+          - form
+          - body
+        message:
+          type: string
+          description: Description of the validation error
+          examples:
+          - Invalid email format
+    VoorkeurRequest:
+      description: "Request object voor het toevoegen van een voorkeur. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven."
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - voorkeurType
+      - waarde
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        voorkeurType:
+          $ref: "#/components/schemas/VoorkeurType"
+        waarde:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+    VoorkeurResponse:
+      description: "Voorkeur van een partij."
+      # Zie ContactgegevenResponse voor waarom required hier staat.
+      type: object
+      required:
+      - id
+      - voorkeurType
+      - waarde
+      - createdAt
+      - lastUpdated
+      - scopes
+      properties:
+        id:
+          $ref: "#/components/schemas/UUID"
+        voorkeurType:
+          $ref: "#/components/schemas/VoorkeurType"
+        waarde:
+          type: string
+        createdAt:
+          $ref: "#/components/schemas/Instant"
+        lastUpdated:
+          $ref: "#/components/schemas/Instant"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScopeResponse"
+    VoorkeurType:
+      type: string
+      enum:
+      - WebsiteTaal
+      - MagGebeldWorden
+      - WebsiteThema
+      - Aanhef
+      - OntvangViaBerichtenbox
+    VoorkeurUpdateRequest:
+      description: "Request object voor het bijwerken van een voorkeur. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven."
+      type: object
+      required:
+      - identificatieType
+      - identificatieNummer
+      - voorkeurType
+      - waarde
+      - id
+      properties:
+        identificatieType:
+          $ref: "#/components/schemas/IdentificatieType"
+        identificatieNummer:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        voorkeurType:
+          $ref: "#/components/schemas/VoorkeurType"
+        waarde:
+          type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+        scope:
+          $ref: "#/components/schemas/ScopeRequest"
+        id:
+          $ref: "#/components/schemas/UUID"

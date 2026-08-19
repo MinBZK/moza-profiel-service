@@ -192,13 +192,6 @@ public class Contactgegeven extends PanacheEntityBase {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
     }
 
-    // Naam wijkt bewust af van findById: die zou Panache's inherited findById(Object) shadowen.
-    // Bestaande, ongefilterde aanroepen met een UUID zouden dan stilzwijgend deze gefilterde variant raken.
-    @Nullable
-    public static Contactgegeven findNietVerwijderdById(UUID id) {
-        return find("id = ?1 AND verwijderdOp IS NULL", id).firstResult();
-    }
-
     @Nullable
     public static Contactgegeven find(Partij partij, ContactType type, String waarde) {
         return find("partij = ?1 AND type = ?2 AND waarde = ?3 AND verwijderdOp IS NULL", partij, type, waarde).firstResult();

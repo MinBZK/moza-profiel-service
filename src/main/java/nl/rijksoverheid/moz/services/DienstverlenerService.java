@@ -4,8 +4,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.exception.BusinessException.Kind;
-import nl.rijksoverheid.moz.dto.request.DienstRequest;
-import nl.rijksoverheid.moz.dto.request.DienstverlenerRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstRequest;
+import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
@@ -21,7 +21,7 @@ public class DienstverlenerService {
 
     @Transactional
     public Dienstverlener addDienstverlener(DienstverlenerRequest request) {
-        return findOrCreateDienstverlener(request.naam, request.beschrijving);
+        return findOrCreateDienstverlener(request.getNaam(), request.getBeschrijving());
     }
 
     @Transactional
@@ -33,14 +33,14 @@ public class DienstverlenerService {
     public Dienst addDienstToDienstverlener(String dienstverlenerNaam, DienstRequest request) {
         Dienstverlener dienstverlener = findOrCreateDienstverlener(dienstverlenerNaam, null);
 
-        Dienst dienst = Dienst.findByNaam(request.naam);
+        Dienst dienst = Dienst.findByNaam(request.getNaam());
         if (dienst == null) {
             dienst = new Dienst();
-            dienst.setNaam(request.naam);
-            dienst.setBeschrijving(request.beschrijving);
+            dienst.setNaam(request.getNaam());
+            dienst.setBeschrijving(request.getBeschrijving());
             dienst.persist();
-        } else if (request.beschrijving != null
-                && !Objects.equals(dienst.getBeschrijving(), request.beschrijving)) {
+        } else if (request.getBeschrijving() != null
+                && !Objects.equals(dienst.getBeschrijving(), request.getBeschrijving())) {
             throw new BusinessException(Kind.CONFLICT,
                     "Dienst bestaat al met een andere beschrijving. Laat 'beschrijving' weg of stuur dezelfde waarde.");
         }
@@ -58,10 +58,24 @@ public class DienstverlenerService {
                 .toList();
     }
 
+    /**
+     * Zoekt de dienstverlener op naam en maakt hem aan als hij nog niet bestaat.
+     *
+     * <p>Bestaat hij al, dan botst een afwijkende {@code beschrijving} met een 409 in plaats van
+     * stil te verdwijnen. Een {@code null}-beschrijving legt niets vast en botst nooit; zo maakt
+     * {@link #addDienstToDienstverlener} een dienstverlener zonder beschrijving aan.
+     */
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {
-        Dienstverlener dienstverlener = Dienstverlener.find("LOWER(naam) = LOWER(?1)", naam).firstResult();
+        Dienstverlener dienstverlener = Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
+
         if (dienstverlener != null) {
+            if (beschrijving != null
+                    && !Objects.equals(dienstverlener.getBeschrijving(), beschrijving)) {
+                throw new BusinessException(Kind.CONFLICT,
+                        "Dienstverlener bestaat al met een andere beschrijving. Laat 'beschrijving' weg of stuur dezelfde waarde.");
+            }
+
             return dienstverlener;
         }
 

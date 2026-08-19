@@ -7,9 +7,9 @@ import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
-import nl.rijksoverheid.moz.dto.response.ContactgegevenResponse;
-import nl.rijksoverheid.moz.dto.response.PartijResponse;
-import nl.rijksoverheid.moz.dto.response.VoorkeurResponse;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
+import nl.rijksoverheid.moz.api.generated.model.VoorkeurResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -61,14 +61,14 @@ class PartijMapperTest {
 
         ContactgegevenResponse response = partijMapper.mapContactgegeven(cg);
 
-        Assertions.assertEquals(cg.id, response.id);
-        Assertions.assertEquals(ContactType.Email, response.type);
-        Assertions.assertEquals("test@example.com", response.waarde);
-        Assertions.assertTrue(response.isGeverifieerd);
-        Assertions.assertTrue(response.isDefault);
-        Assertions.assertEquals(1, response.scopes.size());
-        Assertions.assertEquals("Gemeente Amsterdam", response.scopes.get(0).dienstverlenerNaam);
-        Assertions.assertEquals("Verhuizen", response.scopes.get(0).dienstNaam);
+        Assertions.assertEquals(cg.id, response.getId());
+        Assertions.assertEquals(ContactType.Email, response.getType());
+        Assertions.assertEquals("test@example.com", response.getWaarde());
+        Assertions.assertTrue(response.getIsGeverifieerd());
+        Assertions.assertTrue(response.getIsDefault());
+        Assertions.assertEquals(1, response.getScopes().size());
+        Assertions.assertEquals("Gemeente Amsterdam", response.getScopes().get(0).getDienstverlenerNaam());
+        Assertions.assertEquals("Verhuizen", response.getScopes().get(0).getDienstNaam());
     }
 
     @Test
@@ -79,8 +79,8 @@ class PartijMapperTest {
 
         ContactgegevenResponse response = partijMapper.mapContactgegeven(cg);
 
-        Assertions.assertEquals("Gemeente Utrecht", response.scopes.get(0).dienstverlenerNaam);
-        Assertions.assertNull(response.scopes.get(0).dienstNaam);
+        Assertions.assertEquals("Gemeente Utrecht", response.getScopes().get(0).getDienstverlenerNaam());
+        Assertions.assertNull(response.getScopes().get(0).getDienstNaam());
     }
 
     @Test
@@ -91,12 +91,12 @@ class PartijMapperTest {
 
         VoorkeurResponse response = partijMapper.mapVoorkeur(voorkeur);
 
-        Assertions.assertEquals(voorkeur.id, response.id);
-        Assertions.assertEquals(VoorkeurType.WebsiteTaal, response.voorkeurType);
-        Assertions.assertEquals("nl", response.waarde);
-        Assertions.assertEquals(1, response.scopes.size());
-        Assertions.assertEquals("Gemeente Rotterdam", response.scopes.get(0).dienstverlenerNaam);
-        Assertions.assertEquals("Parkeren", response.scopes.get(0).dienstNaam);
+        Assertions.assertEquals(voorkeur.id, response.getId());
+        Assertions.assertEquals(VoorkeurType.WebsiteTaal, response.getVoorkeurType());
+        Assertions.assertEquals("nl", response.getWaarde());
+        Assertions.assertEquals(1, response.getScopes().size());
+        Assertions.assertEquals("Gemeente Rotterdam", response.getScopes().get(0).getDienstverlenerNaam());
+        Assertions.assertEquals("Parkeren", response.getScopes().get(0).getDienstNaam());
     }
 
     @Test
@@ -109,14 +109,14 @@ class PartijMapperTest {
             response.set(partijMapper.toResponse(partij, Contactgegeven.find(partij), Voorkeur.find(partij)));
         });
 
-        Assertions.assertEquals(partijId, response.get().partijId);
-        Assertions.assertEquals(1, response.get().identificaties.size());
-        Assertions.assertEquals(IdentificatieType.BSN, response.get().identificaties.get(0).identificatieType);
-        Assertions.assertEquals("123456789", response.get().identificaties.get(0).identificatieNummer);
-        Assertions.assertEquals(1, response.get().contactgegevens.size());
-        Assertions.assertEquals("a@example.com", response.get().contactgegevens.get(0).waarde);
-        Assertions.assertEquals(1, response.get().voorkeuren.size());
-        Assertions.assertEquals("nl", response.get().voorkeuren.get(0).waarde);
+        Assertions.assertEquals(partijId, response.get().getPartijId());
+        Assertions.assertEquals(1, response.get().getIdentificaties().size());
+        Assertions.assertEquals(IdentificatieType.BSN, response.get().getIdentificaties().get(0).getIdentificatieType());
+        Assertions.assertEquals("123456789", response.get().getIdentificaties().get(0).getIdentificatieNummer());
+        Assertions.assertEquals(1, response.get().getContactgegevens().size());
+        Assertions.assertEquals("a@example.com", response.get().getContactgegevens().get(0).getWaarde());
+        Assertions.assertEquals(1, response.get().getVoorkeuren().size());
+        Assertions.assertEquals("nl", response.get().getVoorkeuren().get(0).getWaarde());
     }
 
     @Test
@@ -126,9 +126,9 @@ class PartijMapperTest {
 
         PartijResponse response = partijMapper.toResponse(partij, List.of(), List.of());
 
-        Assertions.assertTrue(response.identificaties.isEmpty());
-        Assertions.assertTrue(response.contactgegevens.isEmpty());
-        Assertions.assertTrue(response.voorkeuren.isEmpty());
+        Assertions.assertTrue(response.getIdentificaties().isEmpty());
+        Assertions.assertTrue(response.getContactgegevens().isEmpty());
+        Assertions.assertTrue(response.getVoorkeuren().isEmpty());
     }
 
     // ---------------------------------------------------------------------
