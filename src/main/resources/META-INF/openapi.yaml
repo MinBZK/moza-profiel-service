@@ -578,13 +578,20 @@ components:
           schema:
             $ref: "#/components/schemas/HttpProblem"
   schemas:
-    # De contractvalidatie handhaaft type niet (3.1-typen komen niet door de validator);
-    # required, enum, pattern, format, minItems en maxItems wél. Nullable-typen zijn hier
-    # dus documentatie voor de consumer, geen bewaking.
+    # De contractvalidatie handhaaft sinds swagger-request-validator 3.0.0 (#151) ook `type`
+    # op dit 3.1-document: die versie leest getTypes(), waar 2.44.1 alleen getType() las en
+    # 3.1-typen dus oversloeg. Gemeten: een getal op een veld dat `type: string` declareert
+    # wordt nu afgewezen met "integer found, string expected". Een nullable type is hier
+    # daarmee bewaking, en niet langer alleen documentatie voor de consumer.
     #
-    # Nullbaarheid van een $ref-veld hoort daarom in de beschrijving van zijn schema en
-    # niet in een anyOf met een null-tak: die tak matcht alles, waarmee de $ref-tak nooit
-    # meer wordt gecontroleerd. ContractHandhavingTest legt dat vast.
+    # Nullbaarheid hoort in het type zelf: `type: [string, "null"]`, of een apart schema zoals
+    # NullableInstant wanneer niet elk gebruik van het verwezen schema nullbaar is.
+    # ContractHandhavingTest legt vast dat het contract afwijst wat het zegt af te wijzen.
+    #
+    # Tot 2.44.1 gold hier de regel dat een anyOf met een null-tak alle validatie van het
+    # verwezen schema uitschakelde. Dat was een gevolg van diezelfde bug — `type: "null"`
+    # werd niet gehandhaafd, dus die tak matchte alles. Onder 3.0.0 is dat niet meer zo;
+    # bovenstaande vorm blijft de afspraak, maar niet meer om die reden.
     #
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
