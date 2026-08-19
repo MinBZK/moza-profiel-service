@@ -38,6 +38,9 @@
 
 name: ZAD Deploy
 
+# Read-only als basis; elke job zet zelf de writes die hij nodig heeft.
+permissions: read-all
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
@@ -135,7 +138,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # deploy-URL als PR-comment posten
-      deployments: write # GitHub environment/deployment aanmaken
     environment:
       name: pr-${{ github.event.pull_request.number }}
       url: ${{ steps.deploy.outputs.url }}
@@ -208,7 +210,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      deployments: write # GitHub environment/deployment aanmaken
     environment:
       name: stable
       url: ${{ steps.deploy.outputs.url }}
