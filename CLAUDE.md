@@ -64,15 +64,21 @@ volledige toelichting per stuk):
 
 - `openApiNullable=false` — anders importeert de generator bij elk nullable veld
   `JsonNullable`, en die dependency hebben we niet.
-- `schemaMappings` wijst `Instant`, `UUID`, de drie domein-enums en `HttpProblem`
-  naar bestaande types, zodat er geen tweede gelijknamige klasse ontstaat.
-- `inputSpec` is bewust een **relatief** pad. Absoluut breekt op Windows: Maven
-  maakt er `C:\...` van en de swagger-parser in generator 7.10.0 leest de
-  driveletter als URI-scheme.
+- `schemaMappings` wijst `Instant`, `NullableInstant`, `UUID`, de drie
+  domein-enums en `HttpProblem` naar bestaande types, zodat er geen tweede
+  gelijknamige klasse ontstaat.
+- `inputSpec` blijft **relatief**; absoluut breekt de build op Windows.
 
 Naast het servercontract staat er een clientcontract in
 `src/main/resources/openapi/verificatie_service.yaml`, waaruit
 quarkus-openapi-generator de client voor de verificatie-service bouwt.
+
+**Trek `io.quarkiverse.openapi.generator:*` niet handmatig op.** Die is in
+`.github/dependabot.yml` bewust vastgezet op `<= 2.19.0`: vanaf 2.20.0 genereert
+de server-extensie beanvelden als `Object` in plaats van het juiste type. De
+build blijft daarbij groen omdat de stubs shadow zijn, dus CI waarschuwt je
+niet. De pin onderdrukt ook security-updates voor dat artefact; de voorwaarden
+om hem op te heffen staan in `dependabot.yml`.
 
 ### Grens van de contractvalidatie
 
@@ -83,16 +89,20 @@ inlevert. Vanaf validator 3.0.0 wordt `type` op OpenAPI 3.1 wél gehandhaafd.
 
 ## Bewakingstests
 
-Elf tests bewaken elk één specifiek gat. Ze overlappen bewust niet, en de
-javadoc van elke test legt uit wat hij níet dekt — lees die voordat je hem
-aanpast. Wijzig je iets in de tabel hieronder, dan is dat de test die je moet
-uitbreiden:
+Elf klassen bewaken elk één specifiek gat. Ze overlappen bewust niet, en de
+meeste lichten in hun javadoc toe wat ze níet dekken — lees die voordat je er
+een aanpast. Raak je iets uit de rechterkolom aan, dan is de klasse links
+degene die je moet uitbreiden.
 
-| Test | Bewaakt |
-|------|---------|
+Zeven staan in `src/test/java/nl/rijksoverheid/moz/architectuur/`; de drie
+contracttests direct in `.../moz/`, en `OpenApiValidationTest` in
+`.../moz/controller/`.
+
+| Klasse | Bewaakt |
+|--------|---------|
 | `OpenApiContractDriftTest` | Gepubliceerd `/openapi.json` is gelijk aan het contractbestand — dus: de configuratie, niet de inhoud |
 | `RouteDekkingTest` | Contract ↔ JAX-RS-routes, beide richtingen: pad en HTTP-methode |
-| `OpenApiValidationTest` | De vorm van de berichten zelf, tegen het gepubliceerde document |
+| `OpenApiValidationTest` | Abstracte basisklasse zonder eigen tests: levert de validatiefilter die de vorm van de berichten tegen het gepubliceerde document toetst. Vijf integratietests erven ervan |
 | `ContractHandhavingTest` | Dat het contract werkelijk afwijst wat het zegt af te wijzen (een contract dat álles afwijst is óók groen) |
 | `StandardErrorResponsesTest` | Elke operatie documenteert een 500 → `HttpProblem` en een 400 → `HttpValidationProblem` |
 | `OpenApiMetadataTest` | Contractversie == `ApiVersion.CURRENT`, plus de door ADR vereiste `info`-velden |
@@ -100,7 +110,7 @@ uitbreiden:
 | `UpdateSchemaPariteitTest` | Elk update-schema == zijn create-schema plus precies de toegestane extra's |
 | `ValidatieExtensiesTest` | `x-class-extra-annotation` en `x-implements` staan samen op de schema's die de elfproef dragen |
 | `RequestDtoOnveranderbaarheidTest` | Productiecode muteert geen binnenkomend request |
-| `RegelDekkingTest` | Dat de twee regels hierboven écht vangen — ze draaien in de andere test tegen code die ze niet overtreedt |
+| `RegelDekkingTest` | Dat `GEEN_MUTERENDE_NAAM` en `GEEN_AANROEP_MET_PARAMETERS` écht vangen — in de test hierboven draaien ze tegen code die ze niet overtreedt |
 
 Twee dingen die deze tests **niet** dekken en die je zelf moet bewaken:
 
@@ -150,6 +160,8 @@ ClusterFuzzLite-targets.
 
 JaCoCo-gate: **85% line, 80% branch** op BUNDLE-niveau, uitgesloten zijn
 `nl/rijksoverheid/moz/external/**` en `nl/rijksoverheid/moz/api/generated/**`.
+`pom.xml` is leidend voor die getallen — controleer ze daar voor je je erop
+baseert.
 
 De `check` hangt aan fase **`test`**, niet `verify` — CI draait `mvn package` en
 handhaaft de gate daarmee dus wél.
@@ -173,8 +185,10 @@ Twee dingen die hier vaak misgaan:
   draaien op H2 in PostgreSQL-modus.
 - **Tests draaien de migraties niet.** Flyway staat uit in de testconfiguratie
   en Hibernate bouwt het schema uit de entities (`drop-and-create`). Een kapotte
-  of ontbrekende `V*.sql` komt dus **niet** in de testsuite boven — controleer
-  een migratie apart tegen een echte PostgreSQL voordat je hem mergt.
+  of ontbrekende `V*.sql` komt dus **niet** in de testsuite boven. Controleer
+  een nieuwe migratie apart tegen PostgreSQL: `docker compose up -d postgres`
+  en dan `./mvnw quarkus:dev`, want dev-mode draait Flyway wél. Kijk of
+  `flyway_schema_history` de nieuwe versie krijgt.
 - In prod staat `schema-management.strategy=validate`: wijkt een entity af van
   het gemigreerde schema, dan start de applicatie niet.
 - Kolomnamen volgen `CamelCaseToUnderscoresNamingStrategy`; schrijf ze in de
@@ -276,11 +290,13 @@ return cr;
 
 - **Nooit direct pushen naar `main`.** Alles via een feature branch en een Pull
   Request.
-- PR's worden squash-gemerged; de commitmessage eindigt op `(#nummer)`.
-- Dependabot-commits volgen `build(deps): ...`; eigen commits zijn een korte
-  Nederlandse beschrijving, eventueel met een conventional-commit-prefix.
+- **Merge squash.** De commitmessage eindigt dan op `(#nummer)`. In oudere
+  historie staan nog merge-commits; dat is niet het patroon om te volgen.
+- Commitmessages zijn een korte Nederlandse beschrijving, eventueel met een
+  conventional-commit-prefix.
 - Voeg bij het aanmaken van een PR **geen** reviewer toe.
-- Issues staan in de [MijnOverheidZakelijk](https://github.com/MinBZK/MijnOverheidZakelijk/issues)-tracker
+- Issues staan in de
+  [MijnOverheidZakelijk](https://github.com/MinBZK/MijnOverheidZakelijk/issues)-tracker
   met label `profiel-service`, niet in deze repo.
 
 ## Belangrijke bestanden
@@ -289,11 +305,12 @@ return cr;
 |-----|--------------|
 | `src/main/resources/META-INF/openapi.yaml` | Het contract: bron voor `/openapi.json` én voor de DTO-codegen |
 | `src/main/resources/openapi/verificatie_service.yaml` | Clientcontract voor de externe verificatie-service |
-| `src/main/resources/application.properties` | Runtime-configuratie; secrets alleen als lege `%prod`-sleutels |
+| `src/main/resources/application.properties` | Runtime-configuratie; productiewaarden staan als lege `%prod`-sleutels klaar |
 | `src/test/resources/application.properties` | H2, Flyway uit, JaCoCo-excludes |
 | `src/main/resources/db/migration/` | Flyway-migraties |
 | `pom.xml` | Quarkus-BOM, generator-configuratie en de JaCoCo-gate — met toelichting per keuze |
-| `src/test/java/.../architectuur/` | De bewakingstests uit de tabel hierboven |
+| `.github/dependabot.yml` | Groepering én versie-pins met hun reden; lees dit vóór je een dependency handmatig optrekt |
+| `src/test/java/.../architectuur/` | Zeven van de elf bewakingstests; zie de tabel hierboven voor de rest |
 | `docs/zad-deploy.md` | ZAD PR-preview-deploys: hoe de workflow werkt en hoe je hem debugt |
 | `FUZZING.md` | Fuzz-opzet, JUnit-targets en ClusterFuzzLite |
 | `.github/workflows/` | CI: Maven-build, CodeQL, Scorecard, ClusterFuzzLite, ZAD-deploy |
@@ -301,11 +318,10 @@ return cr;
 ## Deploy
 
 ZAD is uitsluitend de **PR-preview- en ontwikkelomgeving** (project `psd-law`).
-Elke PR vanuit deze repo van een niet-bot auteur krijgt een
-`pr-<nummer>`-deployment die zijn configuratie via `clone-from` erft van de
-`feature`-deployment; push naar `main` gaat naar de persistente
-`stable`-deployment. PR's vanaf een fork en dependabot-PR's worden bewust
-overgeslagen.
+Elke PR vanuit deze repo krijgt een `pr-<nummer>`-deployment die zijn
+configuratie via `clone-from` erft van de `feature`-deployment; push naar `main`
+gaat naar de persistente `stable`-deployment. PR's vanaf een fork en PR's van
+`dependabot[bot]` worden bewust overgeslagen — andere bots vangt die guard niet.
 
 De workflow zet alleen wélk container-image draait. Applicatieconfiguratie
 (DB-url, wachtwoorden, NotifyNL-keys) staat in de deployment zelf, in de ZAD

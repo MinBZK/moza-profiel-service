@@ -4,7 +4,7 @@ Bedankt voor je interesse in deze repository. Bekijk eerst de overkoepelende ric
 
 ## Lokale conventies voor deze repo
 
-- **Branching**: feature branches off `main`, PR voor merge. Tijdens initiële buildout van een greenfield repo kan ook direct op `main` worden gewerkt.
+- **Branching**: feature branches off `main`, PR voor merge. Nooit direct op `main` werken.
 - **Commits**: korte, beschrijvende messages in het Nederlands of Engels.
 - **Tests**: `./mvnw verify` moet groen draaien. Unit + integratie (`@QuarkusTest`) + architectuur (ArchUnit) + fuzz (jazzer) + contract (Pact). JaCoCo-drempel is 85% line en 80% branch.
 - **API Design Rules**: nieuwe of gewijzigde endpoints moeten door de Spectral lint heen tegen de NLGov ADR ruleset (`https://static.developer.overheid.nl/adr/ruleset.yaml`). Zie [`audit/consolidated-findings.md`](../profiel-service/audit/consolidated-findings.md) voor de bekende bevindingen.
