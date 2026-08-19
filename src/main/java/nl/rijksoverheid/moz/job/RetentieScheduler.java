@@ -25,6 +25,7 @@ import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -193,13 +194,14 @@ public class RetentieScheduler {
     void cascadeDeleteLegePartijen(Set<UUID> partijIds) {
         Instant nu = Instant.now();
 
-        for (UUID id : new TreeSet<>(partijIds)) {
-            Partij partij = Partij.findById(id);
-
-            if (partij != null) {
-                partijService.deleteLegePartij(partij, nu);
-            }
-        }
+        // Bewust een lambda en geen Partij::findById: Quarkus herschrijft alleen de letterlijke
+        // Partij.findById(id)-aanroep naar Partij's eigen implementatie. Een method reference mist
+        // die build-time enhancement en valt terug op de stub in PanacheEntityBase, die een
+        // IllegalStateException gooit.
+        new TreeSet<>(partijIds).stream()
+                .map(id -> (Partij) Partij.findById(id))
+                .filter(Objects::nonNull)
+                .forEach(partij -> partijService.deleteLegePartij(partij, nu));
     }
 
     private static Instant berekenGrens(Instant nu) {
