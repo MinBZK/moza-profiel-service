@@ -30,12 +30,10 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
-  # Uploadt de dependency graph naar GitHub, wat de Dependabot-alerts van deze repo
-  # verbetert. Eigen job: de submission heeft contents: write nodig en dat hoeft niet
-  # voor de hele build te gelden. Alleen op main, want Dependabot-alerts gaan over
-  # de default branch.
+  # Eigen job zodat contents: write niet voor de hele build geldt, ook niet op PR's.
+  # Alleen op main: de Dependabot-alerts die dit voedt gaan over de default branch.
   dependency-submission:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write # required for maven-dependency-submission-action
     runs-on: ubuntu-latest
