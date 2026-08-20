@@ -39,12 +39,12 @@ import java.util.stream.Collectors;
 /**
  * REST controller voor partijen. Contract-first (#651, #751): implementeert de uit
  * {@code META-INF/openapi.yaml} gegenereerde {@link ProfielApi}, die de paden, HTTP-methodes,
- * mediatypes en de validatie van de body-parameter draagt. Herhaal ze hier niet. Gemeten op
- * Quarkus REST 3.38: een HTTP-methode-annotatie op de implementatie breekt de mapping — de
- * route antwoordt dan met 405 — terwijl een {@code @Consumes} of {@code @Produces} juist
- * stilzwijgend wordt genegeerd, want die van de interface wint. Beide kanten leveren dus
- * verwarring op, in tegengestelde richting. Een parameterconstraint opnieuw declareren is
- * bovendien een harde fout: dan start de applicatie niet meer (HV000151).
+ * mediatypes en de validatie van de body-parameter draagt. Herhaal ze hier niet: één
+ * JAX-RS-annotatie op een implementatiemethode laat álle annotaties van de interface voor
+ * die methode vervallen (JAX-RS 3.1 §3.6), inclusief {@code @Path}. De gedocumenteerde route
+ * geeft dan een 404 die niet te onderscheiden is van "niet gevonden", en de methode herbindt
+ * zich stilzwijgend aan het pad op klasseniveau. Een parameterconstraint opnieuw declareren
+ * is een harde fout: dan start de applicatie niet meer (HV000151).
  */
 public class ProfielController implements ProfielApi {
 
