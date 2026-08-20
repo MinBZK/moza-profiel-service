@@ -578,24 +578,6 @@ components:
           schema:
             $ref: "#/components/schemas/HttpProblem"
   schemas:
-    # De contractvalidatie handhaaft sinds swagger-request-validator 3.0.0 (#151) ook `type`
-    # op dit 3.1-document: die versie leest getTypes(), waar 2.44.1 alleen getType() las en
-    # 3.1-typen dus oversloeg. Gemeten: een getal op een veld dat `type: string` declareert
-    # wordt nu afgewezen met "integer found, string expected". Een nullable type is hier
-    # daarmee bewaking, en niet langer alleen documentatie voor de consumer.
-    #
-    # Nullbaarheid hoort in het type zelf: `type: [string, "null"]`, of een apart schema zoals
-    # NullableInstant wanneer niet elk gebruik van het verwezen schema nullbaar is.
-    # ContractHandhavingTest legt vast dat het contract afwijst wat het zegt af te wijzen.
-    #
-    # Tot 2.44.1 gold hier de regel dat een anyOf met een null-tak alle validatie van het
-    # verwezen schema uitschakelde. Dat was een gevolg van diezelfde bug — `type: "null"`
-    # werd niet gehandhaafd, dus die tak matchte alles. Onder 3.0.0 is dat niet meer zo:
-    # gemeten wijzen beide vormen een blanco naam, een onbekend veld, een verkeerd type en
-    # een meerregelige waarde even goed af, en de generator maakt er hetzelfde veldtype van.
-    # De vorm hierboven blijft de afspraak — om één schrijfwijze te houden, niet omdat de
-    # andere nog iets kapotmaakt.
-    #
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
     # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
