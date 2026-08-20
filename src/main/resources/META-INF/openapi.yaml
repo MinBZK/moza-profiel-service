@@ -43,6 +43,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -77,12 +80,18 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven was al geregistreerd voor deze partij en scope
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ContactgegevenResponse"
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven succesvol toegevoegd
           content:
             application/json:
@@ -112,6 +121,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Te-verwijderen-op succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -146,6 +158,9 @@ paths:
         required: true
       responses:
         "204":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven succesvol verwijderd
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -173,6 +188,9 @@ paths:
         required: true
       responses:
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Dienstverlener succesvol toegevoegd of al aanwezig met dezelfde
             beschrijving
           content:
@@ -212,6 +230,9 @@ paths:
         required: true
       responses:
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Dienst succesvol toegevoegd
           content:
             application/json:
@@ -243,6 +264,9 @@ paths:
           type: string
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Dienstverlener succesvol opgehaald
           content:
             application/json:
@@ -272,6 +296,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Email verificatie succesvol
         "400":
           description: "Request body ontbreekt, is ongeldig (schemaviolatie of een\
@@ -300,6 +327,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Email verificatie code aanvraag succesvol
         "400":
           description: "Request body ontbreekt of is ongeldig. Bij bean-validatie is\
@@ -337,6 +367,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Partij succesvol opgehaald
           content:
             application/json:
@@ -368,6 +401,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Alle profielen succesvol opgehaald
           content:
             application/json:
@@ -376,6 +412,9 @@ paths:
                 items:
                   $ref: "#/components/schemas/PartijResponse"
         "206":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Profielen gedeeltelijk opgehaald
           content:
             application/json:
@@ -409,6 +448,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -439,6 +481,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur was al geregistreerd voor deze partij en scope; een
             afwijkende waarde is overschreven
           content:
@@ -446,6 +491,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/VoorkeurResponse"
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur succesvol toegevoegd
           content:
             application/json:
@@ -475,6 +523,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Te-verwijderen-op succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -509,6 +560,9 @@ paths:
         required: true
       responses:
         "204":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur succesvol verwijderd
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -517,6 +571,15 @@ paths:
         "500":
           $ref: "#/components/responses/InterneServerfout"
 components:
+  headers:
+    ApiVersion:
+      description: "Semantische versie van het API-contract, zoals ADR /core/version-header
+        vereist. SecurityHeadersFilter zet hem op elke respons; ApiVersion.CURRENT is de bron."
+      required: true
+      schema:
+        type: string
+        examples:
+        - 1.0.0
   responses:
     InterneServerfout:
       description: Interne serverfout
