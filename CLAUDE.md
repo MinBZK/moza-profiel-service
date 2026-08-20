@@ -96,10 +96,19 @@ geen bevindingen bíj. De bekende afwijkingen staan in `CONTRIBUTING.md`; de
 
 ### Grens van de contractvalidatie
 
-De contractvalidatie is geen vangnet voor alles. Een `anyOf` met een null-tak
-zet de validatie voor dat veld feitelijk uit: elke waarde matcht dan een van de
-takken. Gebruik dat alleen waar het echt nodig is, en weet dat je er dekking mee
-inlevert. Vanaf validator 3.0.0 wordt `type` op OpenAPI 3.1 wél gehandhaafd.
+Sinds validator 3.0.0 (#151) wordt `type` op dit 3.1-document wél gehandhaafd.
+Uit de tijd daarvóór stamt de regel dat een `anyOf` met een null-tak de validatie
+voor dat veld uitschakelde — die tak matchte toen alles, omdat `type: "null"`
+zelf niet werd gecontroleerd. Dat geldt niet meer: gemeten wijzen de `type`-vorm
+en de `anyOf`-vorm dezelfde bodies af, en de generator maakt er hetzelfde
+veldtype van. Nullbaarheid hoort nog steeds in het type, maar om één
+schrijfwijze te houden en niet omdat de andere dekking kost.
+
+De validatie is wel nog steeds geen vangnet voor alles. Twee dingen die ze niet
+dekt: een regel over twee velden — "`waarde` moet een e-mailadres zijn wanneer
+`type` Email is" is daarom niet als schema uit te drukken (#766) — en de vorm
+van padparameters, waar de server meer accepteert dan `format: uuid` belooft
+(#980).
 
 ## Bewakingstests
 
@@ -257,13 +266,14 @@ bouwt erop voort. Weet je het niet zeker, laat het weg of noteer het als aanname
 
 ```java
 // Niet
-// anyOf en niet oneOf: een null-waarde matcht bij de contractvalidatie zowel de
-// Instant-tak als de null-tak, en oneOf eist er precies één. Semantisch maakt
-// het hier niets uit — de unie is hetzelfde — maar oneOf zou op elke lege
-// verwijderdatum een valse fout geven.
+// De responses staan per operatie op volgorde met de succescode eerst. Voor
+// OpenAPI zelf is die volgorde betekenisloos, maar de generator leidt er
+// @Produces uit af en JAX-RS kiest het eerst vermelde mediatype als standaard,
+// dus met een foutrespons vooraan krijgt elk succesantwoord problem+json.
 
 // Wel
-// anyOf: oneOf faalt hier op elke waarde omdat beide takken alles matchen.
+// Succescode eerst: de generator leidt hier @Produces uit af en JAX-RS neemt
+// het eerste mediatype.
 ```
 
 Verwijs in commentaar niet naar CLAUDE.md-secties. Beschrijf de regel zelf, zodat
