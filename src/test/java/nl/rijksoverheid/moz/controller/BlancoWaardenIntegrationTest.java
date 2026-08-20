@@ -118,6 +118,43 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .body("violations.field", hasItem("naam"));
     }
 
+    /**
+     * De enige andere test op dit endpoint stuurt géén body en wordt daardoor al door
+     * {@code RequireBodyReaderInterceptor} beantwoord, vóórdat de bean-validatie draait.
+     * Zonder deze test raakt niets over HTTP de {@code @Valid} op de {@code DienstRequest}-
+     * parameter, noch de pattern op {@code naam}.
+     */
+    @Test
+    void dienstMetBlancoNaamWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"   \",\"beschrijving\":\"Beschrijving\"}")
+                .when().post("/api/profielservice/v1/dienstverlener/BestaatNiet/diensten")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("naam"));
+    }
+
+    /**
+     * Dezelfde DTO als bij het contactgegeven-endpoint hierboven, dus de constraints zijn
+     * al gedekt; wat hier bij komt is de parameterbinding op deze methode.
+     */
+    @Test
+    void voorkeurTeVerwijderenOpMetBlancoDienstverlenerNaamWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"identificatieType":"BSN","identificatieNummer":"111111104",
+                         "dienstverlenerNaam":"   ","teVerwijderenOp":"2030-01-01T00:00:00Z"}
+                        """)
+                .when().patch("/api/profielservice/v1/voorkeur/te-verwijderen-op")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("dienstverlenerNaam"));
+    }
+
     @Test
     void voorkeurMetBlancoWaardeWordtAfgewezen() {
         given()

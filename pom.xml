@@ -315,6 +315,10 @@
                                 <openApiNullable>false</openApiNullable>
                                 <sourceFolder>src/main/java</sourceFolder>
                             </configOptions>
+                            <!-- Haal HttpProblem hier niet weg: dan genereert de plugin er
+                                 stilzwijgend een tweede, ongebruikte klasse naast het type dat
+                                 de applicatie werkelijk gooit, en blijft de build groen.
+                                 HttpValidationProblem en Violation staan er bewust niet in. -->
                             <schemaMappings>
                                 Instant=java.time.Instant,NullableInstant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType,HttpProblem=io.quarkiverse.httpproblem.HttpProblem
                             </schemaMappings>
