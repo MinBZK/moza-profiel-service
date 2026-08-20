@@ -342,6 +342,44 @@ public class PartijServiceTest {
                 Assertions.assertEquals(recent, Contactgegeven.<Contactgegeven>findById(cgId.get()).getLastUsedAt()));
     }
 
+    /**
+     * touchIfStale rechtstreeks aangeroepen (package-private) i.p.v. via getPartijResponse: de
+     * race die dit dekt — de rij is soft-deleted tussen het ophalen en deze touch — kan niet
+     * deterministisch via de publieke servicemethoden opgewekt worden, want die selecteren zelf
+     * al op verwijderdOp IS NULL. Hier wordt de rij rechtstreeks (buiten de service om) soft-
+     * deleted vóórdat touchIfStale draait, wat exact simuleert wat een concurrente
+     * retentiescheduler-run zou doen.
+     */
+    @Test
+    void touchIfStale_RijInmiddelsSoftDeleted_GeeftFalseTerug() {
+        AtomicReference<UUID> cgId = new AtomicReference<>();
+        Instant ouder = Instant.now().minus(Duration.ofHours(48));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven cg = new Contactgegeven();
+            cg.setPartij(partij);
+            cg.setType(ContactType.Email);
+            cg.setWaarde("touch@example.com");
+            cg.setLastUsedAt(ouder);
+            cg.persist();
+            cgId.set(cg.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Contactgegeven.update("verwijderdOp = ?1 WHERE id = ?2", Instant.now(), cgId.get()));
+
+        AtomicReference<Boolean> nogActief = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven cg = Contactgegeven.findById(cgId.get());
+            nogActief.set(partijService.touchIfStale(cg));
+        });
+
+        Assertions.assertFalse(nogActief.get());
+    }
+
     @Test
     void addContactgegeven_Duplicate_ThrowsConflict() {
         createTestDienstverlenerWithDienst();

@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -82,11 +83,16 @@ public class RetentieScheduler {
 
     @PostConstruct
     void registerGauge() {
+        // Per instance (quarkus.quartz.clustered=true, maar deze AtomicLongs leven alleen in het
+        // geheugen van de pod die vuurde): een replica die de job nooit uitvoert blijft op 0 staan.
+        // Een alert hierop moet dus over de cluster aggregeren met max(), niet per instance kijken.
         Gauge.builder("retentie.laatste_run_epoch_seconds", laatsteRunEpochSeconds, AtomicLong::get)
-                .description("Tijdstip (epoch seconds) van de laatst uitgevoerde retentiescheduler-run, ongeacht succes")
+                .description("Tijdstip (epoch seconds) van de laatst uitgevoerde retentiescheduler-run op déze "
+                        + "instance, ongeacht succes. Quartz is clustered: aggregeer met max() over de cluster.")
                 .register(meterRegistry);
         Gauge.builder("retentie.laatste_geslaagde_run_epoch_seconds", laatsteGeslaagdeRunEpochSeconds, AtomicLong::get)
-                .description("Tijdstip (epoch seconds) van de laatste retentiescheduler-run waarin alle drie de fasen slaagden")
+                .description("Tijdstip (epoch seconds) van de laatste retentiescheduler-run op déze instance "
+                        + "waarin alle drie de fasen slaagden. Quartz is clustered: aggregeer met max() over de cluster.")
                 .register(meterRegistry);
     }
 
@@ -155,17 +161,29 @@ public class RetentieScheduler {
             return 0;
         }
 
-        // JOIN FETCH partij + identificaties: zonder deze fetch is Voorkeur.partij (EAGER
-        // @ManyToOne, geen @BatchSize) een secundaire SELECT per kandidaat, en resolveerIdentiteitOfSlaOver's
-        // partij.primaireIdentificatie() hieronder nog een LAZY collectie zonder @BatchSize erbovenop —
-        // bij de bovengrens ~20.000 extra statements in één transactie die tegelijk rijlocks
-        // vasthoudt op alle kandidaten. ORDER BY + page(): bij een overschrijding worden de
-        // langst-inactieve rijen het eerst verwerkt (zie bepaalVerwerkingslimiet).
+        // Twee stappen i.p.v. één page()'d fetch-join query: LEFT JOIN FETCH op een collectie
+        // (p.identificaties) samen met page()/firstResult+maxResults laat Hibernate de SQL LIMIT
+        // vallen en pagineert in-memory (HHH90003004) — bij precies de overschrijding waar
+        // bepaalVerwerkingslimiet tegen beschermt zou dat alsnog de volledige, ongelimiteerde
+        // resultaatset in het geheugen laden vóór de afkap. Eerst de ID's ophalen zonder
+        // collectiefetch (daar werkt LIMIT wél op SQL-niveau, en ORDER BY bepaalt welke rijen de
+        // langst-inactieve zijn), dan pas die begrensde set met de fetch joins laden — dat voorkomt
+        // zowel de N+1 (zie hierboven) als de in-memory paginering.
+        List<UUID> kandidaatIds = Voorkeur.getEntityManager()
+                .createQuery("SELECT v.id FROM Voorkeur v WHERE v.verwijderdOp IS NULL "
+                        + "AND COALESCE(v.lastUsedAt, v.createdAt) <= :grens "
+                        + "ORDER BY COALESCE(v.lastUsedAt, v.createdAt)", UUID.class)
+                .setParameter("grens", grens)
+                .setMaxResults((int) limiet)
+                .getResultList();
+
+        if (kandidaatIds.isEmpty()) {
+            return 0;
+        }
+
         List<Voorkeur> kandidaten = Voorkeur.find(
-                        "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
-                                + "WHERE v.verwijderdOp IS NULL AND COALESCE(v.lastUsedAt, v.createdAt) <= ?1 "
-                                + "ORDER BY COALESCE(v.lastUsedAt, v.createdAt)", grens)
-                .page(0, (int) limiet)
+                "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
+                        + "WHERE v.id IN ?1", kandidaatIds)
                 .list();
 
         int verwijderd = 0;
@@ -183,7 +201,7 @@ public class RetentieScheduler {
             verwijderd++;
         }
 
-        registreerLogboekNaCommit(teLoggen, "verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID);
+        registreerLogboekNaCommit(teLoggen, "voorkeur", "verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID);
 
         return verwijderd;
     }
@@ -201,11 +219,23 @@ public class RetentieScheduler {
             return 0;
         }
 
+        // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde twee-staps aanpak tegen
+        // in-memory paginering bij een collectiefetch.
+        List<UUID> kandidaatIds = Contactgegeven.getEntityManager()
+                .createQuery("SELECT c.id FROM Contactgegeven c WHERE c.verwijderdOp IS NULL "
+                        + "AND COALESCE(c.lastUsedAt, c.createdAt) <= :grens "
+                        + "ORDER BY COALESCE(c.lastUsedAt, c.createdAt)", UUID.class)
+                .setParameter("grens", grens)
+                .setMaxResults((int) limiet)
+                .getResultList();
+
+        if (kandidaatIds.isEmpty()) {
+            return 0;
+        }
+
         List<Contactgegeven> kandidaten = Contactgegeven.find(
-                        "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
-                                + "WHERE c.verwijderdOp IS NULL AND COALESCE(c.lastUsedAt, c.createdAt) <= ?1 "
-                                + "ORDER BY COALESCE(c.lastUsedAt, c.createdAt)", grens)
-                .page(0, (int) limiet)
+                "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
+                        + "WHERE c.id IN ?1", kandidaatIds)
                 .list();
 
         int verwijderd = 0;
@@ -223,7 +253,7 @@ public class RetentieScheduler {
             verwijderd++;
         }
 
-        registreerLogboekNaCommit(teLoggen, "verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID);
+        registreerLogboekNaCommit(teLoggen, "contactgegeven", "verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID);
 
         return verwijderd;
     }
@@ -248,24 +278,48 @@ public class RetentieScheduler {
                         UUID.class)
                 .getResultList();
 
+        // Dezelfde bovengrens als de andere twee fasen: zonder cap zou de klok-/configuratiefout
+        // die de andere fasen al afvangen hier alsnog ongebreideld doorwerken (één transactie per
+        // kandidaat-partij, onbegrensd). Geen collectiefetch op deze query, dus geen risico op de
+        // in-memory-paginering die verwijderInactieveVoorkeuren/-Contactgegevens vermijden.
+        long limiet = bepaalVerwerkingslimiet("partij", kandidaatIds.size());
+
+        if (limiet < kandidaatIds.size()) {
+            kandidaatIds = kandidaatIds.subList(0, (int) limiet);
+        }
+
         Instant nu = Instant.now();
         boolean alleGeslaagd = true;
+        int gecascadeerd = 0;
 
         for (UUID id : kandidaatIds) {
             try {
+                AtomicBoolean cascadeteDezeKeer = new AtomicBoolean(false);
+
                 QuarkusTransaction.requiringNew().run(() -> {
                     Partij partij = Partij.findById(id);
 
-                    if (partij != null) {
-                        partijService.deleteLegePartij(partij, nu);
+                    if (partij != null && partijService.deleteLegePartij(partij, nu)) {
+                        cascadeteDezeKeer.set(true);
                     }
                 });
+
+                if (cascadeteDezeKeer.get()) {
+                    gecascadeerd++;
+                }
             } catch (Exception e) {
                 LOG.error("Retentiescheduler: cascade-verwijdering van partij " + id + " mislukt", e);
                 meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "cascade-fout").increment();
                 alleGeslaagd = false;
             }
         }
+
+        // Elke getelde partij is op dit punt al gecommit (eigen transactie per partij hierboven),
+        // dus dit is net zo veilig als de "alleen tellen ná een normale return"-regel bij de andere
+        // twee fasen — hier is dat alleen geen aparte aanroeplaag omdat de commits al binnen deze
+        // methode plaatsvinden.
+        meterRegistry.counter("retentie.verwijderd", "type", "partij").increment(gecascadeerd);
+        LOG.info("Retentiescheduler: " + gecascadeerd + " partijen gecascadeerd");
 
         return alleGeslaagd;
     }
@@ -321,7 +375,7 @@ public class RetentieScheduler {
     // vólgorde, niet de duurzaamheid: span.end() geeft de span door aan de OTel-processor, en een
     // volle exportqueue of exportfout wordt door de SDK per ontwerp geslikt, ongeacht of de
     // transactie committede. Die blootstelling kan deze code niet dichten.
-    private void registreerLogboekNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String naam, String processingActivityId) {
+    private void registreerLogboekNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String type, String naam, String processingActivityId) {
         if (identiteiten.isEmpty()) {
             return;
         }
@@ -337,15 +391,26 @@ public class RetentieScheduler {
                     return;
                 }
 
+                // Eigen try/catch per identiteit: dit draait in de completion-callback van de
+                // transactiemanager, waar een exception niet naar een aanroeper propageert die er
+                // iets aan kan doen. Zonder vangst stopt één falende span (bv. startSpan() geeft
+                // null terug, zie RetentieSchedulerTest) de hele resterende batch — de rijen zijn
+                // dan al verwijderd, maar zonder logboek-vermelding, en niets meldt dat.
                 for (GeauditeerdeIdentiteit identiteit : identiteiten) {
-                    LogboekContext ctx = new LogboekContext();
-                    ctx.setProcessingActivityId(processingActivityId);
-                    ctx.setDataSubjectId(hashHelper.hashIdentifier(identiteit.identificatieNummer()));
-                    ctx.setDataSubjectType(String.valueOf(identiteit.identificatieType()));
-                    ctx.setStatus(StatusCode.OK);
-                    Span span = processingHandler.startSpan(naam, Context.current());
-                    processingHandler.addLogboekContextToSpan(span, ctx);
-                    span.end();
+                    try {
+                        LogboekContext ctx = new LogboekContext();
+                        ctx.setProcessingActivityId(processingActivityId);
+                        ctx.setDataSubjectId(hashHelper.hashIdentifier(identiteit.identificatieNummer()));
+                        ctx.setDataSubjectType(String.valueOf(identiteit.identificatieType()));
+                        ctx.setStatus(StatusCode.OK);
+                        Span span = processingHandler.startSpan(naam, Context.current());
+                        processingHandler.addLogboekContextToSpan(span, ctx);
+                        span.end();
+                    } catch (Exception e) {
+                        LOG.error("Retentiescheduler: logboek-emissie voor " + naam + " mislukt ná commit "
+                                + "(de rij is al verwijderd; dit is dus een gemist audit-spoor)", e);
+                        meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "logboek-fout").increment();
+                    }
                 }
             }
         });

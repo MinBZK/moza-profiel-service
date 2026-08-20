@@ -390,22 +390,29 @@ public class PartijService {
     // of met een tweede, gelijktijdige aanroep hiervan voor dezelfde partij (die dan allebei
     // denken dat de partij nog niet leeg is en geen van beide cascadet). SELECT ... FOR UPDATE
     // serialiseert beide operaties op deze ene partij-rij.
+    // Retourneert of deze aanroep de partij daadwerkelijk cascadete (false: al verwijderd, of
+    // nog een actief kind) — RetentieScheduler.cascadeDeleteLegePartijen gebruikt dat om te
+    // rapporteren hoeveel partijen een run daadwerkelijk cascadete.
     @Transactional(Transactional.TxType.MANDATORY)
-    public void deleteLegePartij(Partij partij, Instant nu) {
+    public boolean deleteLegePartij(Partij partij, Instant nu) {
         if (lockEnLeesVerwijderdOp(partij) != null) {
-            return;
+            return false;
         }
 
         boolean hasActiveContactgegevens = Contactgegeven.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
         boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
 
-        if (!hasActiveContactgegevens && !hasActiveVoorkeuren) {
-            partij.verwijder(nu);
-            // Zonder dit blijft de oude identificatie binnen uk_identificatie's WHERE verwijderd_op
-            // IS NULL staan en blokkeert ze findOrCreatePartij's nieuwe insert voor dezelfde
-            // (type, nummer) — zie V4-migratie.
-            partij.getIdentificaties().forEach(i -> i.verwijder(nu));
+        if (hasActiveContactgegevens || hasActiveVoorkeuren) {
+            return false;
         }
+
+        partij.verwijder(nu);
+        // Zonder dit blijft de oude identificatie binnen uk_identificatie's WHERE verwijderd_op
+        // IS NULL staan en blokkeert ze findOrCreatePartij's nieuwe insert voor dezelfde
+        // (type, nummer) — zie V4-migratie.
+        partij.getIdentificaties().forEach(i -> i.verwijder(nu));
+
+        return true;
     }
 
     // Losse scalar-query i.p.v. de entity: een lock op een al-managed entity ververst haar
@@ -439,10 +446,10 @@ public class PartijService {
                     return found.stream();
                 })
                 .map(partij -> {
-                    List<Contactgegeven> contactgegevens = Contactgegeven.find(partij);
-                    List<Voorkeur> voorkeuren = Voorkeur.find(partij);
-                    contactgegevens.forEach(this::touchIfStale);
-                    voorkeuren.forEach(this::touchIfStale);
+                    List<Contactgegeven> contactgegevens = Contactgegeven.find(partij).stream()
+                            .filter(this::touchIfStale).toList();
+                    List<Voorkeur> voorkeuren = Voorkeur.find(partij).stream()
+                            .filter(this::touchIfStale).toList();
 
                     return partijMapper.toResponse(partij, contactgegevens, voorkeuren);
                 })
@@ -465,37 +472,49 @@ public class PartijService {
             voorkeuren = findFilteredVoorkeuren(partij, partijRequest);
         }
 
-        contactgegevens.forEach(this::touchIfStale);
-        voorkeuren.forEach(this::touchIfStale);
+        contactgegevens = contactgegevens.stream().filter(this::touchIfStale).toList();
+        voorkeuren = voorkeuren.stream().filter(this::touchIfStale).toList();
 
         return partijMapper.toResponse(partij, contactgegevens, voorkeuren);
     }
 
     // Bulk update, geen setter: lastUpdated (via @PreUpdate) mag niet meebewegen met een touch-on-
     // read, alleen met een echte veldwijziging. Zie ProfielControllerIntegrationTest.getPartij_ReadDoesNotBumpLastUpdated.
-    private void touchIfStale(Contactgegeven cg) {
-        if (isStale(cg.getLastUsedAt())) {
-            // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-
-            // delete van dezelfde rij mag lastUsedAt niet meer bumpen. Zonder de count zou dat
-            // stilzwijgend gebeuren; nu is het minstens zichtbaar in de logs.
-            long geraakt = Contactgegeven.update(
-                    "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), cg.id);
-
-            if (geraakt == 0) {
-                LOG.warn("touchIfStale: contactgegeven " + cg.id + " was inmiddels soft-deleted, lastUsedAt niet bijgewerkt");
-            }
+    // Package-private i.p.v. private: PartijServiceTest roept dit rechtstreeks aan om de
+    // soft-delete-race hieronder deterministisch te testen, zonder echte gelijktijdigheid te
+    // hoeven simuleren. Retourneert of de rij nog actief is; false betekent dat de rij tussen het
+    // ophalen en deze touch soft-deleted is, en de aanroeper moet hem dan uit de response filteren
+    // — anders krijgt een client een rij terug die niet meer bestaat.
+    boolean touchIfStale(Contactgegeven cg) {
+        if (!isStale(cg.getLastUsedAt())) {
+            return true;
         }
+
+        // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-delete
+        // van dezelfde rij mag lastUsedAt niet meer bumpen.
+        long geraakt = Contactgegeven.update(
+                "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), cg.id);
+
+        if (geraakt == 0) {
+            LOG.warn("touchIfStale: contactgegeven " + cg.id + " was inmiddels soft-deleted, uit response gefilterd");
+        }
+
+        return geraakt > 0;
     }
 
-    private void touchIfStale(Voorkeur voorkeur) {
-        if (isStale(voorkeur.getLastUsedAt())) {
-            long geraakt = Voorkeur.update(
-                    "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), voorkeur.id);
-
-            if (geraakt == 0) {
-                LOG.warn("touchIfStale: voorkeur " + voorkeur.id + " was inmiddels soft-deleted, lastUsedAt niet bijgewerkt");
-            }
+    boolean touchIfStale(Voorkeur voorkeur) {
+        if (!isStale(voorkeur.getLastUsedAt())) {
+            return true;
         }
+
+        long geraakt = Voorkeur.update(
+                "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), voorkeur.id);
+
+        if (geraakt == 0) {
+            LOG.warn("touchIfStale: voorkeur " + voorkeur.id + " was inmiddels soft-deleted, uit response gefilterd");
+        }
+
+        return geraakt > 0;
     }
 
     private static boolean isStale(Instant lastUsedAt) {

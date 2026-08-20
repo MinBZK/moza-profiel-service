@@ -19,6 +19,7 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.helper.HashHelper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,9 @@ public class RetentieSchedulerTest {
     @InjectMock
     ProcessingHandler processingHandler;
 
+    @Inject
+    HashHelper hashHelper;
+
     @BeforeEach
     void stubProcessingHandler() {
         // Elke soft-delete triggert een span; zonder stub geeft de gemockte startSpan() null
@@ -74,10 +78,18 @@ public class RetentieSchedulerTest {
     }
 
     private UUID createPartij() {
+        return createPartij("123456789");
+    }
+
+    // Expliciete BSN i.p.v. altijd dezelfde hardcoded waarde: een test die twee gelijktijdig
+    // actieve partijen nodig heeft, moet ze een eigen BSN geven — anders staan er twee actieve
+    // Identificatie-rijen met hetzelfde (type, nummer), wat alleen "werkt" omdat het H2-testschema
+    // uk_identificatie niet afdwingt (die is er wél in productie, zie MigrationValidationTest).
+    private UUID createPartij(String bsn) {
         AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
-            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, bsn));
             partij.persist();
             id.set(partij.id);
         });
@@ -352,8 +364,11 @@ public class RetentieSchedulerTest {
 
             UUID partijId = createPartij();
             Instant ouderste = Instant.now().atZone(ZoneOffset.UTC).minus(Period.ofYears(8)).toInstant();
-            UUID oudsteVoorkeur = createVoorkeur(partijId, ouderste, null);
+            // Minder-oude eerst aangemaakt, oudste ná: invoegvolgorde staat zo haaks op de
+            // verwachte verwerkingsvolgorde, dus alleen een echte ORDER BY (niet toevallig de
+            // scan-/invoegvolgorde) kan deze test laten slagen.
             UUID minderOudeVoorkeur = createVoorkeur(partijId, ouderDanGrens(), null);
+            UUID oudsteVoorkeur = createVoorkeur(partijId, ouderste, null);
 
             retentieScheduler.verwijderInactieveRecords();
 
@@ -482,9 +497,9 @@ public class RetentieSchedulerTest {
         // plaats van <= zou dit geval ten onrechte als overschrijding behandeld worden.
         System.setProperty("retentie.scheduler.max-per-run", "2");
         try {
-            UUID partij1 = createPartij();
+            UUID partij1 = createPartij("111111111");
             UUID voorkeur1 = createVoorkeur(partij1, ouderDanGrens(), null);
-            UUID partij2 = createPartij();
+            UUID partij2 = createPartij("222222222");
             UUID voorkeur2 = createVoorkeur(partij2, ouderDanGrens(), null);
 
             double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "max-per-run").count();
@@ -524,6 +539,10 @@ public class RetentieSchedulerTest {
         ArgumentCaptor<LogboekContext> captor = ArgumentCaptor.forClass(LogboekContext.class);
         Mockito.verify(processingHandler).addLogboekContextToSpan(Mockito.any(), captor.capture());
         Assertions.assertEquals(VOORKEUR_PROCESSING_ACTIVITY_ID, captor.getValue().getProcessingActivityId());
+        // Niet alleen de constante: dataSubjectId/Type zijn de eigenlijke persoonsgegevens in de
+        // vermelding, en de enige reden dat deze scheduler per rij laadt i.p.v. een bulk-update.
+        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), captor.getValue().getDataSubjectId());
+        Assertions.assertEquals("BSN", captor.getValue().getDataSubjectType());
     }
 
     @Test
@@ -538,5 +557,80 @@ public class RetentieSchedulerTest {
         ArgumentCaptor<LogboekContext> captor = ArgumentCaptor.forClass(LogboekContext.class);
         Mockito.verify(processingHandler).addLogboekContextToSpan(Mockito.any(), captor.capture());
         Assertions.assertEquals(CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, captor.getValue().getProcessingActivityId());
+        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), captor.getValue().getDataSubjectId());
+        Assertions.assertEquals("BSN", captor.getValue().getDataSubjectType());
+    }
+
+    /**
+     * Bewijst de andere helft van de "pas ná commit"-garantie: als de transactie die de soft-
+     * delete bevat rollbackt, mag er geen enkele logboek-span geëmitteerd worden. Zonder deze
+     * test zou het verwijderen van registerInterposedSynchronization (en inline emitteren, vóór
+     * commit) alle andere tests in deze klasse gewoon groen laten.
+     */
+    @Test
+    void voorkeurFaseRolledBack_EmitGeenLogboekSpan() {
+        UUID partijId = createPartij();
+        createVoorkeur(partijId, ouderDanGrens(), null);
+
+        Assertions.assertThrows(RuntimeException.class, () ->
+                QuarkusTransaction.requiringNew().run(() -> {
+                    retentieScheduler.verwijderInactieveVoorkeuren();
+                    throw new RuntimeException("forceer rollback ná de soft-delete, vóór commit");
+                }));
+
+        Mockito.verify(processingHandler, Mockito.never()).startSpan(Mockito.anyString(), Mockito.any());
+    }
+
+    /**
+     * Bewijst dat registreerLogboekNaCommit's per-identiteit try/catch werkt: één span die faalt
+     * (startSpan gooit voor de eerste kandidaat) mag de rest van de batch niet stilzwijgend
+     * overslaan. Zonder de try/catch in de afterCompletion-loop zou de tweede span nooit
+     * geëmitteerd worden en zou dit alleen aan de anomalie-teller te zien zijn geweest.
+     */
+    @Test
+    void voorkeur_EenLogboekSpanFaaltInBatch_OverigeWordtTochGeemitteerdEnAnomalieOpgehoogd() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "logboek-fout").count();
+
+        UUID partijId1 = createPartij("111111111");
+        createVoorkeur(partijId1, ouderDanGrens(), null);
+        UUID partijId2 = createPartij("222222222");
+        createVoorkeur(partijId2, ouderDanGrens(), null);
+
+        Mockito.doThrow(new RuntimeException("kapot"))
+                .doReturn(Mockito.mock(Span.class))
+                .when(processingHandler).startSpan(Mockito.anyString(), Mockito.any());
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        Mockito.verify(processingHandler, Mockito.times(2)).startSpan(Mockito.anyString(), Mockito.any());
+        Assertions.assertEquals(anomalieVoor + 1,
+                meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "logboek-fout").count());
+    }
+
+    /**
+     * Mirror van voorkeurFaseGooitException_VerhoogtAnomalieEnHoudtGeslaagdeRunGaugeAchter:
+     * bewijst dat dezelfde fase-fout-afhandeling ook voor de contactgegeven-fase werkt, niet
+     * alleen voor voorkeuren (die twee catch-blokken zijn los van elkaar geschreven).
+     */
+    @Test
+    void contactgegevenFaseGooitException_VerhoogtAnomalieEnHoudtGeslaagdeRunGaugeAchter() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "fase-fout").count();
+        double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
+
+        UUID partijId = createPartij();
+        UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), null);
+
+        Mockito.doThrow(new RuntimeException("kapot")).when(retentieSchedulerSpy).verwijderInactieveContactgegevens();
+
+        retentieSchedulerSpy.verwijderInactieveRecords();
+
+        Assertions.assertEquals(anomalieVoor + 1,
+                meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "fase-fout").count());
+        Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
+                "een gefaalde fase mag de geslaagde-run-gauge niet bijwerken");
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(voorkeurId).getVerwijderdOp(),
+                        "de voorkeur-fase moet gewoon doorlopen ondanks dat de contactgegeven-fase faalde"));
     }
 }

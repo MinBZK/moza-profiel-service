@@ -61,11 +61,6 @@ public class Partij extends PanacheEntityBase {
         return Collections.unmodifiableList(voorkeuren);
     }
 
-    public void setVoorkeuren(List<Voorkeur> voorkeuren) {
-        this.voorkeuren.clear();
-        this.voorkeuren.addAll(voorkeuren);
-    }
-
     public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
         return find("""
         SELECT p FROM Partij p
@@ -90,23 +85,21 @@ public class Partij extends PanacheEntityBase {
         return Collections.unmodifiableList(identificaties);
     }
 
-    public void setIdentificaties(List<Identificatie> identificaties) {
-        this.identificaties.clear();
-        this.identificaties.addAll(identificaties);
-    }
-
     /**
-     * Deterministische keuze uit de identificaties, voor wanneer precies één identificatie nodig
-     * is — momenteel alleen als AVG-dataSubject in de retentiescheduler's logboekvermelding
-     * (RetentieScheduler.registreerLogboekNaCommit). Prioriteit BSN > KVK > RSIN (IdentificatieType's
-     * declaratievolgorde): bij een partij met zowel BSN als KVK is BSN de natuurlijke persoon achter
-     * de KVK-inschrijving, en die is de bewuste keuze als dataSubject. Nummer als tweede sleutel is
-     * puur voor determinisme bij (in theorie onmogelijke, want uk_identificatie_per_partij) dubbele
-     * rijen van hetzelfde type. {@code null} als de partij geen identificaties heeft (invariant
-     * violation, zie findOrCreatePartij).
+     * Deterministische keuze uit de actieve identificaties, voor wanneer precies één identificatie
+     * nodig is — momenteel alleen als AVG-dataSubject in de retentiescheduler's logboekvermelding
+     * (RetentieScheduler.registreerLogboekNaCommit). Filtert soft deletes weg: zonder die filter
+     * zou een verwijderde identificatie als dataSubject gelogd kunnen worden. Prioriteit BSN > KVK
+     * > RSIN (IdentificatieType's declaratievolgorde): bij een partij met zowel BSN als KVK is BSN
+     * de natuurlijke persoon achter de KVK-inschrijving, en die is de bewuste keuze als
+     * dataSubject. Nummer als tweede sleutel is puur voor determinisme; twee actieve rijen van
+     * hetzelfde type zijn in theorie onmogelijk dankzij uk_identificatie_per_partij. {@code null}
+     * als de partij geen actieve identificaties heeft (invariant violation, zie findOrCreatePartij
+     * — of alle identificaties zijn mee-gecascadet met de partij zelf).
      */
     public Identificatie primaireIdentificatie() {
         return identificaties.stream()
+                .filter(i -> i.getVerwijderdOp() == null)
                 .min(Comparator.comparing((Identificatie i) -> i.getIdentificatieType().ordinal())
                         .thenComparing(Identificatie::getIdentificatieNummer))
                 .orElse(null);
@@ -114,10 +107,5 @@ public class Partij extends PanacheEntityBase {
 
     public List<Contactgegeven> getContactgegevens() {
         return Collections.unmodifiableList(contactgegevens);
-    }
-
-    public void setContactgegevens(List<Contactgegeven> contactgegevens) {
-        this.contactgegevens.clear();
-        this.contactgegevens.addAll(contactgegevens);
     }
 }
