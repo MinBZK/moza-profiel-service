@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -146,13 +147,64 @@ class AcceptHeaderIntegrationTest {
                 "de Accept-header hoort hier geen verschil te maken");
     }
 
-    private static int status(Operatie operatie, String accept) {
+    /**
+     * De gegenereerde interfaces zetten voor een operatie met een JSON-body béide mediatypes op
+     * {@code @Produces}. Een aanroeper die problem+json laat winnen — exclusief, of met een hogere
+     * q-waarde — zou daardoor een geslaagd antwoord terugkrijgen met de succes-DTO onder
+     * {@code Content-Type: application/problem+json}, het mediatype dat RFC 9457 voor fouten
+     * reserveert. De controllers zetten het type daarom expliciet op de succesresponses; dat is
+     * de enige plek waar het kan, want een {@code @Produces} op de implementatie wordt genegeerd.
+     * <p>
+     * Zonder deze assertie zou dat ook stilzwijgend terugkeren wanneer in het contract ooit een
+     * foutrespons boven de succesrespons komt te staan: dan kantelt de volgorde in
+     * {@code @Produces} en daarmee het standaardantwoord.
+     */
+    @ParameterizedTest(name = "{0} labelt succes als application/json")
+    @MethodSource("metJsonRespons")
+    void operatieMetJsonResponsLabeltSuccesAlsJson(Operatie operatie) {
+        for (String accept : new String[]{"application/problem+json", "*/*", "application/json"}) {
+            var antwoord = antwoord(operatie, accept);
+            String verwacht = antwoord.statusCode() / 100 == 2 ? "application/json" : "application/problem+json";
+
+            Assertions.assertTrue(antwoord.contentType().startsWith(verwacht),
+                    operatie + " met Accept: " + accept + " gaf status " + antwoord.statusCode()
+                            + " met Content-Type " + antwoord.contentType() + ", verwacht " + verwacht);
+        }
+    }
+
+    /**
+     * De parameterized tests hierboven sturen een body die de meeste operaties afwijzen, waardoor
+     * de 2xx-tak van de assertie zelden geraakt wordt. Deze test dwingt één echt geslaagd antwoord
+     * af, zodat het geval dat werkelijk misging ook daadwerkelijk gedekt is.
+     */
+    @Test
+    void geslaagdAntwoordBlijftJsonOokAlsDeAanroeperProblemJsonPrefereert() {
+        given()
+                .accept("application/problem+json;q=0.9, application/json;q=0.1")
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"Dienstverlener uit AcceptHeaderIntegrationTest\"}")
+                .when().post("/api/profielservice/v1/dienstverlener")
+                .then()
+                .statusCode(201)
+                .contentType("application/json");
+    }
+
+    private record Antwoord(int statusCode, String contentType) {}
+
+    private static Antwoord antwoord(Operatie operatie, String accept) {
         var verzoek = given().accept(accept);
 
         if (!"GET".equals(operatie.methode())) {
             verzoek = verzoek.contentType(ContentType.JSON).body(BODY);
         }
 
-        return verzoek.when().request(operatie.methode(), operatie.pad()).then().extract().statusCode();
+        var respons = verzoek.when().request(operatie.methode(), operatie.pad()).then().extract();
+
+        return new Antwoord(respons.statusCode(),
+                respons.contentType() == null ? "" : respons.contentType());
+    }
+
+    private static int status(Operatie operatie, String accept) {
+        return antwoord(operatie, accept).statusCode();
     }
 }

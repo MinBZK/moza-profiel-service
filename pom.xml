@@ -291,10 +291,6 @@
                             <output>${project.build.directory}/generated-sources/server</output>
                             <modelPackage>nl.rijksoverheid.moz.api.generated.model</modelPackage>
                             <apiPackage>nl.rijksoverheid.moz.api.generated.api</apiPackage>
-                            <!-- Naast de DTO's ook een interface per tag, die de controllers
-                                 implementeren. Paden, HTTP-methodes en parameterbinding komen
-                                 daarmee uit het contract in plaats van uit handgeschreven
-                                 annotaties. Zie #751. -->
                             <generateApis>true</generateApis>
                             <generateApiTests>false</generateApiTests>
                             <generateModelTests>false</generateModelTests>

@@ -1,6 +1,7 @@
 package nl.rijksoverheid.moz.controller;
 
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import nl.rijksoverheid.moz.api.generated.api.DienstverlenerApi;
@@ -49,7 +50,7 @@ public class DienstverlenerController implements DienstverlenerApi {
 
         DienstverlenerResponse response = dienstMapper.toDienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
         LOG.info("Dienstverlener opgehaald");
-        return Response.ok(response).build();
+        return Response.ok(response).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -66,7 +67,7 @@ public class DienstverlenerController implements DienstverlenerApi {
         // geen diensten heeft terwijl GET op dezelfde resource ze wel teruggeeft.
         DienstverlenerResponse body = dienstMapper.toDienstverlenerResponse(
                 created, dienstverlenerService.getDienstenVoorDienstverlener(created));
-        return Response.created(uri).entity(body).build();
+        return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -78,6 +79,7 @@ public class DienstverlenerController implements DienstverlenerApi {
         URI uri = UriBuilder.fromResource(DienstverlenerApi.class)
                 .path("{dienstverlenerNaam}").path("diensten").path("{id}")
                 .build(dienstverlenerNaam, created.id);
-        return Response.created(uri).entity(dienstMapper.toDienstResponse(created)).build();
+        return Response.created(uri).entity(dienstMapper.toDienstResponse(created))
+                .type(MediaType.APPLICATION_JSON).build();
     }
 }

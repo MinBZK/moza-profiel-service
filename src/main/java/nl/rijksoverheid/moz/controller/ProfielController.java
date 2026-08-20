@@ -5,6 +5,7 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
@@ -87,7 +88,7 @@ public class ProfielController implements ProfielApi {
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Partij opgehaald");
-        return Response.ok(result).build();
+        return Response.ok(result).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -120,11 +121,12 @@ public class ProfielController implements ProfielApi {
 
         if (results.size() < partijBulkRequest.getIdentificaties().size()) {
             LOG.info("Bulk partijen gedeeltelijk opgehaald");
-            return Response.status(Response.Status.PARTIAL_CONTENT).entity(results).build();
+            return Response.status(Response.Status.PARTIAL_CONTENT).entity(results)
+                    .type(MediaType.APPLICATION_JSON).build();
         }
 
         LOG.info("Bulk partijen opgehaald");
-        return Response.ok(results).build();
+        return Response.ok(results).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -145,10 +147,10 @@ public class ProfielController implements ProfielApi {
 
         if (result.wasCreated()) {
             LOG.info("Contactgegeven toegevoegd");
-            return Response.created(uri).entity(body).build();
+            return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
         }
 
-        return Response.ok(body).location(uri).build();
+        return Response.ok(body).location(uri).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -213,7 +215,7 @@ public class ProfielController implements ProfielApi {
 
         if (result.wasCreated()) {
             LOG.info("Voorkeur toegevoegd");
-            return Response.created(uri).entity(body).build();
+            return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
         }
 
         if (result.scopeAdded()) {
@@ -221,7 +223,7 @@ public class ProfielController implements ProfielApi {
         } else {
             LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
         }
-        return Response.ok(body).location(uri).build();
+        return Response.ok(body).location(uri).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
