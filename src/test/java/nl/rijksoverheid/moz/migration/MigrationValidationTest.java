@@ -18,36 +18,37 @@ import java.io.File;
 import java.net.URL;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Savepoint;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
- * Draait de Flyway-migraties (V1..V5) tegen een echte Postgres en laat Hibernate ze daarna
- * valideren ({@code hbm2ddl.auto=validate}, hetzelfde als productie's
- * {@code schema-management.strategy=validate}) — anders dan de rest van de testsuite, die Flyway
- * overslaat en op H2 drop-and-create draait (zie src/test/resources/application.properties).
+ * Draait de Flyway-migraties in db/migration tegen een echte Postgres en laat Hibernate ze
+ * daarna valideren ({@code hbm2ddl.auto=validate}) — anders dan de rest van de testsuite, die
+ * Flyway overslaat en op H2 drop-and-create draait (zie src/test/resources/application.properties).
  * <p>
- * Bewust GEEN {@code @QuarkusTest}: die start de hele Quarkus-applicatie, en
- * quarkus.datasource.db-kind is build-time-vast — een Postgres-gerichte @QuarkusTest kan daardoor
- * niet veilig in dezelfde Surefire-fork draaien als de H2-gebaseerde suite (geprobeerd, brak de
- * hele suite: 146 van de 198 tests werden overgeslagen). Deze test gebruikt Flyway en Hibernate
- * rechtstreeks via hun eigen Java-API, zonder Quarkus' testframework of CDI erbij te betrekken,
- * en kan daardoor gewoon naast de rest van de suite draaien.
+ * Bewust GEEN {@code @QuarkusTest}: quarkus.datasource.db-kind is build-time-vast, dus een
+ * Postgres-gerichte @QuarkusTest kan niet veilig in dezelfde Surefire-fork draaien als de
+ * H2-gebaseerde suite (geprobeerd, brak 146 van de 198 tests). Deze test gebruikt Flyway en
+ * Hibernate rechtstreeks, buiten Quarkus' testframework om, en kan daardoor gewoon naast de rest
+ * van de suite draaien.
  * <p>
- * Vereist een draaiende Docker-daemon (Testcontainers start een Postgres-container). Lokaal
- * (buiten CI) wordt de test overgeslagen als Docker niet beschikbaar is (zie {@code assumeTrue}
- * in {@code startPostgres()}), in plaats van de build rood te laten kleuren om iets dat niets met
- * je wijziging te maken heeft. In CI (GitHub Actions zet {@code CI=true}) geldt die vrijstelling
- * niet: dit is de enige test die de V*.sql-migraties daadwerkelijk uitvoert en tegen het
- * Hibernate-schema valideert, dus daar moet ontbrekende Docker de build hard laten falen in
- * plaats van die dekking stil te laten wegvallen.
+ * Vereist een draaiende Docker-daemon. Lokaal wordt de test overgeslagen als die ontbreekt (zie
+ * {@code assumeTrue} in {@code startPostgres()}); in CI ({@code CI=true}) niet — dit is de enige
+ * test die de migraties daadwerkelijk tegen het schema valideert, dus daar moet ontbrekende
+ * Docker de build hard laten falen in plaats van die dekking stil te laten wegvallen.
  */
 class MigrationValidationTest {
 
@@ -95,8 +96,8 @@ class MigrationValidationTest {
                 .applySetting("hibernate.hbm2ddl.auto", "validate")
                 .applySetting("hibernate.physical_naming_strategy",
                         "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy")
-                // Matches quarkus.hibernate-envers.active=false: V1 doesn't have _aud tables yet
-                // (see application.properties), so Envers must stay off here too.
+                // Zelfde als quarkus.hibernate-envers.active=false (zie application.properties):
+                // de migraties kennen geen _aud-tabellen, dus Envers moet ook hier uit staan.
                 .applySetting("hibernate.integration.envers.enabled", "false")
                 .build();
 
@@ -118,33 +119,215 @@ class MigrationValidationTest {
     @Test
     void partieleIndexesZijnDaadwerkelijkPartieel() throws SQLException {
         // Hibernate's validate-mode controleert tabellen/kolommen/types, geen indexen of
-        // constraints — dus die partiële WHERE-clausules uit V4/V5 worden hierboven niet geraakt.
-        // Rechtstreekse controle tegen pg_indexes om te bevestigen dat het niet per ongeluk
-        // gewone (niet-partiële) indexen zijn geworden.
-        Set<String> verwachteIndexes = Set.of(
-                "uk_contactgegeven_dedup",
-                "contactgegeven_default_per_type",
-                "idx_voorkeur_retentie",
-                "idx_contactgegeven_retentie",
-                "uk_identificatie",
-                "uk_identificatie_per_partij"
-        );
-
+        // constraints — dus die partiële WHERE-clausules uit V4 worden hierboven niet geraakt.
+        // Query direct tegen de systeemcatalogus i.p.v. een handmatig bijgehouden lijst met
+        // verwachte indexnamen: een nieuwe unieke index die later zonder WHERE wordt toegevoegd
+        // faalt hierdoor vanzelf, in plaats van onopgemerkt te blijven totdat iemand deze test
+        // bijwerkt. indisprimary = false sluit de primary-key-indexen uit (die zijn terecht niet
+        // partieel).
         Map<String, String> definities = new HashMap<>();
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(
-                     "SELECT indexname, indexdef FROM pg_indexes WHERE indexname IN ("
-                             + verwachteIndexes.stream().map(n -> "'" + n + "'").reduce((a, b) -> a + "," + b).orElseThrow()
-                             + ")")) {
+                     "SELECT ic.relname AS indexname, pg_get_indexdef(i.indexrelid) AS indexdef "
+                             + "FROM pg_index i "
+                             + "JOIN pg_class ic ON ic.oid = i.indexrelid "
+                             + "JOIN pg_class tc ON tc.oid = i.indrelid "
+                             + "WHERE tc.relname IN ('contactgegeven', 'identificatie', 'voorkeur') "
+                             + "AND i.indisunique = true AND i.indisprimary = false")) {
             while (rs.next()) {
                 definities.put(rs.getString("indexname"), rs.getString("indexdef"));
             }
         }
 
-        Assertions.assertEquals(verwachteIndexes, definities.keySet(), "verwachte partiële indexen niet (allemaal) aangetroffen");
+        Assertions.assertFalse(definities.isEmpty(),
+                "geen unieke, niet-primaire indexen gevonden op contactgegeven/identificatie/voorkeur");
         definities.forEach((naam, def) ->
                 Assertions.assertTrue(def.toUpperCase().contains("WHERE"), naam + " moet een partiële index zijn: " + def));
+    }
+
+    // De catalogusquery hierboven filtert bewust op indisunique = true: idx_identificatie_partij
+    // en idx_voorkeur_partij (V1) zijn terecht niet-partiële, niet-unieke FK-indexen, en zouden
+    // die filter meedoen aan de partiële-check laten falen. idx_voorkeur_retentie en
+    // idx_contactgegeven_retentie zijn wél niet-uniek maar moeten wél partieel zijn (anders scant
+    // de retentiescheduler's kandidaatquery ook al soft deleted rijen); die twee worden hier apart
+    // bij naam gecontroleerd in plaats van generiek meegenomen in de catalogusquery hierboven.
+    @Test
+    void retentieIndexenZijnPartieel() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT indexname, indexdef FROM pg_indexes "
+                             + "WHERE indexname IN ('idx_voorkeur_retentie', 'idx_contactgegeven_retentie')")) {
+            Map<String, String> definities = new HashMap<>();
+
+            while (rs.next()) {
+                definities.put(rs.getString("indexname"), rs.getString("indexdef"));
+            }
+
+            Assertions.assertEquals(Set.of("idx_voorkeur_retentie", "idx_contactgegeven_retentie"), definities.keySet());
+            definities.forEach((naam, def) ->
+                    Assertions.assertTrue(def.toUpperCase().contains("WHERE"), naam + " moet een partiële index zijn: " + def));
+        }
+    }
+
+    @Test
+    void ukContactgegevenDedupIsPartieel() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            conn.setAutoCommit(false);
+            UUID partijId = insertPartij(conn);
+
+            // Twee actieve rijen met dezelfde (partij_id, type, waarde): botst.
+            insertContactgegeven(conn, partijId, "Email", "twee-actief@test.com", false, null);
+            Savepoint sp = conn.setSavepoint();
+            SQLException violatie = Assertions.assertThrows(SQLException.class,
+                    () -> insertContactgegeven(conn, partijId, "Email", "twee-actief@test.com", false, null),
+                    "twee actieve rijen met dezelfde (partij_id, type, waarde) horen te botsen");
+            Assertions.assertEquals("23505", violatie.getSQLState());
+            conn.rollback(sp);
+
+            // Eén soft deleted + één actief op dezelfde sleutel: geaccepteerd.
+            insertContactgegeven(conn, partijId, "Email", "een-verwijderd@test.com", false, Instant.now());
+            Assertions.assertDoesNotThrow(() ->
+                    insertContactgegeven(conn, partijId, "Email", "een-verwijderd@test.com", false, null));
+
+            // Twee soft deleted + één actief: nog steeds geaccepteerd — bewijst op DB-niveau wat
+            // PartijServiceTest.addContactgegeven_MeerdereCyclusVanToevoegenEnVerwijderen alleen op
+            // servicelaag-niveau claimt.
+            insertContactgegeven(conn, partijId, "Email", "twee-verwijderd@test.com", false, Instant.now());
+            insertContactgegeven(conn, partijId, "Email", "twee-verwijderd@test.com", false, Instant.now());
+            Assertions.assertDoesNotThrow(() ->
+                    insertContactgegeven(conn, partijId, "Email", "twee-verwijderd@test.com", false, null));
+
+            conn.rollback();
+        }
+    }
+
+    @Test
+    void ukIdentificatieIsPartieel() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            conn.setAutoCommit(false);
+
+            // Twee actieve identificaties met dezelfde (type, nummer) op verschillende partijen: botst.
+            UUID partijA = insertPartij(conn);
+            insertIdentificatie(conn, partijA, "BSN", "900000001", null);
+            UUID partijB = insertPartij(conn);
+            Savepoint sp = conn.setSavepoint();
+            SQLException violatie = Assertions.assertThrows(SQLException.class,
+                    () -> insertIdentificatie(conn, partijB, "BSN", "900000001", null),
+                    "twee actieve identificaties met dezelfde (type, nummer) horen te botsen");
+            Assertions.assertEquals("23505", violatie.getSQLState());
+            conn.rollback(sp);
+
+            // Eén soft deleted + één actief op dezelfde sleutel (nieuwe partij, nieuw UUID): geaccepteerd.
+            UUID partijC = insertPartij(conn);
+            insertIdentificatie(conn, partijC, "BSN", "900000002", Instant.now());
+            UUID partijD = insertPartij(conn);
+            Assertions.assertDoesNotThrow(() -> insertIdentificatie(conn, partijD, "BSN", "900000002", null));
+
+            // Twee soft deleted + één actief: nog steeds geaccepteerd.
+            UUID partijE = insertPartij(conn);
+            insertIdentificatie(conn, partijE, "BSN", "900000003", Instant.now());
+            UUID partijF = insertPartij(conn);
+            insertIdentificatie(conn, partijF, "BSN", "900000003", Instant.now());
+            UUID partijG = insertPartij(conn);
+            Assertions.assertDoesNotThrow(() -> insertIdentificatie(conn, partijG, "BSN", "900000003", null));
+
+            conn.rollback();
+        }
+    }
+
+    @Test
+    void ukIdentificatiePerPartijIsPartieel() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            conn.setAutoCommit(false);
+
+            // Twee actieve identificaties van hetzelfde type op dezelfde partij (verschillend
+            // nummer, dus uk_identificatie zit niet in de weg): botst op uk_identificatie_per_partij.
+            UUID partijA = insertPartij(conn);
+            insertIdentificatie(conn, partijA, "BSN", "900000010", null);
+            Savepoint sp = conn.setSavepoint();
+            SQLException violatie = Assertions.assertThrows(SQLException.class,
+                    () -> insertIdentificatie(conn, partijA, "BSN", "900000011", null),
+                    "twee actieve identificaties van hetzelfde type op dezelfde partij horen te botsen");
+            Assertions.assertEquals("23505", violatie.getSQLState());
+            conn.rollback(sp);
+
+            // Eén soft deleted + één actief op dezelfde partij + type: geaccepteerd.
+            UUID partijB = insertPartij(conn);
+            insertIdentificatie(conn, partijB, "BSN", "900000012", Instant.now());
+            Assertions.assertDoesNotThrow(() -> insertIdentificatie(conn, partijB, "BSN", "900000013", null));
+
+            conn.rollback();
+        }
+    }
+
+    @Test
+    void contactgegevenDefaultPerTypeIsPartieel() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            conn.setAutoCommit(false);
+            UUID partijId = insertPartij(conn);
+
+            // Twee actieve is_default-rijen van hetzelfde type: botst.
+            insertContactgegeven(conn, partijId, "Email", "default-a@test.com", true, null);
+            Savepoint sp = conn.setSavepoint();
+            SQLException violatie = Assertions.assertThrows(SQLException.class,
+                    () -> insertContactgegeven(conn, partijId, "Email", "default-b@test.com", true, null),
+                    "twee actieve is_default-rijen van hetzelfde type horen te botsen");
+            Assertions.assertEquals("23505", violatie.getSQLState());
+            conn.rollback(sp);
+
+            // Eén soft deleted is_default-rij + één actieve is_default-rij van hetzelfde type:
+            // geaccepteerd — dit is precies het scenario waar PartijService.demoteCurrentDefault
+            // over redeneert (verwijderContactgegeven laat isDefault op de verwijderde rij staan).
+            insertContactgegeven(conn, partijId, "Telefoonnummer", "default-c@test.com", true, Instant.now());
+            Assertions.assertDoesNotThrow(() ->
+                    insertContactgegeven(conn, partijId, "Telefoonnummer", "default-d@test.com", true, null));
+
+            conn.rollback();
+        }
+    }
+
+    private static UUID insertPartij(Connection conn) throws SQLException {
+        UUID id = UUID.randomUUID();
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO partij (id) VALUES (?)")) {
+            ps.setObject(1, id);
+            ps.executeUpdate();
+        }
+        return id;
+    }
+
+    private static void insertIdentificatie(Connection conn, UUID partijId, String type, String nummer, Instant verwijderdOp) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO identificatie (id, partij_id, identificatie_type, identificatie_nummer, verwijderd_op) VALUES (?, ?, ?, ?, ?)")) {
+            ps.setObject(1, UUID.randomUUID());
+            ps.setObject(2, partijId);
+            ps.setString(3, type);
+            ps.setString(4, nummer);
+            setNullableTimestamp(ps, 5, verwijderdOp);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void insertContactgegeven(Connection conn, UUID partijId, String type, String waarde, boolean isDefault, Instant verwijderdOp) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO contactgegeven (id, partij_id, type, waarde, is_default, verwijderd_op) VALUES (?, ?, ?, ?, ?, ?)")) {
+            ps.setObject(1, UUID.randomUUID());
+            ps.setObject(2, partijId);
+            ps.setString(3, type);
+            ps.setString(4, waarde);
+            ps.setBoolean(5, isDefault);
+            setNullableTimestamp(ps, 6, verwijderdOp);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void setNullableTimestamp(PreparedStatement ps, int index, Instant value) throws SQLException {
+        if (value == null) {
+            ps.setNull(index, Types.TIMESTAMP_WITH_TIMEZONE);
+        } else {
+            ps.setTimestamp(index, Timestamp.from(value));
+        }
     }
 
     private static List<Class<?>> discoverEntityClasses() throws Exception {

@@ -46,6 +46,17 @@ public class Partij extends PanacheEntityBase {
         this.verwijderdOp = verwijderdOp;
     }
 
+    public boolean isVerwijderd() {
+        return verwijderdOp != null;
+    }
+
+    /** Idempotent: een al gezette verwijderdOp blijft staan — geen resurrection, geen overschrijven. */
+    public void verwijder(Instant nu) {
+        if (verwijderdOp == null) {
+            verwijderdOp = nu;
+        }
+    }
+
     public List<Voorkeur> getVoorkeuren() {
         return Collections.unmodifiableList(voorkeuren);
     }
@@ -86,13 +97,17 @@ public class Partij extends PanacheEntityBase {
 
     /**
      * Deterministische keuze uit de identificaties, voor wanneer precies één identificatie nodig
-     * is. Sorteert op type dan nummer; die volgorde is stabiel maar draagt verder geen betekenis
-     * (geen "primaire" identificatie in domeinzin). {@code null} als de partij geen identificaties
-     * heeft (invariant violation, zie findOrCreatePartij).
+     * is — momenteel alleen als AVG-dataSubject in de retentiescheduler's logboekvermelding
+     * (RetentieScheduler.registreerLogboekNaCommit). Prioriteit BSN > KVK > RSIN (IdentificatieType's
+     * declaratievolgorde): bij een partij met zowel BSN als KVK is BSN de natuurlijke persoon achter
+     * de KVK-inschrijving, en die is de bewuste keuze als dataSubject. Nummer als tweede sleutel is
+     * puur voor determinisme bij (in theorie onmogelijke, want uk_identificatie_per_partij) dubbele
+     * rijen van hetzelfde type. {@code null} als de partij geen identificaties heeft (invariant
+     * violation, zie findOrCreatePartij).
      */
     public Identificatie primaireIdentificatie() {
         return identificaties.stream()
-                .min(Comparator.comparing((Identificatie i) -> i.getIdentificatieType().name())
+                .min(Comparator.comparing((Identificatie i) -> i.getIdentificatieType().ordinal())
                         .thenComparing(Identificatie::getIdentificatieNummer))
                 .orElse(null);
     }

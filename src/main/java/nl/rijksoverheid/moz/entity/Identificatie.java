@@ -18,7 +18,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 // uk_identificatie (identificatie_type, identificatie_nummer) en uk_identificatie_per_partij
-// (partij_id, identificatie_type) bestaan in de database (zie V5-migratie) als partiële unique
+// (partij_id, identificatie_type) bestaan in de database (zie V4-migratie) als partiële unique
 // indexes (WHERE verwijderd_op IS NULL). JPA's @UniqueConstraint kan geen WHERE-clausule
 // uitdrukken, dus staan ze hier bewust niet als annotatie — zie Contactgegeven voor dezelfde
 // afweging.
@@ -84,5 +84,16 @@ public class Identificatie extends PanacheEntityBase {
 
     public void setVerwijderdOp(Instant verwijderdOp) {
         this.verwijderdOp = verwijderdOp;
+    }
+
+    public boolean isVerwijderd() {
+        return verwijderdOp != null;
+    }
+
+    /** Idempotent: een al gezette verwijderdOp blijft staan — geen resurrection, geen overschrijven. */
+    public void verwijder(Instant nu) {
+        if (verwijderdOp == null) {
+            verwijderdOp = nu;
+        }
     }
 }

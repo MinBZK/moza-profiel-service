@@ -41,6 +41,9 @@ import java.util.List;
         unmappedTargetPolicy = ReportingPolicy.ERROR)
 public abstract class PartijMapper {
 
+    // public: aangeroepen vanuit andere packages (PartijService, ProfielController). De
+    // toIdentificatieResponse/toScopeResponse-submappings hieronder zijn package-private: die
+    // worden alleen door de MapStruct-gegenereerde impl in dit package zelf aangeroepen.
     @Mapping(target = "partijId", source = "partij.id")
     @Mapping(target = "identificaties", source = "partij.identificaties")
     // Bron expliciet aan de parameter gebonden, niet aan partij.contactgegevens/partij.voorkeuren.

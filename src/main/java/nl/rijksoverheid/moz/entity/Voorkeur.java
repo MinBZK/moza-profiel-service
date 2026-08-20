@@ -136,6 +136,17 @@ public class Voorkeur extends PanacheEntityBase {
         this.verwijderdOp = verwijderdOp;
     }
 
+    public boolean isVerwijderd() {
+        return verwijderdOp != null;
+    }
+
+    /** Idempotent: een al gezette verwijderdOp blijft staan — geen resurrection, geen overschrijven. */
+    public void verwijder(Instant nu) {
+        if (verwijderdOp == null) {
+            verwijderdOp = nu;
+        }
+    }
+
     @Nullable
     public static Voorkeur find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();

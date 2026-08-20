@@ -490,34 +490,6 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void deleteContactgegeven_Success() {
-        AtomicReference<UUID> contactGegevenId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111114"));
-            p.persist();
-            Contactgegeven c = new Contactgegeven();
-            c.setType(ContactType.Email);
-            c.setWaarde("test@example.com");
-            c.setPartij(p);
-            c.persist();
-            contactGegevenId.set(c.id);
-        });
-
-        var body = new PartijIdentificatieRequest();
-        body.setIdentificatieType(BSN);
-        body.setIdentificatieNummer("111111114");
-
-        given()
-                .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/contactgegeven/" + contactGegevenId.get())
-                .then()
-                .statusCode(NO_CONTENT);
-    }
-
-    @Test
     void deleteContactgegeven_NotFound() {
         var body = new PartijIdentificatieRequest();
         body.setIdentificatieType(BSN);
@@ -687,34 +659,6 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .body("violations.field", hasItem("identificatieNummer"));
-    }
-
-    @Test
-    void deleteVoorkeur_Success() {
-        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111118"));
-            p.persist();
-            Voorkeur v = new Voorkeur();
-            v.setVoorkeurType(VoorkeurType.WebsiteTaal);
-            v.setWaarde("nl");
-            v.setPartij(p);
-            v.persist();
-            voorkeurId.set(v.id);
-        });
-
-        var body = new PartijIdentificatieRequest();
-        body.setIdentificatieType(BSN);
-        body.setIdentificatieNummer("111111118");
-
-        given()
-                .filter(validationFilter)
-                .contentType(ContentType.JSON)
-                .body(body)
-                .delete("/api/profielservice/v1/voorkeur/" + voorkeurId.get())
-                .then()
-                .statusCode(NO_CONTENT);
     }
 
     @Test

@@ -110,13 +110,10 @@ public class PartijService {
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
         DienstverlenerDienst link = resolveDienstverlenerDienst(request.getScope());
 
-        // Voorkeur-invariant per 08-data.md: maximaal één ACTIEVE rij per (partij, voorkeurType, scope).
-        // Een POST op een sleutel die al een actieve rij heeft, voegt niets toe en wordt afgewezen
-        // met een CONFLICT. Een rij met een eerdere soft delete op dezelfde sleutel blokkeert dit niet
-        // en wordt ook niet hersteld — er ontstaat een nieuwe actieve rij (de unique index is partieel,
-        // WHERE verwijderd_op IS NULL). Let op: deze invariant wordt uitsluitend in applicatiecode
-        // afgedwongen, er is geen unieke DB-index op (partij, voorkeurType, scope); twee gelijktijdige
-        // POSTs op dezelfde sleutel kunnen dus beide hier voorbij komen en beide een actieve rij invoegen.
+        // Maximaal één actieve rij per (partij, voorkeurType, scope), alleen in applicatiecode
+        // afgedwongen — geen unieke DB-index. Twee gelijktijdige POSTs kunnen dus beide een
+        // actieve rij invoegen. Een soft deleted rij op dezelfde sleutel blokkeert niets en
+        // wordt niet hersteld.
         Voorkeur existing = Voorkeur.find(partij, request.getVoorkeurType(), link);
 
         if (existing != null) {
@@ -182,7 +179,7 @@ public class PartijService {
     }
 
     // Geen resurrection: een eerder soft-deleted partij wordt niet hersteld, er komt een nieuwe
-    // Partij + Identificatie. Kan zonder DB-conflict: uk_identificatie (V5) is partieel, en de
+    // Partij + Identificatie. Kan zonder DB-conflict: uk_identificatie (V4) is partieel, en de
     // oude identificatie is mee-gecascadet toen haar partij leegraakte (zie deleteLegePartij),
     // dus die rij zit al buiten de index.
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
@@ -239,7 +236,7 @@ public class PartijService {
                     "Combinatie (type, waarde) bestaat al voor deze partij");
         }
 
-        // Demote BEFORE mutating contact.setType (see demoteCurrentDefault for why).
+        // Demote vóór contact.setType (zie demoteCurrentDefault).
         if (targetDefault) {
             demoteCurrentDefault(partij, request.getType(), contact.id);
         }
@@ -280,12 +277,10 @@ public class PartijService {
     }
 
     private void demoteCurrentDefault(Partij partij, ContactType type, UUID exceptId) {
-        // Moet vóór contact.setType(...) draaien (updateContactgegeven, hierboven): het wijzigen
-        // van type verplaatst de rij naar een ander slot van de partiële index
-        // contactgegeven_default_per_type (WHERE is_default = true AND verwijderd_op IS NULL)
-        // terwijl hij nog isDefault = true draagt. Hibernate flusht dirty entities (default
-        // FlushModeType.AUTO) vóór een JPQL bulk-update tegen dezelfde tabel, dus deze volgorde
-        // werkt; bij flushmode=COMMIT zou de partiële index alsnog kunnen breken.
+        // Moet vóór contact.setType/setIsDefault draaien: op dat moment is contact nog clean,
+        // dus deze bulk-update demote de andere rij vóórdat contacts eigen wijziging ooit
+        // flusht — anders zouden beide rijen tijdelijk isDefault = true kunnen dragen voor
+        // hetzelfde (partij, type), wat op contactgegeven_default_per_type botst.
         // lastUpdated wordt expliciet meegebumped omdat een bulk-update @PreUpdate bypasst.
         // Filtert wél op verwijderdOp: een rij met een soft delete behoudt haar isDefault-waarde
         // zoals die was op het moment van verwijderen (zie verwijderContactgegeven) en mag daarom
@@ -351,13 +346,14 @@ public class PartijService {
     @Transactional
     public Voorkeur verwijderVoorkeur(IdentificatieType identificatieType, String identificatieNummer, UUID id) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
+
         if (partij == null) return null;
 
         Voorkeur voorkeur = Voorkeur.find(partij, id);
 
         if (voorkeur != null) {
             Instant nu = Instant.now();
-            voorkeur.setVerwijderdOp(nu);
+            voorkeur.verwijder(nu);
             deleteLegePartij(partij, nu);
         }
 
@@ -370,13 +366,14 @@ public class PartijService {
     @Transactional
     public Contactgegeven verwijderContactgegeven(IdentificatieType identificatieType, String identificatieNummer, UUID id) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
+
         if (partij == null) return null;
 
         Contactgegeven contact = Contactgegeven.find(partij, id);
 
         if (contact != null) {
             Instant nu = Instant.now();
-            contact.setVerwijderdOp(nu);
+            contact.verwijder(nu);
             deleteLegePartij(partij, nu);
         }
 
@@ -403,28 +400,19 @@ public class PartijService {
         boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
 
         if (!hasActiveContactgegevens && !hasActiveVoorkeuren) {
-            partij.setVerwijderdOp(nu);
+            partij.verwijder(nu);
             // Zonder dit blijft de oude identificatie binnen uk_identificatie's WHERE verwijderd_op
             // IS NULL staan en blokkeert ze findOrCreatePartij's nieuwe insert voor dezelfde
-            // (type, nummer) — zie V5-migratie.
-            partij.getIdentificaties().forEach(i -> i.setVerwijderdOp(nu));
+            // (type, nummer) — zie V4-migratie.
+            partij.getIdentificaties().forEach(i -> i.verwijder(nu));
         }
     }
 
-    // Vergrendelt de partij-rij en leest verwijderdOp los van de entity uit. Nodig omdat noch
-    // findById(id, lockMode) noch entityManager.lock() de veldwaarden verversen van een entity
-    // die al in de persistence context zit (alleen entityManager.refresh() doet dat, en die
-    // crasht hier intern — vermoedelijk een conflict tussen Hibernate's bytecode-enhancement en
-    // de Jacoco-instrumentatie, empirisch bevestigd: dezelfde refresh()-aanroep werkt wél zodra
-    // Jacoco is uitgeschakeld). Een losse scalar-query buiten de entity-hydratie om omzeilt beide
-    // problemen: de lock blokkeert tot een eventuele concurrente transactie commit/rollbackt, en
-    // de erop volgende query is een nieuwe SELECT die dus de actuele, net gecommitte stand ziet.
-    //
-    // Ligt er al een lock op deze rij? entityManager.lock() blokkeert tot de andere transactie
-    // commit of rollbackt — dat is de bedoeling, zo worden de twee operaties geserialiseerd i.p.v.
-    // dat ze racen. Geen lock-timeout ingesteld, dus de wachttijd is in principe onbegrensd
-    // (behalve een eventuele transactie-timeout). Zie RetentieScheduler.cascadeDeleteLegePartijen
-    // voor waarom dat geen deadlock kan geven.
+    // Losse scalar-query i.p.v. de entity: een lock op een al-managed entity ververst haar
+    // veldwaarden niet, dus verwijderdOp zou anders de stand van vóór de lock houden. De lock zelf
+    // blokkeert tot een concurrente transactie commit/rollbackt (geen timeout ingesteld) — zo
+    // worden de twee operaties geserialiseerd. Zie RetentieScheduler.cascadeDeleteLegePartijen
+    // voor waarom dat hier niet kan deadlocken.
     private Instant lockEnLeesVerwijderdOp(Partij partij) {
         Partij.getEntityManager().lock(partij, LockModeType.PESSIMISTIC_WRITE);
 
@@ -487,13 +475,26 @@ public class PartijService {
     // read, alleen met een echte veldwijziging. Zie ProfielControllerIntegrationTest.getPartij_ReadDoesNotBumpLastUpdated.
     private void touchIfStale(Contactgegeven cg) {
         if (isStale(cg.getLastUsedAt())) {
-            Contactgegeven.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), cg.id);
+            // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-
+            // delete van dezelfde rij mag lastUsedAt niet meer bumpen. Zonder de count zou dat
+            // stilzwijgend gebeuren; nu is het minstens zichtbaar in de logs.
+            long geraakt = Contactgegeven.update(
+                    "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), cg.id);
+
+            if (geraakt == 0) {
+                LOG.warn("touchIfStale: contactgegeven " + cg.id + " was inmiddels soft-deleted, lastUsedAt niet bijgewerkt");
+            }
         }
     }
 
     private void touchIfStale(Voorkeur voorkeur) {
         if (isStale(voorkeur.getLastUsedAt())) {
-            Voorkeur.update("lastUsedAt = ?1 WHERE id = ?2", Instant.now(), voorkeur.id);
+            long geraakt = Voorkeur.update(
+                    "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), voorkeur.id);
+
+            if (geraakt == 0) {
+                LOG.warn("touchIfStale: voorkeur " + voorkeur.id + " was inmiddels soft-deleted, lastUsedAt niet bijgewerkt");
+            }
         }
     }
 

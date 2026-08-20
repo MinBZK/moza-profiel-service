@@ -187,6 +187,17 @@ public class Contactgegeven extends PanacheEntityBase {
         this.verwijderdOp = verwijderdOp;
     }
 
+    public boolean isVerwijderd() {
+        return verwijderdOp != null;
+    }
+
+    /** Idempotent: een al gezette verwijderdOp blijft staan — geen resurrection, geen overschrijven. */
+    public void verwijder(Instant nu) {
+        if (verwijderdOp == null) {
+            verwijderdOp = nu;
+        }
+    }
+
     @Nullable
     public static Contactgegeven find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
@@ -201,19 +212,9 @@ public class Contactgegeven extends PanacheEntityBase {
         return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }
 
-    /**
-     * Controleert of er al een niet-verwijderd contactgegeven bestaat voor deze partij met
-     * hetzelfde type en dezelfde waarde, bv. om te voorkomen dat hetzelfde e-mailadres
-     * tweemaal aan een partij wordt gekoppeld.
-     *
-     * @param partij   de partij waarvan de contactgegevens doorzocht worden
-     * @param type     het type contactgegeven, bv. e-mailadres of telefoonnummer
-     * @param waarde   de waarde van het contactgegeven, bv. het e-mailadres of telefoonnummer zelf
-     * @param exceptId id van het contactgegeven dat uitgesloten wordt van de controle, zodat een
-     *                 bestaand contactgegeven bij een update niet als duplicaat van zichzelf geldt
-     * @return {@code true} als er een ander, niet-verwijderd contactgegeven met hetzelfde type en
-     *         dezelfde waarde bestaat
-     */
+    // Sluit exceptId uit zodat een update niet als duplicaat van zichzelf geldt. exceptId moet
+    // niet-null zijn: met null matcht "id <> ?4" geen enkele rij (SQL: NULL <> x is unknown), dus
+    // exists() geeft dan altijd stilzwijgend false terug.
     public static boolean exists(Partij partij, ContactType type, String waarde, UUID exceptId) {
         return find(
                 "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4 AND verwijderdOp IS NULL",
@@ -221,7 +222,7 @@ public class Contactgegeven extends PanacheEntityBase {
         ).firstResultOptional().isPresent();
     }
 
-    // Case-insensitieve match op e-mailadres, voor verificatie-lookups.
+    // Filtert soft deletes weg: een verwijderd e-mailadres is niet meer te verifiëren.
     @Nullable
     public static Contactgegeven findEmail(Partij partij, String email) {
         return find(

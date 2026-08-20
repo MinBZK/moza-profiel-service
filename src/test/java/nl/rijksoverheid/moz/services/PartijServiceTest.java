@@ -12,6 +12,7 @@ import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
 import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
@@ -879,7 +880,7 @@ public class PartijServiceTest {
         first.setWaarde("User@Test.COM");
         partijService.addContactgegeven(IdentificatieType.BSN, "123456789", first);
 
-        // A second POST with different case should be treated as duplicate and rejected.
+        // Een tweede POST met afwijkende hoofdletters moet als duplicaat worden afgewezen.
         ContactgegevenRequest second = new ContactgegevenRequest();
         second.setType(ContactType.Email);
         second.setWaarde("USER@TEST.COM");
@@ -930,6 +931,38 @@ public class PartijServiceTest {
     void verwijderVoorkeur_VoorkeurNotFound_ReturnsNull() {
         Voorkeur result = partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", UUID.randomUUID());
         Assertions.assertNull(result);
+    }
+
+    // Bewijst dat Voorkeur.find(partij, id) — de partij-scoped, soft-delete-veilige lookup die
+    // verwijderVoorkeur gebruikt — ook echt eigenaarschap afdwingt, niet alleen soft-delete
+    // filtert. Zou dit ooit naar een ongescopte findById(id) verschuiven, dan blijft elke andere
+    // bestaande test groen; alleen dit scenario merkt het.
+    @Test
+    void verwijderVoorkeur_IdBehoortTotAnderePartij_ReturnsNull() {
+        AtomicReference<UUID> voorkeurIdVanA = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partijA = new Partij();
+            partijA.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111140"));
+            partijA.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partijA);
+            voorkeur.persist();
+            voorkeurIdVanA.set(voorkeur.id);
+
+            Partij partijB = new Partij();
+            partijB.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111141"));
+            partijB.persist();
+        });
+
+        Voorkeur result = partijService.verwijderVoorkeur(IdentificatieType.BSN, "111111141", voorkeurIdVanA.get());
+
+        Assertions.assertNull(result, "een voorkeur-id van een andere partij mag niet gevonden worden");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Voorkeur.<Voorkeur>findById(voorkeurIdVanA.get()).getVerwijderdOp(),
+                        "de voorkeur van partij A mag ongemoeid blijven"));
     }
 
     @Test
@@ -1096,6 +1129,35 @@ public class PartijServiceTest {
     void verwijderContactgegeven_ContactNotFound_ReturnsNull() {
         Contactgegeven result = partijService.verwijderContactgegeven(IdentificatieType.BSN, "123456789", UUID.randomUUID());
         Assertions.assertNull(result);
+    }
+
+    // Zie verwijderVoorkeur_IdBehoortTotAnderePartij_ReturnsNull voor de motivatie.
+    @Test
+    void verwijderContactgegeven_IdBehoortTotAnderePartij_ReturnsNull() {
+        AtomicReference<UUID> contactIdVanA = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partijA = new Partij();
+            partijA.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111142"));
+            partijA.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partijA);
+            contact.persist();
+            contactIdVanA.set(contact.id);
+
+            Partij partijB = new Partij();
+            partijB.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111143"));
+            partijB.persist();
+        });
+
+        Contactgegeven result = partijService.verwijderContactgegeven(IdentificatieType.BSN, "111111143", contactIdVanA.get());
+
+        Assertions.assertNull(result, "een contactgegeven-id van een andere partij mag niet gevonden worden");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Contactgegeven.<Contactgegeven>findById(contactIdVanA.get()).getVerwijderdOp(),
+                        "het contactgegeven van partij A mag ongemoeid blijven"));
     }
 
     @Test
@@ -1321,6 +1383,50 @@ public class PartijServiceTest {
         PartijResponse viaDienstNaam = partijService.getPartijResponse(IdentificatieType.BSN, "123456789", metDienstNaam);
         Assertions.assertTrue(viaDienstNaam.getVoorkeuren().isEmpty());
         Assertions.assertTrue(viaDienstNaam.getContactgegevens().isEmpty());
+    }
+
+    @Test
+    void getPartijResponseBulk_HidesVerwijderdePartijEnKinderen() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij verwijderdePartij = new Partij();
+            Identificatie verwijderdeIdentificatie = new Identificatie(IdentificatieType.BSN, "111111150");
+            verwijderdePartij.addIdentificatie(verwijderdeIdentificatie);
+            Instant verwijderdOp = Instant.now();
+            verwijderdePartij.setVerwijderdOp(verwijderdOp);
+            verwijderdeIdentificatie.setVerwijderdOp(verwijderdOp);
+            verwijderdePartij.persist();
+
+            Partij actievePartij = new Partij();
+            actievePartij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111151"));
+            actievePartij.persist();
+
+            Voorkeur actief = new Voorkeur();
+            actief.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            actief.setWaarde("nl");
+            actief.setPartij(actievePartij);
+            actief.persist();
+
+            Voorkeur verwijderd = new Voorkeur();
+            verwijderd.setVoorkeurType(VoorkeurType.MagGebeldWorden);
+            verwijderd.setWaarde("ja");
+            verwijderd.setPartij(actievePartij);
+            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.persist();
+        });
+
+        PartijIdentificatieRequest id1 = new PartijIdentificatieRequest();
+        id1.setIdentificatieType(IdentificatieType.BSN);
+        id1.setIdentificatieNummer("111111150");
+        PartijIdentificatieRequest id2 = new PartijIdentificatieRequest();
+        id2.setIdentificatieType(IdentificatieType.BSN);
+        id2.setIdentificatieNummer("111111151");
+
+        List<PartijResponse> result = partijService.getPartijResponseBulk(List.of(id1, id2));
+
+        Assertions.assertEquals(1, result.size(), "de soft deleted partij hoort niet in de bulk-response te staan");
+        PartijResponse response = result.get(0);
+        Assertions.assertEquals(1, response.getVoorkeuren().size(), "de soft deleted voorkeur van de actieve partij hoort niet mee te tellen");
+        Assertions.assertEquals("nl", response.getVoorkeuren().get(0).getWaarde());
     }
 
     @Test
@@ -1573,8 +1679,8 @@ public class PartijServiceTest {
 
     @Test
     void updateVoorkeur_CollisionIsSoftDeleted_DoesNotThrowConflict() {
-        // A soft-deleted voorkeur with the same (type, scope) must not block the update:
-        // it's invisible to the caller, so it shouldn't count as an active collision.
+        // Een soft deleted voorkeur met dezelfde (type, scope) mag de update niet blokkeren: ze is
+        // onzichtbaar voor de aanroeper, dus telt niet mee als actieve botsing.
         AtomicReference<UUID> targetId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -1607,9 +1713,9 @@ public class PartijServiceTest {
 
     @Test
     void updateVoorkeurThenAddVoorkeur_DoesNotCreateDuplicateActiveVoorkeur() {
-        // updateVoorkeur correctly ignores a soft-deleted collision, so the soft-deleted row and
-        // the newly-updated row can end up sharing a key. A later addVoorkeur on that same key
-        // must be rejected as a conflict, never insert a second active row.
+        // updateVoorkeur negeert een soft deleted botsing terecht, waardoor de soft deleted rij en
+        // de nieuw-bijgewerkte rij dezelfde sleutel kunnen delen. Een latere addVoorkeur op die
+        // sleutel moet afgewezen worden als conflict, nooit een tweede actieve rij invoegen.
         AtomicReference<UUID> targetId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();

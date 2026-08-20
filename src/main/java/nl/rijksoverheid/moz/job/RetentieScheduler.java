@@ -5,12 +5,17 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Status;
+import jakarta.transaction.Synchronization;
 import jakarta.transaction.Transactional;
+import jakarta.transaction.TransactionSynchronizationRegistry;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
+import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
@@ -23,11 +28,8 @@ import org.jboss.logging.Logger;
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
-import java.util.LinkedHashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -46,6 +48,8 @@ public class RetentieScheduler {
 
     private static final Logger LOG = Logger.getLogger(RetentieScheduler.class);
 
+    // Bewaartermijn met een juridische grondslag (welke precies is hier niet geverifieerd),
+    // geen tuning-parameter. Wijzigen is een besluit voor wie die grondslag beheert.
     private static final Period RETENTIE_GRENS = Period.ofYears(7);
 
     private static final String VOORKEUR_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630";
@@ -62,20 +66,27 @@ public class RetentieScheduler {
     private final ProcessingHandler processingHandler;
     private final MeterRegistry meterRegistry;
     private final PartijService partijService;
+    private final TransactionSynchronizationRegistry txSyncRegistry;
 
     private final AtomicLong laatsteRunEpochSeconds = new AtomicLong(0);
+    private final AtomicLong laatsteGeslaagdeRunEpochSeconds = new AtomicLong(0);
 
-    public RetentieScheduler(HashHelper hashHelper, ProcessingHandler processingHandler, MeterRegistry meterRegistry, PartijService partijService) {
+    public RetentieScheduler(HashHelper hashHelper, ProcessingHandler processingHandler, MeterRegistry meterRegistry,
+            PartijService partijService, TransactionSynchronizationRegistry txSyncRegistry) {
         this.hashHelper = hashHelper;
         this.processingHandler = processingHandler;
         this.meterRegistry = meterRegistry;
         this.partijService = partijService;
+        this.txSyncRegistry = txSyncRegistry;
     }
 
     @PostConstruct
     void registerGauge() {
         Gauge.builder("retentie.laatste_run_epoch_seconds", laatsteRunEpochSeconds, AtomicLong::get)
                 .description("Tijdstip (epoch seconds) van de laatst uitgevoerde retentiescheduler-run, ongeacht succes")
+                .register(meterRegistry);
+        Gauge.builder("retentie.laatste_geslaagde_run_epoch_seconds", laatsteGeslaagdeRunEpochSeconds, AtomicLong::get)
+                .description("Tijdstip (epoch seconds) van de laatste retentiescheduler-run waarin alle drie de fasen slaagden")
                 .register(meterRegistry);
     }
 
@@ -84,153 +95,211 @@ public class RetentieScheduler {
     // een fout in de ene de andere niet stil terugdraait of verbergt.
     @Scheduled(cron = "{retentie.scheduler.cron}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     public void verwijderInactieveRecords() {
-        // Eén gecombineerde set i.p.v. losse cascade-aanroepen per fase: een partij met zowel een
-        // verlopen voorkeur als een verlopen contactgegeven in dezelfde run zou anders twee keer
-        // gecontroleerd worden terwijl één keer volstaat.
-        Set<UUID> geraaktePartijIds = new LinkedHashSet<>();
+        boolean alleFasenGeslaagd = true;
 
+        // Counter/log ná de transactionele aanroep, niet erin: verwijderInactieveVoorkeuren()
+        // commit al vóórdat deze regel bereikt wordt (de @Transactional-interceptor commit bij
+        // een normale return), dus "teruggekeerd zonder exception" betekent hier ook "gecommit".
+        // Zou de commit zelf falen, dan gooit de interceptor en komt de catch hieronder uit,
+        // nooit de succeslog met een aantal dat nooit werkelijkheid werd.
         try {
-            geraaktePartijIds.addAll(verwijderInactieveVoorkeuren());
+            int verwijderd = verwijderInactieveVoorkeuren();
+            meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
+            LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
         } catch (Exception e) {
             LOG.error("Retentiescheduler: verwijderen van voorkeuren mislukt", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "fase-fout").increment();
+            alleFasenGeslaagd = false;
         }
 
         try {
-            geraaktePartijIds.addAll(verwijderInactieveContactgegevens());
+            int verwijderd = verwijderInactieveContactgegevens();
+            meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
+            LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
         } catch (Exception e) {
             LOG.error("Retentiescheduler: verwijderen van contactgegevens mislukt", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "fase-fout").increment();
+            alleFasenGeslaagd = false;
         }
 
         try {
-            cascadeDeleteLegePartijen(geraaktePartijIds);
+            if (!cascadeDeleteLegePartijen()) {
+                alleFasenGeslaagd = false;
+            }
         } catch (Exception e) {
             LOG.error("Retentiescheduler: cascade-verwijdering van lege partijen mislukt", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "fase-fout").increment();
+            alleFasenGeslaagd = false;
         }
 
-        laatsteRunEpochSeconds.set(Instant.now().getEpochSecond());
+        Instant nu = Instant.now();
+        laatsteRunEpochSeconds.set(nu.getEpochSecond());
+
+        if (alleFasenGeslaagd) {
+            laatsteGeslaagdeRunEpochSeconds.set(nu.getEpochSecond());
+        }
     }
 
     // Niet private: @Transactional is een CDI interceptor binding, en ArC intercepteert door een
     // subclass te genereren die de methode overridet. Dat kan niet bij een private methode,
     // @Transactional zou dan niets doen, zonder dat dat uit de code zelf blijkt.
-    //
-    // Geeft de geraakte partij-id's terug i.p.v. zelf te cascaden: de cascade-check gebeurt in een
-    // aparte, latere transactie (cascadeDeleteLegePartijen) zodat hij ook de partijen uit de
-    // andere helft (contactgegevens) kan meenemen — zie verwijderInactieveRecords.
     @Transactional
-    Set<UUID> verwijderInactieveVoorkeuren() {
+    int verwijderInactieveVoorkeuren() {
         Instant nu = Instant.now();
-        List<Voorkeur> kandidaten = Voorkeur.find(
-                "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", berekenGrens(nu)).list();
+        Instant grens = berekenGrens(nu);
 
-        if (overschrijdtMaxPerRun("voorkeur", kandidaten.size())) {
-            return Set.of();
+        long limiet = bepaalVerwerkingslimiet("voorkeur", Voorkeur.count(
+                "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
+
+        if (limiet == 0) {
+            return 0;
         }
 
+        // JOIN FETCH partij + identificaties: zonder deze fetch is Voorkeur.partij (EAGER
+        // @ManyToOne, geen @BatchSize) een secundaire SELECT per kandidaat, en resolveerIdentiteitOfSlaOver's
+        // partij.primaireIdentificatie() hieronder nog een LAZY collectie zonder @BatchSize erbovenop —
+        // bij de bovengrens ~20.000 extra statements in één transactie die tegelijk rijlocks
+        // vasthoudt op alle kandidaten. ORDER BY + page(): bij een overschrijding worden de
+        // langst-inactieve rijen het eerst verwerkt (zie bepaalVerwerkingslimiet).
+        List<Voorkeur> kandidaten = Voorkeur.find(
+                        "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
+                                + "WHERE v.verwijderdOp IS NULL AND COALESCE(v.lastUsedAt, v.createdAt) <= ?1 "
+                                + "ORDER BY COALESCE(v.lastUsedAt, v.createdAt)", grens)
+                .page(0, (int) limiet)
+                .list();
+
         int verwijderd = 0;
-        Set<UUID> geraaktePartijIds = new LinkedHashSet<>();
+        List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
 
         for (Voorkeur voorkeur : kandidaten) {
-            // Logging (en dus identiteitsresolutie) vóór de mutatie: een rij mag niet als
-            // verwijderd achterblijven zonder logboek-vermelding.
-            if (!logVerwijderingOfSlaOver("verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID, voorkeur.getPartij(), voorkeur.id, "voorkeur")) {
+            Identificatie identificatie = resolveerIdentiteitOfSlaOver(voorkeur.getPartij(), voorkeur.id, "voorkeur");
+
+            if (identificatie == null) {
                 continue;
             }
 
-            voorkeur.setVerwijderdOp(nu);
-            geraaktePartijIds.add(voorkeur.getPartij().id);
+            voorkeur.verwijder(nu);
+            teLoggen.add(new GeauditeerdeIdentiteit(identificatie.getIdentificatieNummer(), identificatie.getIdentificatieType()));
             verwijderd++;
         }
 
-        meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
-        LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
+        registreerLogboekNaCommit(teLoggen, "verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID);
 
-        return geraaktePartijIds;
+        return verwijderd;
     }
 
     // Niet private: zie toelichting bij verwijderInactieveVoorkeuren.
     @Transactional
-    Set<UUID> verwijderInactieveContactgegevens() {
+    int verwijderInactieveContactgegevens() {
         Instant nu = Instant.now();
-        List<Contactgegeven> kandidaten = Contactgegeven.find(
-                "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", berekenGrens(nu)).list();
+        Instant grens = berekenGrens(nu);
 
-        if (overschrijdtMaxPerRun("contactgegeven", kandidaten.size())) {
-            return Set.of();
+        long limiet = bepaalVerwerkingslimiet("contactgegeven", Contactgegeven.count(
+                "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
+
+        if (limiet == 0) {
+            return 0;
         }
 
+        List<Contactgegeven> kandidaten = Contactgegeven.find(
+                        "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
+                                + "WHERE c.verwijderdOp IS NULL AND COALESCE(c.lastUsedAt, c.createdAt) <= ?1 "
+                                + "ORDER BY COALESCE(c.lastUsedAt, c.createdAt)", grens)
+                .page(0, (int) limiet)
+                .list();
+
         int verwijderd = 0;
-        Set<UUID> geraaktePartijIds = new LinkedHashSet<>();
+        List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
 
         for (Contactgegeven contact : kandidaten) {
-            if (!logVerwijderingOfSlaOver("verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, contact.getPartij(), contact.id, "contactgegeven")) {
+            Identificatie identificatie = resolveerIdentiteitOfSlaOver(contact.getPartij(), contact.id, "contactgegeven");
+
+            if (identificatie == null) {
                 continue;
             }
 
-            contact.setVerwijderdOp(nu);
-            geraaktePartijIds.add(contact.getPartij().id);
+            contact.verwijder(nu);
+            teLoggen.add(new GeauditeerdeIdentiteit(identificatie.getIdentificatieNummer(), identificatie.getIdentificatieType()));
             verwijderd++;
         }
 
-        meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
-        LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
+        registreerLogboekNaCommit(teLoggen, "verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID);
 
-        return geraaktePartijIds;
+        return verwijderd;
     }
 
-    // Niet private: zie toelichting bij verwijderInactieveVoorkeuren. Eigen transactie, ná de
-    // twee soft-delete-fasen: een fout hier draait dus niet de al gecommitte voorkeur/
-    // contactgegeven-verwijderingen terug, en omgekeerd blokkeert een fout dáár deze fase niet
-    // (verwijderInactieveRecords vangt elke fase apart af).
+    // Niet private: zie toelichting bij verwijderInactieveVoorkeuren. Eigen transactie per partij
+    // (i.p.v. één transactie voor de hele cascade): een falende partij — lock wait tegen een
+    // gelijktijdige findOrCreatePartij, transactietimeout — mag de andere kandidaten niet
+    // terugdraaien. Elke transactie vergrendelt hooguit één partij-rij, dus dit kan structureel
+    // niet deadlocken (zie ook PartijService.lockEnLeesVerwijderdOp).
     //
-    // Dit is de enige plek die meerdere partij-rijen ná elkaar vergrendelt binnen één transactie
-    // (zie PartijService.lockEnLeesVerwijderdOp). TreeSet sorteert op UUID vóór het vergrendelen:
-    // zonder een vaste volgorde zouden twee gelijktijdige runs van deze methode (bv. bij falende
-    // cluster-failover van concurrentExecution = SKIP, dat process-lokaal is, niet cluster-breed)
-    // in principe elkaars rijen in omgekeerde volgorde kunnen vergrendelen — een klassieke
-    // deadlock. Met een vaste volgorde is dat structureel uitgesloten, ongeacht of zo'n overlap
-    // zich ooit voordoet.
-    @Transactional
-    void cascadeDeleteLegePartijen(Set<UUID> partijIds) {
-        Instant nu = Instant.now();
+    // Kandidaten komen uit een reconciliatiequery i.p.v. de partij-id's die déze run zijn geraakt:
+    // een partij waarvan de cascade eerder mislukte (of waarvan de JVM omviel tussen het soft-
+    // deleten van haar laatste kind en deze fase) levert in een latere run geen kandidaat-voorkeur/
+    // -contactgegeven meer op om als "geraakt" herkend te worden — de query hieronder vindt zo'n
+    // partij toch terug, ongeacht welke run haar leeg maakte. Geen index op partij.verwijderdOp, dus
+    // dit is een scan over alle actieve partijen; voor nu acceptabel (nog geen productiedata).
+    boolean cascadeDeleteLegePartijen() {
+        List<UUID> kandidaatIds = Partij.getEntityManager()
+                .createQuery("SELECT p.id FROM Partij p WHERE p.verwijderdOp IS NULL "
+                        + "AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v.verwijderdOp IS NULL) "
+                        + "AND NOT EXISTS (SELECT 1 FROM Contactgegeven c WHERE c.partij = p AND c.verwijderdOp IS NULL)",
+                        UUID.class)
+                .getResultList();
 
-        // Bewust een lambda en geen Partij::findById: Quarkus herschrijft alleen de letterlijke
-        // Partij.findById(id)-aanroep naar Partij's eigen implementatie. Een method reference mist
-        // die build-time enhancement en valt terug op de stub in PanacheEntityBase, die een
-        // IllegalStateException gooit.
-        new TreeSet<>(partijIds).stream()
-                .map(id -> (Partij) Partij.findById(id))
-                .filter(Objects::nonNull)
-                .forEach(partij -> partijService.deleteLegePartij(partij, nu));
+        Instant nu = Instant.now();
+        boolean alleGeslaagd = true;
+
+        for (UUID id : kandidaatIds) {
+            try {
+                QuarkusTransaction.requiringNew().run(() -> {
+                    Partij partij = Partij.findById(id);
+
+                    if (partij != null) {
+                        partijService.deleteLegePartij(partij, nu);
+                    }
+                });
+            } catch (Exception e) {
+                LOG.error("Retentiescheduler: cascade-verwijdering van partij " + id + " mislukt", e);
+                meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "cascade-fout").increment();
+                alleGeslaagd = false;
+            }
+        }
+
+        return alleGeslaagd;
     }
 
+    // Kalenderjaren (Period), verankerd op UTC: een vaste Duration zou schrikkeljaren negeren, en
+    // een lokale zone zou de grens per DST-overgang een uur laten schuiven.
     private static Instant berekenGrens(Instant nu) {
         return nu.atZone(ZoneOffset.UTC).minus(RETENTIE_GRENS).toInstant();
     }
 
-    private boolean overschrijdtMaxPerRun(String type, int aantalKandidaten) {
+    // Bij overschrijding wordt niet de hele fase overgeslagen (dat zou de kandidaatcount de
+    // volgende run gelijk of hoger laten, dus zonder handmatig ingrijpen nooit meer vooruitgang) —
+    // in plaats daarvan wordt verwerking beperkt tot de grens, oudste rijen eerst (zie de
+    // ORDER BY in de aanroepende methode).
+    private long bepaalVerwerkingslimiet(String type, long aantalKandidaten) {
         final int grens = ConfigProvider.getConfig()
                 .getOptionalValue(MAX_PER_RUN_PROPERTY, Integer.class)
                 .orElse(MAX_PER_RUN_DEFAULT);
 
         if (aantalKandidaten <= grens) {
-            return false;
+            return aantalKandidaten;
         }
 
         LOG.error("Retentiescheduler: " + aantalKandidaten + " kandidaat-" + type + " overschrijdt de grens van "
-                + grens + "; run overgeslagen. Mogelijke klok- of configuratiefout — controleer voordat "
-                + MAX_PER_RUN_PROPERTY + " wordt opgehoogd.");
-        meterRegistry.counter("retentie.anomalie", "type", type).increment();
+                + grens + "; verwerking wordt beperkt tot de " + grens + " langst-inactieve rijen. Mogelijke "
+                + "klok- of configuratiefout — controleer voordat " + MAX_PER_RUN_PROPERTY + " wordt opgehoogd.");
+        meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "max-per-run").increment();
 
-        return true;
+        return grens;
     }
 
-    // Per rij overslaan i.p.v. de ontbrekende identificatie te laten throwen: een throw zou de hele
-    // batch terugdraaien, en de corrupte rij zou elke volgende run opnieuw de anderen blokkeren.
-    // ProfielController.setDataSubjectFromPartij gooit voor dezelfde conditie wél een exception —
-    // bewust anders: één HTTP-request afbreken kost weinig, een hele nachtelijke batch afbreken
-    // (en daarmee alle andere kandidaten blokkeren) weegt hier zwaarder.
-    private boolean logVerwijderingOfSlaOver(String naam, String processingActivityId, Partij partij, UUID entityId, String type) {
+    // Per rij overslaan i.p.v. te throwen: een throw draait de hele batch terug, waarna de
+    // corrupte rij elke volgende run opnieuw de andere kandidaten blokkeert.
+    private Identificatie resolveerIdentiteitOfSlaOver(Partij partij, UUID entityId, String type) {
         Identificatie identificatie = partij.primaireIdentificatie();
 
         if (identificatie == null) {
@@ -238,20 +307,53 @@ public class RetentieScheduler {
             // of een misgelopen migratie, niet op een routinegeval.
             LOG.error("Retentiescheduler: partij " + partij.id + " heeft geen identificatie (invariant violation, "
                     + "zie findOrCreatePartij); " + type + " " + entityId + " wordt overgeslagen, niet verwijderd");
-            meterRegistry.counter("retentie.anomalie", "type", type).increment();
+            meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "ontbrekende-identificatie").increment();
 
-            return false;
+            return null;
         }
 
-        LogboekContext ctx = new LogboekContext();
-        ctx.setProcessingActivityId(processingActivityId);
-        ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()));
-        ctx.setDataSubjectType(String.valueOf(identificatie.getIdentificatieType()));
-        ctx.setStatus(StatusCode.OK);
-        Span span = processingHandler.startSpan(naam, Context.current());
-        processingHandler.addLogboekContextToSpan(span, ctx);
-        span.end();
+        return identificatie;
+    }
 
-        return true;
+    // Emitteert pas ná commit (afterCompletion(STATUS_COMMITTED)), nooit ervoor: een logboek-span
+    // mag nooit een verwijdering claimen die niet heeft plaatsgevonden — dat is de kostbaardere
+    // richting om fout te hebben voor iets dat als bewijsmiddel dient. Dit garandeert wél alleen de
+    // vólgorde, niet de duurzaamheid: span.end() geeft de span door aan de OTel-processor, en een
+    // volle exportqueue of exportfout wordt door de SDK per ontwerp geslikt, ongeacht of de
+    // transactie committede. Die blootstelling kan deze code niet dichten.
+    private void registreerLogboekNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String naam, String processingActivityId) {
+        if (identiteiten.isEmpty()) {
+            return;
+        }
+
+        txSyncRegistry.registerInterposedSynchronization(new Synchronization() {
+            @Override
+            public void beforeCompletion() {
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != Status.STATUS_COMMITTED) {
+                    return;
+                }
+
+                for (GeauditeerdeIdentiteit identiteit : identiteiten) {
+                    LogboekContext ctx = new LogboekContext();
+                    ctx.setProcessingActivityId(processingActivityId);
+                    ctx.setDataSubjectId(hashHelper.hashIdentifier(identiteit.identificatieNummer()));
+                    ctx.setDataSubjectType(String.valueOf(identiteit.identificatieType()));
+                    ctx.setStatus(StatusCode.OK);
+                    Span span = processingHandler.startSpan(naam, Context.current());
+                    processingHandler.addLogboekContextToSpan(span, ctx);
+                    span.end();
+                }
+            }
+        });
+    }
+
+    // Alleen de scalaire velden, niet de entity zelf: na commit is de persistence context die
+    // Identificatie beheerde mogelijk al gesloten, en deze twee waarden zijn het enige dat de
+    // afterCompletion-callback nodig heeft.
+    private record GeauditeerdeIdentiteit(String identificatieNummer, IdentificatieType identificatieType) {
     }
 }

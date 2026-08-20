@@ -88,7 +88,8 @@ paths:
           $ref: "#/components/responses/ScopeUitRequestNietGevonden"
         "409":
           description: Contactgegeven met dit type en deze waarde bestaat al voor deze partij.
-            Gebruik PUT om het bestaande contactgegeven te wijzigen.
+            Gebruik PUT om het bestaande contactgegeven te wijzigen. Kan zeldzaam ook optreden
+            bij een gelijktijdige write die op dezelfde unique constraint botst.
           content:
             application/problem+json:
               schema:
@@ -100,9 +101,10 @@ paths:
       summary: Verwijder contactgegeven (soft-delete)
       operationId: verwijderContactgegeven
       description: "Markeert het contactgegeven als verwijderd. Het contactgegeven is daarna\
-        \ niet meer opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel. Was dit\
-        \ het laatste actieve contactgegeven of voorkeur van de partij, dan wordt de partij zelf\
-        \ ook soft-deleted en is deze niet meer opvraagbaar via GET partij."
+        \ niet meer opvraagbaar. De rij blijft in de database staan (soft delete), maar er is\
+        \ geen herstelfunctie via de API. Was dit het laatste actieve contactgegeven of voorkeur\
+        \ van de partij, dan wordt de partij zelf ook soft-deleted en is deze niet meer\
+        \ opvraagbaar via GET partij."
       tags:
       - Profiel
       parameters:
@@ -425,7 +427,8 @@ paths:
           $ref: "#/components/responses/ScopeUitRequestNietGevonden"
         "409":
           description: Voorkeur voor deze partij, scope en voorkeurType bestaat al. Gebruik
-            PUT om de bestaande voorkeur te wijzigen.
+            PUT om de bestaande voorkeur te wijzigen. Kan zeldzaam ook optreden bij een
+            gelijktijdige write die op dezelfde unique constraint botst.
           content:
             application/problem+json:
               schema:
@@ -437,8 +440,9 @@ paths:
       summary: Verwijder voorkeur (soft-delete)
       operationId: verwijderVoorkeur
       description: "Markeert de voorkeur als verwijderd. De voorkeur is daarna niet meer\
-        \ opvraagbaar, maar blijft bewaard ten behoeve van audit en herstel. Was dit de laatste\
-        \ actieve voorkeur of contactgegeven van de partij, dan wordt de partij zelf ook\
+        \ opvraagbaar. De rij blijft in de database staan (soft delete), maar er is geen\
+        \ herstelfunctie via de API. Was dit de laatste actieve voorkeur of contactgegeven van\
+        \ de partij, dan wordt de partij zelf ook\
         \ soft-deleted en is deze niet meer opvraagbaar via GET partij."
       tags:
       - Profiel
@@ -505,21 +509,6 @@ components:
             $ref: "#/components/schemas/HttpProblem"
     ScopeUitRequestNietGevonden:
       description: Dienstverlener of dienst uit de scope bestaat niet
-      content:
-        application/problem+json:
-          schema:
-            $ref: "#/components/schemas/HttpProblem"
-    GelijktijdigeWrite:
-      # Lookup-dan-persist: twee gelijktijdige writes kunnen de voorcontrole passeren en pas
-      # bij flush op een unique index botsen (onder meer uk_identificatie,
-      # uk_contactgegeven_dedup, uk_dvdienst_dv_broad).
-      # DatabaseConstraintViolationMapper vertaalt dat naar deze 409, maar alleen als de
-      # violation de mapper kaal bereikt: gemeten geeft een ConstraintViolationException die
-      # in een andere exception verpakt binnenkomt een 500, omdat RESTEasy dan bij de
-      # catch-all mapUnhandledException(Exception) uitkomt en niet meer uitpakt. Wanneer een
-      # race in welk pad ook opduikt is over HTTP niet betrouwbaar te reproduceren, dus deze
-      # 409 is wat een client mág verwachten, geen garantie.
-      description: Gelijktijdige write botste op een unique constraint
       content:
         application/problem+json:
           schema:
@@ -832,15 +821,6 @@ components:
       - RSIN
     Instant:
       type: string
-      format: date-time
-      examples:
-      - 2022-03-10T16:15:50Z
-    NullableInstant:
-      # Zelfde tijdstip als Instant, maar de null-tak staat in het type in plaats van
-      # alleen in een description. Een aparte schema-naam en niet Instant zelf nullbaar
-      # maken: createdAt en lastUpdated zijn altijd gevuld en blijven zo streng.
-      description: "Tijdstip dat ook expliciet null mag zijn."
-      type: [string, "null"]
       format: date-time
       examples:
       - 2022-03-10T16:15:50Z
