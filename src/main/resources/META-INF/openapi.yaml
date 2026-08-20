@@ -641,14 +641,6 @@ components:
           schema:
             $ref: "#/components/schemas/HttpProblem"
   schemas:
-    # De contractvalidatie handhaaft type niet (3.1-typen komen niet door de validator);
-    # required, enum, pattern, format, minItems en maxItems wél. Nullable-typen zijn hier
-    # dus documentatie voor de consumer, geen bewaking.
-    #
-    # Nullbaarheid van een $ref-veld hoort daarom in de beschrijving van zijn schema en
-    # niet in een anyOf met een null-tak: die tak matcht alles, waarmee de $ref-tak nooit
-    # meer wordt gecontroleerd. ContractHandhavingTest legt dat vast.
-    #
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
     # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
@@ -1043,9 +1035,6 @@ components:
       description: "Beperkt een contactgegeven of voorkeur tot een dienstverlener,\
         \ eventueel tot een dienst daarbinnen. Een leeg object betekent geen scope.\
         \ Een dienstNaam zonder dienstverlenerNaam levert een 400."
-      # De null-tak hoort hier en niet in een anyOf bij het veld: anyOf met een null-tak
-      # maakt de $ref-tak onbereikbaar, waardoor pattern en type van dit schema niet meer
-      # gecontroleerd worden.
       type: [object, "null"]
       properties:
         dienstverlenerNaam:
