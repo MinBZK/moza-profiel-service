@@ -106,9 +106,10 @@ schrijfwijze te houden en niet omdat de andere dekking kost.
 
 De validatie is wel nog steeds geen vangnet voor alles. Twee dingen die ze niet
 dekt: een regel over twee velden — "`waarde` moet een e-mailadres zijn wanneer
-`type` Email is" is daarom niet als schema uit te drukken (#766) — en de vorm
-van padparameters, waar de server meer accepteert dan `format: uuid` belooft
-(#980).
+`type` Email is" is daarom niet als schema uit te drukken
+(`MinBZK/MijnOverheidZakelijk#766`) — en de vorm van padparameters, waar de
+server meer accepteert dan `format: uuid` belooft
+(`MinBZK/MijnOverheidZakelijk#980`).
 
 ## Bewakingstests
 
@@ -319,9 +320,24 @@ return cr;
 - Commitmessages zijn een korte Nederlandse beschrijving, eventueel met een
   conventional-commit-prefix.
 - Voeg bij het aanmaken van een PR **geen** reviewer toe.
-- Issues staan in de
-  [MijnOverheidZakelijk](https://github.com/MinBZK/MijnOverheidZakelijk/issues)-tracker
-  met label `profiel-service`, niet in deze repo.
+
+### Issues en PR's koppelen
+
+Issues staan in de
+[MijnOverheidZakelijk](https://github.com/MinBZK/MijnOverheidZakelijk/issues)-tracker
+met label `profiel-service`, niet in deze repo. Elke PR hoort bij een issue, en
+die koppeling moet van twee kanten zichtbaar zijn:
+
+- **Zet het issuenummer vooraan in de branchnaam**, gevolgd door een korte
+  kebab-case-beschrijving: `766-validatiedetails-email`. Daarmee is aan de
+  branch en aan elke PR-lijst af te lezen waar het werk bij hoort.
+- **Noem het issue in de PR-beschrijving én de PR in het issue.** GitHub legt
+  die koppeling hier niet vanzelf: de Development-zijbalk werkt alleen binnen
+  dezelfde repo, en onze issues staan in een andere.
+- **Verwijs cross-repo altijd voluit**: `MinBZK/MijnOverheidZakelijk#766`, nooit
+  kaal `#766`. Deze repo heeft een eigen nummerreeks waarin issues en PR's
+  elkaar delen (nu rond 160), dus een kale `#766` wijst hier naar niets en een
+  laag nummer naar de verkeerde PR.
 
 ## Belangrijke bestanden
 
