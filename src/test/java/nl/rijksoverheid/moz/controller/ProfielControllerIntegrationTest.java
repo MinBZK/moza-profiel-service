@@ -373,7 +373,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
-                .body("title", equalTo("Not Found"));
+                // Dezelfde titel als de andere endpoints die een onbekende dienstverlener melden.
+                .body("title", equalTo("Dienstverlener niet gevonden"));
     }
 
     @Test

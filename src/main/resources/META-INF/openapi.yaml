@@ -153,9 +153,8 @@ paths:
       description: "Voegt een dienstverlener toe met optionele beschrijving. Bestaat de naam\
         \ al, dan wordt de bestaande dienstverlener teruggegeven; een afwijkende beschrijving\
         \ levert een 409 in plaats van een stille overschrijving. De beschrijving ligt daarmee\
-        \ vast bij het aanmaken: er is geen operatie om hem later te wijzigen. Let op dat een\
-        \ dienstverlener ook impliciet ontstaat via POST /dienstverlener/{dienstverlenerNaam}/diensten,\
-        \ en dan géén beschrijving krijgt; die kan achteraf niet meer worden gezet."
+        \ vast bij het aanmaken: er is geen operatie om hem later te wijzigen. Dit is de enige\
+        \ operatie die een dienstverlener aanmaakt."
       tags:
       - Dienstverlener
       requestBody:
@@ -189,9 +188,9 @@ paths:
     post:
       summary: Voegt een dienst toe aan een dienstverlener
       operationId: addDienstToDienstverlener
-      description: "Voegt een dienst toe aan een dienstverlener. Bestaat de dienstverlener\
-        \ nog niet, dan wordt hij aangemaakt zonder beschrijving; vandaar dat deze operatie\
-        \ geen 404 kent."
+      description: "Voegt een dienst toe aan een bestaande dienstverlener. Bestaat die niet,\
+        \ dan volgt een 404 en wordt er niets aangemaakt; maak hem eerst aan via POST\
+        \ /api/profielservice/v1/dienstverlener."
       tags:
       - Dienstverlener
       parameters:
@@ -199,8 +198,7 @@ paths:
         in: path
         required: true
         schema:
-          # Dezelfde pattern als DienstverlenerRequest.naam. Deze operatie maakt de
-          # dienstverlener aan als hij nog niet bestaat.
+          # Dezelfde pattern als DienstverlenerRequest.naam.
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
       requestBody:
@@ -221,6 +219,8 @@ paths:
                 $ref: "#/components/schemas/DienstResponse"
         "400":
           $ref: "#/components/responses/OngeldigePadparameterOfRequestBody"
+        "404":
+          $ref: "#/components/responses/DienstverlenerNietGevonden"
         "409":
           description: Dienst bestaat al met een andere beschrijving
           content:
@@ -257,11 +257,7 @@ paths:
         "400":
           $ref: "#/components/responses/OngeldigePadparameter"
         "404":
-          description: Dienstverlener niet gevonden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/DienstverlenerNietGevonden"
         "500":
           $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/emailverificatie:
@@ -561,6 +557,12 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/HttpValidationProblem"
+    DienstverlenerNietGevonden:
+      description: Dienstverlener niet gevonden
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
     ContactgegevenOfScopeNietGevonden:
       description: "Contactgegeven of partij niet gevonden, of de dienstverlener of\
         \ dienst uit de opgegeven scope bestaat niet"

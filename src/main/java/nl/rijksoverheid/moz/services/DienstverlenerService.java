@@ -29,9 +29,20 @@ public class DienstverlenerService {
         return Dienstverlener.find("LOWER(naam) = LOWER(?1)", naam).firstResult();
     }
 
+    /**
+     * Hangt een dienst aan een bestaande dienstverlener; bestaat die niet, dan volgt een 404 en
+     * wordt er niets aangemaakt (MinBZK/MijnOverheidZakelijk#967).
+     */
     @Transactional
     public Dienst addDienstToDienstverlener(String dienstverlenerNaam, DienstRequest request) {
-        Dienstverlener dienstverlener = findOrCreateDienstverlener(dienstverlenerNaam, null);
+        Dienstverlener dienstverlener = getDienstverlener(dienstverlenerNaam);
+
+        if (dienstverlener == null) {
+            throw BusinessException.withTitle(Kind.NOT_FOUND, "Dienstverlener niet gevonden",
+                    ("Geen dienstverlener gevonden met naam '%s'."
+                            + " Maak hem eerst aan via POST /api/profielservice/v1/dienstverlener.")
+                            .formatted(dienstverlenerNaam));
+        }
 
         Dienst dienst = Dienst.findByNaam(request.getNaam());
 
@@ -63,8 +74,11 @@ public class DienstverlenerService {
      * Zoekt de dienstverlener op naam en maakt hem aan als hij nog niet bestaat.
      *
      * <p>Bestaat hij al, dan botst een afwijkende {@code beschrijving} met een 409 in plaats van
-     * stil te verdwijnen. Een {@code null}-beschrijving legt niets vast en botst nooit; zo maakt
-     * {@link #addDienstToDienstverlener} een dienstverlener zonder beschrijving aan.
+     * stil te verdwijnen. Een {@code null}-beschrijving legt niets vast en botst nooit, zodat een
+     * herhaalde aanroep zonder beschrijving de bestaande niet leegmaakt.
+     *
+     * <p>Een dienstverlener ontstaat alleen op {@code POST /dienstverlener}
+     * (MinBZK/MijnOverheidZakelijk#967).
      */
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {

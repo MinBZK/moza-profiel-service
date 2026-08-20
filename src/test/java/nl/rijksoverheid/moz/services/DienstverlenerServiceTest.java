@@ -89,9 +89,9 @@ public class DienstverlenerServiceTest {
     }
 
     /**
-     * {@code addDienstToDienstverlener} maakt de dienstverlener aan met een lege beschrijving.
-     * Een {@code null} legt dus niets vast en mag nooit botsen, ook niet als er al een
-     * beschrijving staat.
+     * Een {@code null}-beschrijving legt niets vast en mag nooit botsen, ook niet als er al een
+     * beschrijving staat: een tweede POST zonder beschrijving hoort de bestaande niet leeg te
+     * maken en ook geen 409 te geven.
      */
     @Test
     void findOrCreateDienstverlener_ZonderBeschrijving_GeenConflict() {
@@ -125,6 +125,88 @@ public class DienstverlenerServiceTest {
     void getDienstverlener_NotFound() {
         Dienstverlener result = dienstverlenerService.getDienstverlener("NonExistent");
         Assertions.assertNull(result);
+    }
+
+    /**
+     * Een dienst hangen aan een dienstverlener die niet bestaat is een vergissing, geen opdracht
+     * om hem aan te maken (MinBZK/MijnOverheidZakelijk#967).
+     */
+    @Test
+    void addDienstToDienstverlener_OnbekendeDienstverlener_ThrowsNotFound() {
+        DienstRequest request = new DienstRequest();
+        request.setNaam("NieuweDienst");
+
+        BusinessException ex = Assertions.assertThrows(
+                BusinessException.class,
+                () -> dienstverlenerService.addDienstToDienstverlener("BestaatNiet", request));
+
+        Assertions.assertEquals(BusinessException.Kind.NOT_FOUND, ex.getKind());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(0, Dienstverlener.count(),
+                    "Een afgewezen aanroep hoort geen dienstverlener achter te laten");
+            Assertions.assertEquals(0, Dienst.count(),
+                    "En ook geen dienst: die hoort bij de dienstverlener die er niet is");
+        });
+    }
+
+    /**
+     * De lookup is case-insensitief en bepaalt sinds #967 het verschil tussen een 201 en een 404.
+     * {@code getDienstverlener} heeft daarvoor zijn eigen LOWER-query, los van die in
+     * {@code findOrCreateDienstverlener}; deze test dekt de eerste.
+     */
+    @Test
+    void addDienstToDienstverlener_AfwijkendeHoofdletters_VindtDeDienstverlener() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dienstverlener = new Dienstverlener();
+            dienstverlener.setNaam("TestDV");
+            dienstverlener.persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("NieuweDienst");
+
+        Dienst result = dienstverlenerService.addDienstToDienstverlener("testdv", request);
+
+        Assertions.assertEquals("NieuweDienst", result.getNaam());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(1, Dienstverlener.count(),
+                    "De bestaande dienstverlener hoort hergebruikt te zijn, niet gedupliceerd");
+            Assertions.assertEquals(1, DienstverlenerDienst.count());
+        });
+    }
+
+    /**
+     * Pint de volgorde van de twee controles. De body noemt een dienst die al bestaat met een
+     * afwijkende beschrijving, dus dit werd een 409 als de conflict-tak eerst kwam.
+     */
+    @Test
+    void addDienstToDienstverlener_OnbekendeDienstverlener_GaatVoorHetDienstconflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dvA = new Dienstverlener();
+            dvA.setNaam("DV-A");
+            dvA.persist();
+            Dienst gedeeld = new Dienst();
+            gedeeld.setNaam("Vergunning");
+            gedeeld.setBeschrijving("originele beschrijving");
+            gedeeld.persist();
+            new DienstverlenerDienst(dvA, gedeeld).persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("Vergunning");
+        request.setBeschrijving("andere beschrijving");
+
+        BusinessException ex = Assertions.assertThrows(BusinessException.class,
+                () -> dienstverlenerService.addDienstToDienstverlener("BestaatNiet", request));
+
+        Assertions.assertEquals(BusinessException.Kind.NOT_FOUND, ex.getKind());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(1, Dienstverlener.count());
+            Assertions.assertEquals(1, DienstverlenerDienst.count());
+        });
     }
 
     @Test

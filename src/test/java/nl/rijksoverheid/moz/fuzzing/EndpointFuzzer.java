@@ -9,6 +9,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Standalone fuzz target for ClusterFuzzLite.
@@ -20,6 +21,12 @@ public class EndpointFuzzer {
 
     private static final HttpClient client;
     private static final String BASE = "http://localhost:8081/api/profielservice/v1";
+
+    /** Zie fuzzAddDienstToDienstverlener: een naam die gegarandeerd bestaat. */
+    private static final String BEKENDE_DIENSTVERLENER = "FuzzDienstverlener";
+
+    /** Blijft false zolang het aanmaken niet is gelukt, zodat een mislukte POST opnieuw gaat. */
+    private static final AtomicBoolean bekendeDienstverlenerBestaat = new AtomicBoolean();
 
     // Keep reference to prevent GC; allows network connections for the main thread.
     @SuppressWarnings("unused")
@@ -53,7 +60,9 @@ public class EndpointFuzzer {
     }
 
     private static String enc(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+        // URLEncoder codeert voor een query: een spatie wordt '+', en in een padsegment is dat
+        // een letterlijke plus. Een plus in de invoer zelf komt er als %2B uit.
+        return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     private static void get(String path) throws Exception {
@@ -142,9 +151,21 @@ public class EndpointFuzzer {
         post("/dienstverlener/", json);
     }
 
+    /**
+     * Een onbekende dienstverlener strandt sinds MinBZK/MijnOverheidZakelijk#967 op een 404 nog
+     * voordat de body wordt gelezen; de helft van de invoer gebruikt daarom een naam die bestaat,
+     * anders bereikt deze target de dienstlogica erachter nooit meer.
+     */
     private static void fuzzAddDienstToDienstverlener(FuzzedDataProvider data) throws Exception {
-        String naam = data.consumeString(50);
+        boolean bekendeDienstverlener = data.consumeBoolean();
+        String naam = bekendeDienstverlener ? BEKENDE_DIENSTVERLENER : data.consumeString(50);
         String json = data.consumeRemainingAsString();
+
+        if (bekendeDienstverlener && !bekendeDienstverlenerBestaat.get()) {
+            post("/dienstverlener/", "{\"naam\":\"" + BEKENDE_DIENSTVERLENER + "\"}");
+            bekendeDienstverlenerBestaat.set(true);
+        }
+
         post("/dienstverlener/" + enc(naam) + "/diensten", json);
     }
 

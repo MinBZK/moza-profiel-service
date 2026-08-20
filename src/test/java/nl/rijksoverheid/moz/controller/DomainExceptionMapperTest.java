@@ -19,6 +19,21 @@ class DomainExceptionMapperTest {
         mapper = new DomainExceptionMapper();
     }
 
+    /**
+     * {@code withTitle} is de enige reden dat {@code getTitle()} niet gewoon de reason phrase
+     * teruggeeft. Zonder deze test blijft die tak ongedekt en kan hij stil verdwijnen.
+     */
+    @Test
+    void mapBusinessException_EigenTitel_GebruiktDieTitel() {
+        BusinessException exception = BusinessException.withTitle(
+                BusinessException.Kind.NOT_FOUND, "Dienstverlener niet gevonden", "Bestaat niet");
+
+        Response response = mapper.mapBusinessException(exception);
+
+        assertEquals(404, response.getStatus());
+        assertProblemBody(response, "Dienstverlener niet gevonden", "Bestaat niet");
+    }
+
     @Test
     void mapBusinessException_NotFoundKind_Returns404() {
         BusinessException exception = new BusinessException(BusinessException.Kind.NOT_FOUND, "Partij niet gevonden");

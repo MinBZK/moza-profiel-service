@@ -18,7 +18,8 @@ public class DomainExceptionMapper {
             case CONFLICT -> Response.Status.CONFLICT;
             case BAD_REQUEST -> Response.Status.BAD_REQUEST;
         };
-        LOG.warn("BusinessException: " + e.getMessage());
+        // Mét de exception: meldingstekst en kind zijn niet uniek per werpplek.
+        LOG.warnf(e, "BusinessException %s: %s", e.getKind(), e.getMessage());
 
         return Problems.problemResponse(status, e.getTitle(), e.getMessage());
     }
