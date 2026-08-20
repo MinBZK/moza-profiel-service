@@ -590,8 +590,11 @@ components:
     #
     # Tot 2.44.1 gold hier de regel dat een anyOf met een null-tak alle validatie van het
     # verwezen schema uitschakelde. Dat was een gevolg van diezelfde bug — `type: "null"`
-    # werd niet gehandhaafd, dus die tak matchte alles. Onder 3.0.0 is dat niet meer zo;
-    # bovenstaande vorm blijft de afspraak, maar niet meer om die reden.
+    # werd niet gehandhaafd, dus die tak matchte alles. Onder 3.0.0 is dat niet meer zo:
+    # gemeten wijzen beide vormen een blanco naam, een onbekend veld, een verkeerd type en
+    # een meerregelige waarde even goed af, en de generator maakt er hetzelfde veldtype van.
+    # De vorm hierboven blijft de afspraak — om één schrijfwijze te houden, niet omdat de
+    # andere nog iets kapotmaakt.
     #
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
@@ -987,9 +990,6 @@ components:
       description: "Beperkt een contactgegeven of voorkeur tot een dienstverlener,\
         \ eventueel tot een dienst daarbinnen. Een leeg object betekent geen scope.\
         \ Een dienstNaam zonder dienstverlenerNaam levert een 400."
-      # De null-tak hoort hier en niet in een anyOf bij het veld: anyOf met een null-tak
-      # maakt de $ref-tak onbereikbaar, waardoor pattern en type van dit schema niet meer
-      # gecontroleerd worden.
       type: [object, "null"]
       properties:
         dienstverlenerNaam:
