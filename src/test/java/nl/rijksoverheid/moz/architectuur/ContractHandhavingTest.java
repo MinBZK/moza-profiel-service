@@ -37,8 +37,8 @@ class ContractHandhavingTest {
     @Test
     void blancoScopeWordtDoorHetContractAfgewezen() {
         Assertions.assertTrue(heeftFouten(contactgegeven("\"scope\":{\"dienstverlenerNaam\":\"   \"}")),
-                "Het contract hoort een blanco dienstverlenerNaam af te wijzen; staat scope als"
-                        + " anyOf met een null-tak, dan gebeurt dat niet meer");
+                "Het contract hoort een blanco dienstverlenerNaam af te wijzen via de pattern"
+                        + " op ScopeRequest");
     }
 
     @Test
