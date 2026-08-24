@@ -507,7 +507,7 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now());
+            contact.verwijder(Instant.now());
             contact.persist();
             contactId.set(contact.id);
         });
@@ -699,7 +699,7 @@ public class PartijServiceTest {
             verwijderd.setType(ContactType.Email);
             verwijderd.setWaarde("a@test.com");
             verwijderd.setIsDefault(true);
-            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.verwijder(Instant.now());
             verwijderd.setPartij(partij);
             verwijderd.persist();
             verwijderdId.set(verwijderd.id);
@@ -887,7 +887,7 @@ public class PartijServiceTest {
             verwijderd.setType(ContactType.Email);
             verwijderd.setWaarde("a@test.com");
             verwijderd.setPartij(partij);
-            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.verwijder(Instant.now());
             verwijderd.persist();
 
             Contactgegeven target = new Contactgegeven();
@@ -1016,7 +1016,7 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            voorkeur.verwijder(Instant.now().truncatedTo(ChronoUnit.MICROS));
             voorkeur.persist();
             voorkeurId.set(voorkeur.id);
             origineelVerwijderdOp.set(voorkeur.getVerwijderdOp());
@@ -1302,7 +1302,7 @@ public class PartijServiceTest {
             alVerwijderd.setType(ContactType.Email);
             alVerwijderd.setWaarde("oud@test.com");
             alVerwijderd.setPartij(partij);
-            alVerwijderd.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            alVerwijderd.verwijder(Instant.now().truncatedTo(ChronoUnit.MICROS));
             alVerwijderd.persist();
 
             Contactgegeven teVerwijderen = new Contactgegeven();
@@ -1333,7 +1333,7 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            contact.verwijder(Instant.now().truncatedTo(ChronoUnit.MICROS));
             contact.persist();
             contactId.set(contact.id);
             origineelVerwijderdOp.set(contact.getVerwijderdOp());
@@ -1384,14 +1384,14 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.verwijder(Instant.now());
             voorkeur.persist();
 
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now());
+            contact.verwijder(Instant.now());
             contact.persist();
         });
 
@@ -1430,8 +1430,8 @@ public class PartijServiceTest {
             Identificatie verwijderdeIdentificatie = new Identificatie(IdentificatieType.BSN, "111111150");
             verwijderdePartij.addIdentificatie(verwijderdeIdentificatie);
             Instant verwijderdOp = Instant.now();
-            verwijderdePartij.setVerwijderdOp(verwijderdOp);
-            verwijderdeIdentificatie.setVerwijderdOp(verwijderdOp);
+            verwijderdePartij.verwijder(verwijderdOp);
+            verwijderdeIdentificatie.verwijder(verwijderdOp);
             verwijderdePartij.persist();
 
             Partij actievePartij = new Partij();
@@ -1448,7 +1448,7 @@ public class PartijServiceTest {
             verwijderd.setVoorkeurType(VoorkeurType.MagGebeldWorden);
             verwijderd.setWaarde("ja");
             verwijderd.setPartij(actievePartij);
-            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.verwijder(Instant.now());
             verwijderd.persist();
         });
 
@@ -1480,7 +1480,7 @@ public class PartijServiceTest {
             contact.setType(ContactType.Telefoonnummer);
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
-            contact.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            contact.verwijder(Instant.now().truncatedTo(ChronoUnit.MICROS));
             contact.persist();
             verwijderdId.set(contact.id);
             verwijderdOp.set(contact.getVerwijderdOp());
@@ -1513,8 +1513,8 @@ public class PartijServiceTest {
             // herstellen), niet de partiële unique index zelf — H2's testschema kent uk_identificatie
             // niet (zie de klasse-comment op Identificatie). Dat de index in productie ook echt
             // partieel is, verifieert MigrationValidationTest tegen echte Postgres.
-            partij.setVerwijderdOp(verwijderdOp);
-            identificatie.setVerwijderdOp(verwijderdOp);
+            partij.verwijder(verwijderdOp);
+            identificatie.verwijder(verwijderdOp);
             partij.persist();
             oudePartijId.set(partij.id);
         });
@@ -1609,7 +1609,7 @@ public class PartijServiceTest {
             contact.setPartij(partij);
             contact.setIsGeverifieerd(true);
             contact.setGeverifieerdAt(Instant.now());
-            contact.setVerwijderdOp(Instant.now());
+            contact.verwijder(Instant.now());
             contact.persist();
         });
 
@@ -1638,7 +1638,7 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now().truncatedTo(ChronoUnit.MICROS));
+            voorkeur.verwijder(Instant.now().truncatedTo(ChronoUnit.MICROS));
             voorkeur.persist();
             verwijderdId.set(voorkeur.id);
             verwijderdOp.set(voorkeur.getVerwijderdOp());
@@ -1670,8 +1670,8 @@ public class PartijServiceTest {
             // herstellen), niet de partiële unique index zelf — H2's testschema kent uk_identificatie
             // niet (zie de klasse-comment op Identificatie). Dat de index in productie ook echt
             // partieel is, verifieert MigrationValidationTest tegen echte Postgres.
-            partij.setVerwijderdOp(verwijderdOp);
-            identificatie.setVerwijderdOp(verwijderdOp);
+            partij.verwijder(verwijderdOp);
+            identificatie.verwijder(verwijderdOp);
             partij.persist();
             oudePartijId.set(partij.id);
         });
@@ -1701,7 +1701,7 @@ public class PartijServiceTest {
             voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
-            voorkeur.setVerwijderdOp(Instant.now());
+            voorkeur.verwijder(Instant.now());
             voorkeur.persist();
             voorkeurId.set(voorkeur.id);
         });
@@ -1729,7 +1729,7 @@ public class PartijServiceTest {
             verwijderd.setVoorkeurType(VoorkeurType.WebsiteTaal);
             verwijderd.setWaarde("nl");
             verwijderd.setPartij(partij);
-            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.verwijder(Instant.now());
             verwijderd.persist();
 
             Voorkeur target = new Voorkeur();
@@ -1764,7 +1764,7 @@ public class PartijServiceTest {
             verwijderd.setVoorkeurType(VoorkeurType.WebsiteTaal);
             verwijderd.setWaarde("nl");
             verwijderd.setPartij(partij);
-            verwijderd.setVerwijderdOp(Instant.now());
+            verwijderd.verwijder(Instant.now());
             verwijderd.persist();
 
             Voorkeur target = new Voorkeur();

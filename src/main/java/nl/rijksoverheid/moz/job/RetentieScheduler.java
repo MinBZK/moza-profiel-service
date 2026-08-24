@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.job;
 
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.Span;
@@ -61,7 +62,13 @@ public class RetentieScheduler {
     // anders niet anders uit). Dynamisch opgezocht (niet via @ConfigProperty-veldinjectie) zodat
     // een test hem via een system property kan overschrijven.
     private static final String MAX_PER_RUN_PROPERTY = "retentie.scheduler.max-per-run";
+    // Rond getal, niet afgeleid van verwacht productievolume (dat bestaat nog niet). Herijk zodra
+    // er echte gebruiksdata is.
     private static final int MAX_PER_RUN_DEFAULT = 10_000;
+    // Bewuste, expliciete opt-in om ondanks een overschrijding van de grens toch te verwerken —
+    // standaard uit, zodat een operator eerst moet vaststellen dat het een legitieme achterstand
+    // is en geen klok-/configuratiefout. Zie bepaalVerwerkingslimiet.
+    private static final String MAX_PER_RUN_OVERRIDE_PROPERTY = "retentie.scheduler.max-per-run.override";
 
     private final HashHelper hashHelper;
     private final ProcessingHandler processingHandler;
@@ -108,10 +115,20 @@ public class RetentieScheduler {
         // een normale return), dus "teruggekeerd zonder exception" betekent hier ook "gecommit".
         // Zou de commit zelf falen, dan gooit de interceptor en komt de catch hieronder uit,
         // nooit de succeslog met een aantal dat nooit werkelijkheid werd.
+        //
+        // anomalieCount vóór/ná i.p.v. alleen de catch: een fase kan ook zónder exception
+        // anomaal zijn (max-per-run, ontbrekende-identificatie, logboek-fout zetten alleen een
+        // teller op, ze gooien niets) — zonder deze vergelijking zou zo'n run alsnog als
+        // "geslaagd" gelden.
         try {
+            double anomalieVoor = anomalieCount("voorkeur");
             int verwijderd = verwijderInactieveVoorkeuren();
             meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
             LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
+
+            if (anomalieCount("voorkeur") > anomalieVoor) {
+                alleFasenGeslaagd = false;
+            }
         } catch (Exception e) {
             LOG.error("Retentiescheduler: verwijderen van voorkeuren mislukt", e);
             meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "fase-fout").increment();
@@ -119,9 +136,14 @@ public class RetentieScheduler {
         }
 
         try {
+            double anomalieVoor = anomalieCount("contactgegeven");
             int verwijderd = verwijderInactieveContactgegevens();
             meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
             LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
+
+            if (anomalieCount("contactgegeven") > anomalieVoor) {
+                alleFasenGeslaagd = false;
+            }
         } catch (Exception e) {
             LOG.error("Retentiescheduler: verwijderen van contactgegevens mislukt", e);
             meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "fase-fout").increment();
@@ -129,7 +151,10 @@ public class RetentieScheduler {
         }
 
         try {
-            if (!cascadeDeleteLegePartijen()) {
+            double anomalieVoor = anomalieCount("partij");
+            boolean cascadeGeslaagd = cascadeDeleteLegePartijen();
+
+            if (!cascadeGeslaagd || anomalieCount("partij") > anomalieVoor) {
                 alleFasenGeslaagd = false;
             }
         } catch (Exception e) {
@@ -144,6 +169,11 @@ public class RetentieScheduler {
         if (alleFasenGeslaagd) {
             laatsteGeslaagdeRunEpochSeconds.set(nu.getEpochSecond());
         }
+    }
+
+    private double anomalieCount(String entiteit) {
+        return meterRegistry.find("retentie.anomalie").tag("entiteit", entiteit).counters()
+                .stream().mapToDouble(Counter::count).sum();
     }
 
     // Niet private: @Transactional is een CDI interceptor binding, en ArC intercepteert door een
@@ -167,8 +197,10 @@ public class RetentieScheduler {
         // bepaalVerwerkingslimiet tegen beschermt zou dat alsnog de volledige, ongelimiteerde
         // resultaatset in het geheugen laden vóór de afkap. Eerst de ID's ophalen zonder
         // collectiefetch (daar werkt LIMIT wél op SQL-niveau, en ORDER BY bepaalt welke rijen de
-        // langst-inactieve zijn), dan pas die begrensde set met de fetch joins laden — dat voorkomt
-        // zowel de N+1 (zie hierboven) als de in-memory paginering.
+        // langst-inactieve zijn), dan pas die begrensde set laden met JOIN FETCH op partij en
+        // identificaties — zonder die fetch joins is Voorkeur.partij (EAGER @ManyToOne, geen
+        // @BatchSize) een secundaire SELECT per kandidaat, en partij.primaireIdentificatie()
+        // hieronder nog een LAZY collectie zonder @BatchSize erbovenop.
         List<UUID> kandidaatIds = Voorkeur.getEntityManager()
                 .createQuery("SELECT v.id FROM Voorkeur v WHERE v.verwijderdOp IS NULL "
                         + "AND COALESCE(v.lastUsedAt, v.createdAt) <= :grens "
@@ -258,11 +290,10 @@ public class RetentieScheduler {
         return verwijderd;
     }
 
-    // Niet private: zie toelichting bij verwijderInactieveVoorkeuren. Eigen transactie per partij
-    // (i.p.v. één transactie voor de hele cascade): een falende partij — lock wait tegen een
-    // gelijktijdige findOrCreatePartij, transactietimeout — mag de andere kandidaten niet
-    // terugdraaien. Elke transactie vergrendelt hooguit één partij-rij, dus dit kan structureel
-    // niet deadlocken (zie ook PartijService.lockEnLeesVerwijderdOp).
+    // Eigen transactie per partij (i.p.v. één transactie voor de hele cascade): een falende
+    // partij — lock wait tegen een gelijktijdige findOrCreatePartij, transactietimeout — mag de
+    // andere kandidaten niet terugdraaien. Elke transactie vergrendelt hooguit één partij-rij,
+    // dus dit kan structureel niet deadlocken (zie ook PartijService.lockEnLeesVerwijderdOp).
     //
     // Kandidaten komen uit een reconciliatiequery i.p.v. de partij-id's die déze run zijn geraakt:
     // een partij waarvan de cascade eerder mislukte (of waarvan de JVM omviel tussen het soft-
@@ -270,7 +301,15 @@ public class RetentieScheduler {
     // -contactgegeven meer op om als "geraakt" herkend te worden — de query hieronder vindt zo'n
     // partij toch terug, ongeacht welke run haar leeg maakte. Geen index op partij.verwijderdOp, dus
     // dit is een scan over alle actieve partijen; voor nu acceptabel (nog geen productiedata).
-    boolean cascadeDeleteLegePartijen() {
+    //
+    // Query is bewust breed: elke actieve partij zonder actieve children, ongeacht ouderdom. Dat
+    // is vandaag veilig omdat findOrCreatePartij's enige twee aanroepers (PartijService.addContactgegeven/
+    // addVoorkeur) de partij en haar eerste child in dezelfde transactie persisteren — een actieve
+    // partij zonder child kan dus niet bestaan. Die aanname geldt niet meer zodra addContactgegeven's
+    // schrijftransactie wordt gesplitst rond de externe verificatie-aanroep (voorgestelde refactor,
+    // zie MinBZK/MijnOverheidZakelijk#927): in het gat tussen de twee transacties zou deze query een
+    // nog-lege partij kunnen cascaden vóórdat haar eerste child ooit persisteert.
+    private boolean cascadeDeleteLegePartijen() {
         List<UUID> kandidaatIds = Partij.getEntityManager()
                 .createQuery("SELECT p.id FROM Partij p WHERE p.verwijderdOp IS NULL "
                         + "AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v.verwijderdOp IS NULL) "
@@ -330,10 +369,14 @@ public class RetentieScheduler {
         return nu.atZone(ZoneOffset.UTC).minus(RETENTIE_GRENS).toInstant();
     }
 
-    // Bij overschrijding wordt niet de hele fase overgeslagen (dat zou de kandidaatcount de
-    // volgende run gelijk of hoger laten, dus zonder handmatig ingrijpen nooit meer vooruitgang) —
-    // in plaats daarvan wordt verwerking beperkt tot de grens, oudste rijen eerst (zie de
-    // ORDER BY in de aanroepende methode).
+    // Bij overschrijding wordt de fase standaard overgeslagen, niet gedeeltelijk verwerkt: de
+    // grens bestaat om een klok- of configuratiefout te vangen, en zonder menselijke bevestiging
+    // dat het om een legitieme achterstand gaat (niet zo'n fout) zou automatisch dosseren de fout
+    // alsnog laten voltrekken, alleen verspreid over meerdere nachten in plaats van in één klap.
+    // MAX_PER_RUN_OVERRIDE_PROPERTY is de bewuste ontsnapping daaruit: staat die aan, dan wordt
+    // wél verwerkt (oudste eerst, voor de twee aanroepers met een ORDER BY) — maar de aanroepende
+    // fase telt in verwijderInactieveRecords hoe dan ook nooit mee als geslaagd bij een
+    // overschrijding, ongeacht de override (zie anomalieCount daar).
     private long bepaalVerwerkingslimiet(String type, long aantalKandidaten) {
         final int grens = ConfigProvider.getConfig()
                 .getOptionalValue(MAX_PER_RUN_PROPERTY, Integer.class)
@@ -343,10 +386,24 @@ public class RetentieScheduler {
             return aantalKandidaten;
         }
 
-        LOG.error("Retentiescheduler: " + aantalKandidaten + " kandidaat-" + type + " overschrijdt de grens van "
-                + grens + "; verwerking wordt beperkt tot de " + grens + " langst-inactieve rijen. Mogelijke "
-                + "klok- of configuratiefout — controleer voordat " + MAX_PER_RUN_PROPERTY + " wordt opgehoogd.");
         meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "max-per-run").increment();
+
+        boolean override = ConfigProvider.getConfig()
+                .getOptionalValue(MAX_PER_RUN_OVERRIDE_PROPERTY, Boolean.class)
+                .orElse(false);
+
+        if (!override) {
+            LOG.error("Retentiescheduler: " + aantalKandidaten + " kandidaat-" + type + " overschrijdt de grens van "
+                    + grens + "; fase overgeslagen. Kan een legitieme achterstand zijn of een klok-/"
+                    + "configuratiefout — controleer eerst, zet dan pas " + MAX_PER_RUN_OVERRIDE_PROPERTY
+                    + "=true om de eerste " + grens + " kandidaten alsnog te verwerken.");
+
+            return 0;
+        }
+
+        LOG.error("Retentiescheduler: " + aantalKandidaten + " kandidaat-" + type + " overschrijdt de grens van "
+                + grens + "; " + MAX_PER_RUN_OVERRIDE_PROPERTY + " staat aan, dus verwerking wordt beperkt tot "
+                + "de eerste " + grens + " kandidaten.");
 
         return grens;
     }

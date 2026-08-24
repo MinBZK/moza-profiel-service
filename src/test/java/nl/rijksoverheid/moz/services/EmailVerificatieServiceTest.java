@@ -346,7 +346,7 @@ public class EmailVerificatieServiceTest {
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
             contact.setVerificatieReferentieId("ref");
-            contact.setVerwijderdOp(Instant.now());
+            contact.verwijder(Instant.now());
             contact.setPartij(partij);
             contact.persist();
         });
@@ -424,7 +424,7 @@ public class EmailVerificatieServiceTest {
             Contactgegeven contact = new Contactgegeven();
             contact.setType(ContactType.Email);
             contact.setWaarde("test@test.com");
-            contact.setVerwijderdOp(Instant.now());
+            contact.verwijder(Instant.now());
             contact.setPartij(partij);
             contact.persist();
         });

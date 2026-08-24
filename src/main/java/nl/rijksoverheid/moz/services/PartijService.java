@@ -482,9 +482,12 @@ public class PartijService {
     // read, alleen met een echte veldwijziging. Zie ProfielControllerIntegrationTest.getPartij_ReadDoesNotBumpLastUpdated.
     // Package-private i.p.v. private: PartijServiceTest roept dit rechtstreeks aan om de
     // soft-delete-race hieronder deterministisch te testen, zonder echte gelijktijdigheid te
-    // hoeven simuleren. Retourneert of de rij nog actief is; false betekent dat de rij tussen het
-    // ophalen en deze touch soft-deleted is, en de aanroeper moet hem dan uit de response filteren
-    // — anders krijgt een client een rij terug die niet meer bestaat.
+    // hoeven simuleren. Retourneert false als déze aanroep ontdekt dat de rij inmiddels soft-
+    // deleted is — alleen gecontroleerd voor rijen die stale genoeg zijn om een touch te
+    // triggeren; een niet-stale rij geeft altijd true terug zonder verwijderdOp te raadplegen.
+    // Dekt dus specifiek de race met de retentiescheduler, niet elke soft delete in het
+    // algemeen. De aanroeper moet een false-rij uit de response filteren — anders krijgt een
+    // client een rij terug die niet meer bestaat.
     boolean touchIfStale(Contactgegeven cg) {
         if (!isStale(cg.getLastUsedAt())) {
             return true;

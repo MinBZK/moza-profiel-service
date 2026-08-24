@@ -20,6 +20,7 @@ import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.helper.HashHelper;
+import nl.rijksoverheid.moz.services.PartijService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,12 @@ public class RetentieSchedulerTest {
 
     @Inject
     HashHelper hashHelper;
+
+    // Alleen gebruikt om deleteLegePartij voor één specifieke partij te laten falen (zie de
+    // cascade-faalpad-test) — een spy i.p.v. een mock zodat de andere kandidaten in dezelfde
+    // aanroep gewoon echt cascaden.
+    @InjectSpy
+    PartijService partijServiceSpy;
 
     @BeforeEach
     void stubProcessingHandler() {
@@ -105,7 +112,11 @@ public class RetentieSchedulerTest {
             voorkeur.setWaarde("nl");
             voorkeur.setPartij(partij);
             voorkeur.setLastUsedAt(lastUsedAt);
-            voorkeur.setVerwijderdOp(verwijderdOp);
+
+            if (verwijderdOp != null) {
+                voorkeur.verwijder(verwijderdOp);
+            }
+
             voorkeur.persist();
             id.set(voorkeur.id);
         });
@@ -121,7 +132,11 @@ public class RetentieSchedulerTest {
             contact.setWaarde("0612345678");
             contact.setPartij(partij);
             contact.setLastUsedAt(lastUsedAt);
-            contact.setVerwijderdOp(verwijderdOp);
+
+            if (verwijderdOp != null) {
+                contact.verwijder(verwijderdOp);
+            }
+
             contact.persist();
             id.set(contact.id);
         });
@@ -163,6 +178,8 @@ public class RetentieSchedulerTest {
 
     @Test
     void voorkeur_lastUsedAtOud_LaatsteActieveKind_VerwijdertOokPartij() {
+        double partijVerwijderdVoor = meterRegistry.counter("retentie.verwijderd", "type", "partij").count();
+
         UUID partijId = createPartij();
         createVoorkeur(partijId, ouderDanGrens(), null);
 
@@ -175,6 +192,10 @@ public class RetentieSchedulerTest {
             Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
                     "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
         });
+
+        Assertions.assertEquals(partijVerwijderdVoor + 1,
+                meterRegistry.counter("retentie.verwijderd", "type", "partij").count(),
+                "deleteLegePartij moet true retourneren zodat de cascade-teller dit meetelt");
     }
 
     @Test
@@ -255,6 +276,10 @@ public class RetentieSchedulerTest {
             Voorkeur voorkeur = Voorkeur.findById(voorkeurId);
             Assertions.assertEquals(bestaandeWaarde, voorkeur.getVerwijderdOp(),
                     "An already-set verwijderdOp must not be overwritten by the scheduler");
+            // De partij was al vóór deze run leeg (haar enige child was al soft-deleted) —
+            // precies het geval waarvoor cascadeDeleteLegePartijen's reconciliatiequery bestaat.
+            Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                    "een partij die al vóór deze run leeg was moet alsnog gecascadeerd worden");
         });
     }
 
@@ -274,6 +299,8 @@ public class RetentieSchedulerTest {
 
     @Test
     void contactgegeven_lastUsedAtOud_LaatsteActieveKind_VerwijdertOokPartij() {
+        double partijVerwijderdVoor = meterRegistry.counter("retentie.verwijderd", "type", "partij").count();
+
         UUID partijId = createPartij();
         createContactgegeven(partijId, ouderDanGrens(), null);
 
@@ -286,6 +313,10 @@ public class RetentieSchedulerTest {
             Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
                     "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
         });
+
+        Assertions.assertEquals(partijVerwijderdVoor + 1,
+                meterRegistry.counter("retentie.verwijderd", "type", "partij").count(),
+                "deleteLegePartij moet true retourneren zodat de cascade-teller dit meetelt");
     }
 
     @Test
@@ -303,11 +334,32 @@ public class RetentieSchedulerTest {
                         "partij met nog een actieve voorkeur mag niet verwijderd worden"));
     }
 
+    /**
+     * Bewijst waarvoor de reconciliatiequery in cascadeDeleteLegePartijen bestaat: een partij die
+     * al vóór déze run leeg was (haar enige kind is hier soft-deleted vóór het scheduler-aanroep,
+     * niet erdoor) moet alsnog gecascadeerd worden. Draai dit terug naar "partij-ids die deze run
+     * raakte" en deze test faalt, terwijl voorkeur_lastUsedAtOud_LaatsteActieveKind_VerwijdertOokPartij
+     * (waar de run zelf de partij leegmaakt) groen zou blijven — dat onderscheid is precies waar
+     * de vorige reviewronde deze rewrite voor vroeg.
+     */
+    @Test
+    void partijAlLeegVoorDezeRun_WordtAlsnogGecascadeerd() {
+        UUID partijId = createPartij();
+        createVoorkeur(partijId, ouderDanGrens(), Instant.now().minus(Period.ofDays(1)));
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "een partij die al vóór deze run leeg was moet alsnog gecascadeerd worden"));
+    }
+
     @Test
     void voorkeurEnContactgegevenBeideOud_VerwijdertOokPartijInZelfdeRun() {
-        // Beide laatste actieve children verlopen in dezelfde run: bewijst dat cascadeDeleteLegePartijen
-        // pas ná beide commits draait en de partij dan precies één keer oppikt via zijn eigen
-        // reconciliatiequery, ongeacht welke van de twee fasen als laatste de partij leegmaakte.
+        // Beide laatste actieve children verlopen in dezelfde run: bewijst dat de cascade pas
+        // draait nadat beide fasen gecommit hebben, niet al ná de eerste van de twee — anders zou
+        // de partij op het moment van de cascade-check nog een schijnbaar actief contactgegeven
+        // hebben.
         UUID partijId = createPartij();
         UUID voorkeurId = createVoorkeur(partijId, ouderDanGrens(), null);
         UUID contactId = createContactgegeven(partijId, ouderDanGrens(), null);
@@ -351,16 +403,47 @@ public class RetentieSchedulerTest {
             Contactgegeven contact = Contactgegeven.findById(contactId);
             Assertions.assertEquals(bestaandeWaarde, contact.getVerwijderdOp(),
                     "An already-set verwijderdOp must not be overwritten by the scheduler");
+            Assertions.assertNotNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                    "een partij die al vóór deze run leeg was moet alsnog gecascadeerd worden");
         });
     }
 
     @Test
-    void teVeelKandidaten_VerwerktSlechtsTotDeGrens() {
+    void teVeelKandidatenZonderOverride_SlaatFaseOverEnHoudtRunOngeslaagd() {
         // retentie.scheduler.max-per-run wordt live opgezocht (ConfigProvider), niet via
         // @ConfigProperty-veldinjectie — daardoor pakt een system property override hem hier op.
         System.setProperty("retentie.scheduler.max-per-run", "1");
         try {
             double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "max-per-run").count();
+            double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
+
+            UUID partijId = createPartij();
+            UUID voorkeur1 = createVoorkeur(partijId, ouderDanGrens(), null);
+            UUID voorkeur2 = createVoorkeur(partijId, ouderDanGrens(), null);
+
+            retentieScheduler.verwijderInactieveRecords();
+
+            QuarkusTransaction.requiringNew().run(() -> {
+                Assertions.assertNull(Voorkeur.<Voorkeur>findById(voorkeur1).getVerwijderdOp(),
+                        "zonder override moet een overschrijding de hele fase overslaan, niet gedeeltelijk verwerken");
+                Assertions.assertNull(Voorkeur.<Voorkeur>findById(voorkeur2).getVerwijderdOp());
+            });
+
+            Assertions.assertEquals(anomalieVoor + 1,
+                    meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "max-per-run").count());
+            Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
+                    "een overgeslagen fase mag de geslaagde-run-gauge niet bijwerken");
+        } finally {
+            System.clearProperty("retentie.scheduler.max-per-run");
+        }
+    }
+
+    @Test
+    void teVeelKandidatenMetOverride_VerwerktOudsteEerstMaarHoudtRunOngeslaagd() {
+        System.setProperty("retentie.scheduler.max-per-run", "1");
+        System.setProperty("retentie.scheduler.max-per-run.override", "true");
+        try {
+            double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
 
             UUID partijId = createPartij();
             Instant ouderste = Instant.now().atZone(ZoneOffset.UTC).minus(Period.ofYears(8)).toInstant();
@@ -374,15 +457,16 @@ public class RetentieSchedulerTest {
 
             QuarkusTransaction.requiringNew().run(() -> {
                 Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(oudsteVoorkeur).getVerwijderdOp(),
-                        "bij een overschrijding van de grens moet de langst-inactieve rij als eerste verwerkt worden");
+                        "met override aan moet bij een overschrijding de langst-inactieve rij als eerste verwerkt worden");
                 Assertions.assertNull(Voorkeur.<Voorkeur>findById(minderOudeVoorkeur).getVerwijderdOp(),
-                        "verwerking moet beperkt blijven tot de grens, niet de hele fase overslaan");
+                        "verwerking blijft beperkt tot de grens, ook met override aan");
             });
 
-            Assertions.assertEquals(anomalieVoor + 1,
-                    meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "max-per-run").count());
+            Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
+                    "ook met override aan blijft een overschrijding de run als ongeslaagd markeren");
         } finally {
             System.clearProperty("retentie.scheduler.max-per-run");
+            System.clearProperty("retentie.scheduler.max-per-run.override");
         }
     }
 
@@ -632,5 +716,41 @@ public class RetentieSchedulerTest {
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(voorkeurId).getVerwijderdOp(),
                         "de voorkeur-fase moet gewoon doorlopen ondanks dat de contactgegeven-fase faalde"));
+    }
+
+    /**
+     * cascadeDeleteLegePartijen's kernbelofte is dat één falende partij de andere niet terugdraait
+     * (eigen transactie per partij) en dat een gedeeltelijke cascadefout de run niet als geslaagd
+     * laat rapporteren. Eén gestubde PartijService.deleteLegePartij-aanroep dekt alle drie: zonder
+     * de per-partij transactie zou de gezonde partij ook terugrollen; zonder de cascade-fout-teller
+     * zou niets het melden; en was cascadeDeleteLegePartijen void (geen boolean-signaal naar
+     * buiten) dan zou de geslaagde-run-gauge hier stilzwijgend bijwerken.
+     */
+    @Test
+    void eenPartijFaaltTijdensCascade_AnderenBlijvenGecascadeerdEnRunNietGeslaagd() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "cascade-fout").count();
+        double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
+
+        UUID kapottePartijId = createPartij("111111111");
+        createVoorkeur(kapottePartijId, ouderDanGrens(), Instant.now().minus(Period.ofDays(1)));
+        UUID gezondePartijId = createPartij("222222222");
+        createVoorkeur(gezondePartijId, ouderDanGrens(), Instant.now().minus(Period.ofDays(1)));
+
+        Mockito.doThrow(new RuntimeException("kapot"))
+                .when(partijServiceSpy).deleteLegePartij(Mockito.argThat(p -> kapottePartijId.equals(p.id)), Mockito.any());
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertNull(Partij.<Partij>findById(kapottePartijId).getVerwijderdOp(),
+                    "de kapotte partij zelf mag niet gecascadeerd zijn");
+            Assertions.assertNotNull(Partij.<Partij>findById(gezondePartijId).getVerwijderdOp(),
+                    "een falende partij mag de andere, gezonde partij niet terugrollen (eigen transactie per partij)");
+        });
+
+        Assertions.assertEquals(anomalieVoor + 1,
+                meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "cascade-fout").count());
+        Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
+                "een gedeeltelijke cascadefout mag de geslaagde-run-gauge niet bijwerken");
     }
 }

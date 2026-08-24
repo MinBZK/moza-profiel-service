@@ -1,7 +1,6 @@
 package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -33,7 +32,7 @@ import java.util.UUID;
 // weer duplicaten tegen rijen met een soft delete blokkeren, terwijl productie dat toestaat.
 @Entity
 @Audited
-public class Contactgegeven extends PanacheEntityBase {
+public class Contactgegeven extends VerwijderbareEntiteit {
 
     @Id
     @GeneratedValue
@@ -73,9 +72,6 @@ public class Contactgegeven extends PanacheEntityBase {
 
     @Nullable
     private Instant lastUsedAt;
-
-    @Nullable
-    private Instant verwijderdOp;
 
     @PrePersist
     private void onCreate() {
@@ -176,26 +172,6 @@ public class Contactgegeven extends PanacheEntityBase {
 
     public void setLastUsedAt(@Nullable Instant lastUsedAt) {
         this.lastUsedAt = lastUsedAt;
-    }
-
-    @Nullable
-    public Instant getVerwijderdOp() {
-        return verwijderdOp;
-    }
-
-    public void setVerwijderdOp(Instant verwijderdOp) {
-        this.verwijderdOp = verwijderdOp;
-    }
-
-    public boolean isVerwijderd() {
-        return verwijderdOp != null;
-    }
-
-    /** Idempotent: een al gezette verwijderdOp blijft staan — geen resurrection, geen overschrijven. */
-    public void verwijder(Instant nu) {
-        if (verwijderdOp == null) {
-            verwijderdOp = nu;
-        }
     }
 
     @Nullable

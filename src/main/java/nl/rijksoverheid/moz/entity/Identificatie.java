@@ -1,7 +1,6 @@
 package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,7 +13,6 @@ import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
-import java.time.Instant;
 import java.util.UUID;
 
 // uk_identificatie (identificatie_type, identificatie_nummer) en uk_identificatie_per_partij
@@ -24,7 +22,7 @@ import java.util.UUID;
 // afweging.
 @Entity
 @Audited
-public class Identificatie extends PanacheEntityBase {
+public class Identificatie extends VerwijderbareEntiteit {
 
     @Id
     @GeneratedValue
@@ -41,9 +39,6 @@ public class Identificatie extends PanacheEntityBase {
     @ManyToOne(optional = false)
     @JoinColumn(name = "partij_id")
     private Partij partij;
-
-    @Nullable
-    private Instant verwijderdOp;
 
     public Identificatie(IdentificatieType identificatieType, String identificatieNummer) {
         this.identificatieType = identificatieType;
@@ -75,25 +70,5 @@ public class Identificatie extends PanacheEntityBase {
 
     public void setPartij(Partij partij) {
         this.partij = partij;
-    }
-
-    @Nullable
-    public Instant getVerwijderdOp() {
-        return verwijderdOp;
-    }
-
-    public void setVerwijderdOp(Instant verwijderdOp) {
-        this.verwijderdOp = verwijderdOp;
-    }
-
-    public boolean isVerwijderd() {
-        return verwijderdOp != null;
-    }
-
-    /** Idempotent: een al gezette verwijderdOp blijft staan — geen resurrection, geen overschrijven. */
-    public void verwijder(Instant nu) {
-        if (verwijderdOp == null) {
-            verwijderdOp = nu;
-        }
     }
 }
