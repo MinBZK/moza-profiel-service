@@ -343,12 +343,8 @@ public class PartijServiceTest {
     }
 
     /**
-     * touchIfStale rechtstreeks aangeroepen (package-private) i.p.v. via getPartijResponse: de
-     * race die dit dekt — de rij is soft-deleted tussen het ophalen en deze touch — kan niet
-     * deterministisch via de publieke servicemethoden opgewekt worden, want die selecteren zelf
-     * al op verwijderdOp IS NULL. Hier wordt de rij rechtstreeks (buiten de service om) soft-
-     * deleted vóórdat touchIfStale draait, wat exact simuleert wat een concurrente
-     * retentiescheduler-run zou doen.
+     * De race is niet deterministisch via de publieke servicemethoden op te wekken, want die
+     * filteren zelf al op verwijderdOp IS NULL.
      */
     @Test
     void touchIfStale_RijInmiddelsSoftDeleted_GeeftFalseTerug() {
@@ -706,8 +702,8 @@ public class PartijServiceTest {
         });
 
         QuarkusTransaction.requiringNew().run(() -> {
-            // Pas na een verse read teruglezen: de DB-kolom rondt tijdstempels af op een grovere
-            // eenheid dan Java's in-memory Instant (zie soortgelijke toelichting elders in dit bestand).
+            // Verse read i.p.v. het in-memory object: we vergelijken hierna tegen de daadwerkelijk
+            // opgeslagen waarde.
             verwijderdLastUpdated.set(Contactgegeven.<Contactgegeven>findById(verwijderdId.get()).getLastUpdated());
 
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
@@ -876,7 +872,8 @@ public class PartijServiceTest {
     @Test
     void updateContactgegeven_DuplicateIsSoftDeleted_DoesNotThrowConflict() {
         // uk_contactgegeven_dedup is partieel (WHERE verwijderd_op IS NULL): een botsing met een
-        // rij met een soft delete is geen conflict meer, noch op applicatie- noch op DB-niveau.
+        // rij met een soft delete is op servicelaag-niveau geen conflict meer (dat de index dat
+        // ook toestaat, verifieert MigrationValidationTest.ukContactgegevenDedupIsPartieel).
         AtomicReference<UUID> targetId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -951,9 +948,8 @@ public class PartijServiceTest {
             voorkeurId.set(voorkeur.id);
         });
 
-        // Kleine marge (i.p.v. exact "voor"): de DB-kolom rondt tijdstempels af op een grovere
-        // eenheid dan Java's Instant, dus een in-memory "voor" kan net na afronding groter lijken
-        // dan de teruggelezen waarde. Nog altijd 100x strenger dan de oude plusSeconds(5)-marge.
+        // 50 ms speling: de teruggelezen tijdstempel is op DB-precisie afgerond en kan net vóór
+        // "voor" liggen.
         Instant voor = Instant.now().minusMillis(50);
         Voorkeur result = partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
 
@@ -1149,9 +1145,8 @@ public class PartijServiceTest {
             contactId.set(contact.id);
         });
 
-        // Kleine marge (i.p.v. exact "voor"): de DB-kolom rondt tijdstempels af op een grovere
-        // eenheid dan Java's Instant, dus een in-memory "voor" kan net na afronding groter lijken
-        // dan de teruggelezen waarde. Nog altijd 100x strenger dan de oude plusSeconds(5)-marge.
+        // 50 ms speling: de teruggelezen tijdstempel is op DB-precisie afgerond en kan net vóór
+        // "voor" liggen.
         Instant voor = Instant.now().minusMillis(50);
         Contactgegeven result = partijService.verwijderContactgegeven(IdentificatieType.BSN, "123456789", contactId.get());
 
@@ -1401,9 +1396,10 @@ public class PartijServiceTest {
         Assertions.assertTrue(result.getVoorkeuren().isEmpty());
         Assertions.assertTrue(result.getContactgegevens().isEmpty());
 
-        // Het ongefilterde pad (isEmpty() == true) raakt findFilteredContactgegevens/-Voorkeuren
-        // niet. Diezelfde verwijderdOp-filter zit ook in die twee methodes (PartijService.java) —
-        // hier expliciet geraakt zodat een weggehaalde filter daar niet stil groen blijft.
+        // Het ongefilterde pad (dienstverlener én dienstNaam null) raakt findFilteredContactgegevens/
+        // -Voorkeuren niet. Diezelfde verwijderdOp-filter zit ook in die twee methodes
+        // (PartijService.java) — hier expliciet geraakt zodat een weggehaalde filter daar niet
+        // stil groen blijft.
         PartijRequest metDienstverlener = new PartijRequest();
         metDienstverlener.setIdentificatieType(IdentificatieType.BSN);
         metDienstverlener.setIdentificatieNummer("123456789");
@@ -1508,11 +1504,8 @@ public class PartijServiceTest {
             Identificatie identificatie = new Identificatie(IdentificatieType.BSN, "123456789");
             partij.addIdentificatie(identificatie);
             Instant verwijderdOp = Instant.now().truncatedTo(ChronoUnit.MICROS);
-            // Zoals deleteLegePartij het echt doet: partij én haar identificatie(s) samen
-            // gecascadet. Dit toetst de servicelaag (findOrCreatePartij mag de rij niet
-            // herstellen), niet de partiële unique index zelf — H2's testschema kent uk_identificatie
-            // niet (zie de klasse-comment op Identificatie). Dat de index in productie ook echt
-            // partieel is, verifieert MigrationValidationTest tegen echte Postgres.
+            // Zoals deleteLegePartij het echt doet: partij + identificatie(s) samen gecascadet
+            // (servicelaag-toetsing; de partiële index zelf verifieert MigrationValidationTest).
             partij.verwijder(verwijderdOp);
             identificatie.verwijder(verwijderdOp);
             partij.persist();
@@ -1536,12 +1529,6 @@ public class PartijServiceTest {
      * Herhaald toevoegen/verwijderen van dezelfde (partij, type, waarde) mag niet vastlopen op de
      * find-lookup in addContactgegeven: elke cyclus moet een nieuwe rij aanmaken, ook als er
      * al meerdere soft deleted rijen met dezelfde waarde bestaan.
-     * <p>
-     * De partij houdt via een altijd-actieve voorkeur een actieve child, zodat verwijderContactgegeven
-     * de partij niet tussentijds cascadet (zie PartijService.deleteLegePartij) — anders zou elke
-     * cyclus op een verse partij draaien in plaats van herhaaldelijk op dezelfde, en zou deze test
-     * de bedoelde regressie (find-lookup die vastloopt op een soft deleted rij van dezelfde partij)
-     * niet meer dekken.
      * <p>
      * Dit toetst de servicelaag, niet de partiële unique index zelf (uk_contactgegeven_dedup,
      * WHERE verwijderd_op IS NULL): Contactgegeven heeft bewust geen {@code @UniqueConstraint}
@@ -1665,11 +1652,8 @@ public class PartijServiceTest {
             Identificatie identificatie = new Identificatie(IdentificatieType.BSN, "123456789");
             partij.addIdentificatie(identificatie);
             Instant verwijderdOp = Instant.now().truncatedTo(ChronoUnit.MICROS);
-            // Zoals deleteLegePartij het echt doet: partij én haar identificatie(s) samen
-            // gecascadet. Dit toetst de servicelaag (findOrCreatePartij mag de rij niet
-            // herstellen), niet de partiële unique index zelf — H2's testschema kent uk_identificatie
-            // niet (zie de klasse-comment op Identificatie). Dat de index in productie ook echt
-            // partieel is, verifieert MigrationValidationTest tegen echte Postgres.
+            // Zie addContactgegeven_OpVolledigVerwijderdePartij_MaaktNieuwePartij voor waarom
+            // partij + identificatie(s) hier samen worden gecascadeerd.
             partij.verwijder(verwijderdOp);
             identificatie.verwijder(verwijderdOp);
             partij.persist();

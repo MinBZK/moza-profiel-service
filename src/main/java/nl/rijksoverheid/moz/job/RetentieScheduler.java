@@ -57,17 +57,15 @@ public class RetentieScheduler {
     private static final String VOORKEUR_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630";
     private static final String CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631";
 
-    // Bovengrens tegen een klok- of configuratiefout die in één klap veel te veel rijen zou
-    // soft-deleten; ongeacht INFO-logregels ("3 verwijderd" en "100.000 verwijderd" zien er
-    // anders niet anders uit). Dynamisch opgezocht (niet via @ConfigProperty-veldinjectie) zodat
-    // een test hem via een system property kan overschrijven.
+    // Bovengrens tegen een klok- of configuratiefout die in één klap te veel rijen zou soft-
+    // deleten. Dynamisch opgezocht (niet via @ConfigProperty-veldinjectie) zodat een test hem via
+    // een system property kan overschrijven.
     private static final String MAX_PER_RUN_PROPERTY = "retentie.scheduler.max-per-run";
-    // Rond getal, niet afgeleid van verwacht productievolume (dat bestaat nog niet). Herijk zodra
-    // er echte gebruiksdata is.
+    // Fallback als de property niet gezet is; application.properties zet hem vandaag expliciet op
+    // 10.000, dus deze default is daar momenteel niet de werkzame waarde.
     private static final int MAX_PER_RUN_DEFAULT = 10_000;
     // Bewuste, expliciete opt-in om ondanks een overschrijding van de grens toch te verwerken —
-    // standaard uit, zodat een operator eerst moet vaststellen dat het een legitieme achterstand
-    // is en geen klok-/configuratiefout. Zie bepaalVerwerkingslimiet.
+    // standaard uit. Zie bepaalVerwerkingslimiet.
     private static final String MAX_PER_RUN_OVERRIDE_PROPERTY = "retentie.scheduler.max-per-run.override";
 
     private final HashHelper hashHelper;
@@ -110,16 +108,9 @@ public class RetentieScheduler {
     public void verwijderInactieveRecords() {
         boolean alleFasenGeslaagd = true;
 
-        // Counter/log ná de transactionele aanroep, niet erin: verwijderInactieveVoorkeuren()
-        // commit al vóórdat deze regel bereikt wordt (de @Transactional-interceptor commit bij
-        // een normale return), dus "teruggekeerd zonder exception" betekent hier ook "gecommit".
-        // Zou de commit zelf falen, dan gooit de interceptor en komt de catch hieronder uit,
-        // nooit de succeslog met een aantal dat nooit werkelijkheid werd.
-        //
-        // anomalieCount vóór/ná i.p.v. alleen de catch: een fase kan ook zónder exception
-        // anomaal zijn (max-per-run, ontbrekende-identificatie, logboek-fout zetten alleen een
-        // teller op, ze gooien niets) — zonder deze vergelijking zou zo'n run alsnog als
-        // "geslaagd" gelden.
+        // anomalieCount vóór/ná i.p.v. alleen de catch: een fase kan ook zónder exception anomaal
+        // zijn (max-per-run, ontbrekende-identificatie, logboek-fout zetten alleen een teller op,
+        // ze gooien niets) — zonder deze vergelijking zou zo'n run alsnog als "geslaagd" gelden.
         try {
             double anomalieVoor = anomalieCount("voorkeur");
             int verwijderd = verwijderInactieveVoorkeuren();
@@ -191,16 +182,8 @@ public class RetentieScheduler {
             return 0;
         }
 
-        // Twee stappen i.p.v. één page()'d fetch-join query: LEFT JOIN FETCH op een collectie
-        // (p.identificaties) samen met page()/firstResult+maxResults laat Hibernate de SQL LIMIT
-        // vallen en pagineert in-memory (HHH90003004) — bij precies de overschrijding waar
-        // bepaalVerwerkingslimiet tegen beschermt zou dat alsnog de volledige, ongelimiteerde
-        // resultaatset in het geheugen laden vóór de afkap. Eerst de ID's ophalen zonder
-        // collectiefetch (daar werkt LIMIT wél op SQL-niveau, en ORDER BY bepaalt welke rijen de
-        // langst-inactieve zijn), dan pas die begrensde set laden met JOIN FETCH op partij en
-        // identificaties — zonder die fetch joins is Voorkeur.partij (EAGER @ManyToOne, geen
-        // @BatchSize) een secundaire SELECT per kandidaat, en partij.primaireIdentificatie()
-        // hieronder nog een LAZY collectie zonder @BatchSize erbovenop.
+        // Eerst id's ophalen, dan pas fetch-join: een collectiefetch met maxResults pagineert
+        // anders in-memory (HHH90003004) i.p.v. met een SQL LIMIT.
         List<UUID> kandidaatIds = Voorkeur.getEntityManager()
                 .createQuery("SELECT v.id FROM Voorkeur v WHERE v.verwijderdOp IS NULL "
                         + "AND COALESCE(v.lastUsedAt, v.createdAt) <= :grens "
@@ -313,24 +296,7 @@ public class RetentieScheduler {
     }
 
     // Eigen transactie per partij (i.p.v. één transactie voor de hele cascade): een falende
-    // partij — lock wait tegen een gelijktijdige findOrCreatePartij, transactietimeout — mag de
-    // andere kandidaten niet terugdraaien. Elke transactie vergrendelt hooguit één partij-rij,
-    // dus dit kan structureel niet deadlocken (zie ook PartijService.lockEnLeesVerwijderdOp).
-    //
-    // Kandidaten komen uit een reconciliatiequery i.p.v. de partij-id's die déze run zijn geraakt:
-    // een partij waarvan de cascade eerder mislukte (of waarvan de JVM omviel tussen het soft-
-    // deleten van haar laatste kind en deze fase) levert in een latere run geen kandidaat-voorkeur/
-    // -contactgegeven meer op om als "geraakt" herkend te worden — de query hieronder vindt zo'n
-    // partij toch terug, ongeacht welke run haar leeg maakte. Geen index op partij.verwijderdOp, dus
-    // dit is een scan over alle actieve partijen; voor nu acceptabel (nog geen productiedata).
-    //
-    // Query is bewust breed: elke actieve partij zonder actieve children, ongeacht ouderdom. Dat
-    // is vandaag veilig omdat findOrCreatePartij's enige twee aanroepers (PartijService.addContactgegeven/
-    // addVoorkeur) de partij en haar eerste child in dezelfde transactie persisteren — een actieve
-    // partij zonder child kan dus niet bestaan. Die aanname geldt niet meer zodra addContactgegeven's
-    // schrijftransactie wordt gesplitst rond de externe verificatie-aanroep (voorgestelde refactor,
-    // zie MinBZK/MijnOverheidZakelijk#927): in het gat tussen de twee transacties zou deze query een
-    // nog-lege partij kunnen cascaden vóórdat haar eerste child ooit persisteert.
+    // partij mag de andere kandidaten niet terugdraaien.
     private boolean cascadeDeleteLegePartijen() {
         List<UUID> kandidaatIds = Partij.getEntityManager()
                 .createQuery("SELECT p.id FROM Partij p WHERE p.verwijderdOp IS NULL "
@@ -391,14 +357,9 @@ public class RetentieScheduler {
         return nu.atZone(ZoneOffset.UTC).minus(RETENTIE_GRENS).toInstant();
     }
 
-    // Bij overschrijding wordt de fase standaard overgeslagen, niet gedeeltelijk verwerkt: de
-    // grens bestaat om een klok- of configuratiefout te vangen, en zonder menselijke bevestiging
-    // dat het om een legitieme achterstand gaat (niet zo'n fout) zou automatisch dosseren de fout
-    // alsnog laten voltrekken, alleen verspreid over meerdere nachten in plaats van in één klap.
-    // MAX_PER_RUN_OVERRIDE_PROPERTY is de bewuste ontsnapping daaruit: staat die aan, dan wordt
-    // wél verwerkt (oudste eerst, voor de twee aanroepers met een ORDER BY) — maar de aanroepende
-    // fase telt in verwijderInactieveRecords hoe dan ook nooit mee als geslaagd bij een
-    // overschrijding, ongeacht de override (zie anomalieCount daar).
+    // Overschrijding wordt standaard overgeslagen i.p.v. gedeeltelijk verwerkt: zonder menselijke
+    // bevestiging dat dit een legitieme achterstand is (geen klok-/configuratiefout) zou
+    // automatisch verwerken de fout alsnog laten voltrekken, alleen verspreid over meerdere nachten.
     private long bepaalVerwerkingslimiet(String type, long aantalKandidaten) {
         final int grens = ConfigProvider.getConfig()
                 .getOptionalValue(MAX_PER_RUN_PROPERTY, Integer.class)
@@ -448,12 +409,8 @@ public class RetentieScheduler {
         return identificatie;
     }
 
-    // Emitteert pas ná commit (afterCompletion(STATUS_COMMITTED)), nooit ervoor: een logboek-span
-    // mag nooit een verwijdering claimen die niet heeft plaatsgevonden — dat is de kostbaardere
-    // richting om fout te hebben voor iets dat als bewijsmiddel dient. Dit garandeert wél alleen de
-    // vólgorde, niet de duurzaamheid: span.end() geeft de span door aan de OTel-processor, en een
-    // volle exportqueue of exportfout wordt door de SDK per ontwerp geslikt, ongeacht of de
-    // transactie committede. Die blootstelling kan deze code niet dichten.
+    // Emitteert pas ná commit: een logboek-span mag nooit een verwijdering claimen die niet heeft
+    // plaatsgevonden. Garandeert alleen de volgorde, niet dat de span de exporter haalt.
     private void registreerLogboekNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String type, String naam, String processingActivityId) {
         if (identiteiten.isEmpty()) {
             return;

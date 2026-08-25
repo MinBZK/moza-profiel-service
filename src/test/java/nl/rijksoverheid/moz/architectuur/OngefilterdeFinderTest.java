@@ -29,7 +29,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * findById/listAll/streamAll/deleteAll zijn geërfd van PanacheEntityBase en filteren
  * verwijderdOp niet — anders dan Contactgegeven.find(partij, id) e.d., die dat wél doen. Verwart
  * een latere refactor de twee, dan komt een soft deleted rij weer tevoorschijn: resurrection,
- * expliciet verboden (zie PartijService.findOrCreatePartij). Enige uitzondering:
+ * expliciet verboden (zie PartijService.findOrCreatePartij). Eerste uitzondering:
  * RetentieScheduler.cascadeDeleteLegePartijen roept Partij.findById(id) aan op een id dat net uit
  * een eigen, al-gefilterde reconciliatiequery komt.
  * <p>
@@ -38,7 +38,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * getVoorkeuren hebben vandaag geen aanroeper buiten het entity-pakket (productiecode gebruikt
  * Contactgegeven.find(partij)/Voorkeur.find(partij), die wél filteren). getIdentificaties heeft er
  * wél één: PartijService.deleteLegePartij cascadet welbewust élke identificatie van een net-
- * geverwijderde partij, ongeacht status — vandaar de tweede uitzondering hieronder.
+ * verwijderde partij, ongeacht status — vandaar de tweede uitzondering hieronder.
  */
 class OngefilterdeFinderTest {
 

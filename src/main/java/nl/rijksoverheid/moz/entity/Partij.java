@@ -65,16 +65,8 @@ public class Partij extends VerwijderbareEntiteit {
     }
 
     /**
-     * Deterministische keuze uit de actieve identificaties, voor wanneer precies één identificatie
-     * nodig is — momenteel alleen als AVG-dataSubject in de retentiescheduler's logboekvermelding
-     * (RetentieScheduler.resolveerIdentiteitOfSlaOver). Filtert soft deletes weg: zonder die filter
-     * zou een verwijderde identificatie als dataSubject gelogd kunnen worden. Prioriteit BSN > KVK
-     * > RSIN (IdentificatieType's declaratievolgorde): bij een partij met zowel BSN als KVK is BSN
-     * de natuurlijke persoon achter de KVK-inschrijving, en die is de bewuste keuze als
-     * dataSubject. Nummer als tweede sleutel is puur voor determinisme; twee actieve rijen van
-     * hetzelfde type zijn in theorie onmogelijk dankzij uk_identificatie_per_partij. {@code null}
-     * als de partij geen actieve identificaties heeft (invariant violation, zie findOrCreatePartij
-     * — of alle identificaties zijn mee-gecascadet met de partij zelf).
+     * Deterministische keuze uit de actieve identificaties: filtert soft deletes weg en volgt
+     * IdentificatieType's declaratievolgorde (BSN > KVK > RSIN) als prioriteit.
      */
     public Identificatie primaireIdentificatie() {
         return identificaties.stream()

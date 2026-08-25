@@ -209,9 +209,9 @@
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- MigrationValidationTest drives Flyway directly (not through Quarkus' own wiring),
-             so it needs Flyway's Postgres plugin explicitly; quarkus-flyway only pulls it in
-             internally for Quarkus' own use. -->
+        <!-- quarkus-flyway brings in only flyway-core; the Postgres dialect module lives in the
+             separate quarkus-flyway-postgresql extension, which we don't use. MigrationValidationTest
+             drives Flyway itself and needs it explicitly for that. -->
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>

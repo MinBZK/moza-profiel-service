@@ -380,19 +380,9 @@ public class PartijService {
         return contact;
     }
 
-    // Publiek: ook aangeroepen door RetentieScheduler (ander package), na het soft-deleten van
-    // een Voorkeur/Contactgegeven aldaar. MANDATORY: de mutatie op een detached entity zou anders
-    // stilzwijgend verloren gaan zonder dat een toekomstige, niet-transactionele aanroeper dat merkt.
-    //
-    // Pessimistic lock (zie lockEnLeesVerwijderdOp): zonder lock kan dit racen met
-    // findOrCreatePartij, dat gelijktijdig juist een nieuwe actieve child aan dezelfde partij
-    // toevoegt (de partij zou dan soft-deleted worden terwijl hij alweer een actieve child heeft),
-    // of met een tweede, gelijktijdige aanroep hiervan voor dezelfde partij (die dan allebei
-    // denken dat de partij nog niet leeg is en geen van beide cascadet). SELECT ... FOR UPDATE
-    // serialiseert beide operaties op deze ene partij-rij.
-    // Retourneert of deze aanroep de partij daadwerkelijk cascadete (false: al verwijderd, of
-    // nog een actief kind) — RetentieScheduler.cascadeDeleteLegePartijen gebruikt dat om te
-    // rapporteren hoeveel partijen een run daadwerkelijk cascadete.
+    // Publiek: ook aangeroepen door RetentieScheduler. MANDATORY zodat de mutatie op een detached
+    // entity niet stilzwijgend verloren gaat bij een toekomstige, niet-transactionele aanroeper.
+    // Retourneert of deze aanroep de partij daadwerkelijk cascadete.
     @Transactional(Transactional.TxType.MANDATORY)
     public boolean deleteLegePartij(Partij partij, Instant nu) {
         if (lockEnLeesVerwijderdOp(partij) != null) {
@@ -419,10 +409,10 @@ public class PartijService {
     }
 
     // Losse scalar-query i.p.v. de entity: een lock op een al-managed entity ververst haar
-    // veldwaarden niet, dus verwijderdOp zou anders de stand van vóór de lock houden. De lock zelf
-    // blokkeert tot een concurrente transactie commit/rollbackt (geen timeout ingesteld) — zo
-    // worden de twee operaties geserialiseerd. Zie RetentieScheduler.cascadeDeleteLegePartijen
-    // voor waarom dat hier niet kan deadlocken.
+    // veldwaarden niet, dus verwijderdOp zou anders de stand van vóór de lock houden. Zonder deze
+    // lock kan dit racen met findOrCreatePartij (voegt gelijktijdig een nieuwe actieve child toe)
+    // of met een tweede, gelijktijdige aanroep van deleteLegePartij voor dezelfde partij — de lock
+    // blokkeert tot de concurrente transactie commit/rollbackt en serialiseert zo beide op deze rij.
     private Instant lockEnLeesVerwijderdOp(Partij partij) {
         Partij.getEntityManager().lock(partij, LockModeType.PESSIMISTIC_WRITE);
 
@@ -481,16 +471,9 @@ public class PartijService {
         return partijMapper.toResponse(partij, Identificatie.find(partij), contactgegevens, voorkeuren);
     }
 
-    // Bulk update, geen setter: lastUpdated (via @PreUpdate) mag niet meebewegen met een touch-on-
-    // read, alleen met een echte veldwijziging. Zie ProfielControllerIntegrationTest.getPartij_ReadDoesNotBumpLastUpdated.
-    // Package-private i.p.v. private: PartijServiceTest roept dit rechtstreeks aan om de
-    // soft-delete-race hieronder deterministisch te testen, zonder echte gelijktijdigheid te
-    // hoeven simuleren. Retourneert false als déze aanroep ontdekt dat de rij inmiddels soft-
-    // deleted is — alleen gecontroleerd voor rijen die stale genoeg zijn om een touch te
-    // triggeren; een niet-stale rij geeft altijd true terug zonder verwijderdOp te raadplegen.
-    // Dekt dus specifiek de race met de retentiescheduler, niet elke soft delete in het
-    // algemeen. De aanroeper moet een false-rij uit de response filteren — anders krijgt een
-    // client een rij terug die niet meer bestaat.
+    // Retourneert false als déze aanroep ontdekt dat de rij inmiddels soft-deleted is — alleen
+    // gecontroleerd voor rijen die stale genoeg zijn om een touch te triggeren; een niet-stale rij
+    // geeft altijd true terug zonder verwijderdOp te raadplegen.
     boolean touchIfStale(Contactgegeven cg) {
         if (!isStale(cg.getLastUsedAt())) {
             return true;

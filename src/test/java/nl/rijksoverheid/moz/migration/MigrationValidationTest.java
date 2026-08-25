@@ -36,14 +36,10 @@ import java.util.UUID;
 
 /**
  * Draait de Flyway-migraties in db/migration tegen een echte Postgres en laat Hibernate ze
- * daarna valideren ({@code hbm2ddl.auto=validate}) — anders dan de rest van de testsuite, die
- * Flyway overslaat en op H2 drop-and-create draait (zie src/test/resources/application.properties).
- * <p>
- * Bewust GEEN {@code @QuarkusTest}: quarkus.datasource.db-kind is build-time-vast, dus een
- * Postgres-gerichte @QuarkusTest kan niet veilig in dezelfde Surefire-fork draaien als de
- * H2-gebaseerde suite (geprobeerd, brak 146 van de 198 tests). Deze test gebruikt Flyway en
- * Hibernate rechtstreeks, buiten Quarkus' testframework om, en kan daardoor gewoon naast de rest
- * van de suite draaien.
+ * daarna valideren ({@code hbm2ddl.auto=validate}) — anders dan de rest van de testsuite, die op
+ * H2 drop-and-create draait. Bewust geen {@code @QuarkusTest}: quarkus.datasource.db-kind is
+ * build-time-vast, dus een Postgres-gerichte @QuarkusTest kan niet in dezelfde Surefire-fork
+ * draaien als de H2-suite; deze test gebruikt Flyway en Hibernate rechtstreeks, buiten Quarkus om.
  * <p>
  * Vereist een draaiende Docker-daemon. Lokaal wordt de test overgeslagen als die ontbreekt (zie
  * {@code assumeTrue} in {@code startPostgres()}); in CI ({@code CI=true}) niet — dit is de enige
@@ -105,9 +101,9 @@ class MigrationValidationTest {
             MetadataSources sources = new MetadataSources(registry);
             entityClasses.forEach(sources::addAnnotatedClass);
 
-            // Als de gemapte entiteiten niet overeenkomen met het door Flyway opgebouwde schema
-            // (ontbrekende/foutieve kolom, index, constraint), gooit buildSessionFactory() een
-            // SchemaManagementException — dat laten we de test laten falen.
+            // Een ontbrekende of verkeerd getypeerde kolom laat buildSessionFactory() falen met
+            // een SchemaManagementException. Indexen en constraints vallen buiten validate; zie
+            // partieleIndexesZijnDaadwerkelijkPartieel.
             try (SessionFactory sessionFactory = sources.buildMetadata().buildSessionFactory()) {
                 Assertions.assertNotNull(sessionFactory);
             }
@@ -120,11 +116,8 @@ class MigrationValidationTest {
     void partieleIndexesZijnDaadwerkelijkPartieel() throws SQLException {
         // Hibernate's validate-mode controleert tabellen/kolommen/types, geen indexen of
         // constraints — dus die partiële WHERE-clausules uit V4 worden hierboven niet geraakt.
-        // Query direct tegen de systeemcatalogus i.p.v. een handmatig bijgehouden lijst met
-        // verwachte indexnamen: een nieuwe unieke index die later zonder WHERE wordt toegevoegd
-        // faalt hierdoor vanzelf, in plaats van onopgemerkt te blijven totdat iemand deze test
-        // bijwerkt. indisprimary = false sluit de primary-key-indexen uit (die zijn terecht niet
-        // partieel).
+        // Filtert bewust op indisunique = true: de niet-unieke FK-indexen (idx_identificatie_partij,
+        // idx_voorkeur_partij) zouden anders deze check onterecht laten falen.
         Map<String, String> definities = new HashMap<>();
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              Statement stmt = conn.createStatement();
@@ -146,12 +139,9 @@ class MigrationValidationTest {
                 Assertions.assertTrue(def.toUpperCase().contains("WHERE"), naam + " moet een partiële index zijn: " + def));
     }
 
-    // De catalogusquery hierboven filtert bewust op indisunique = true: idx_identificatie_partij
-    // en idx_voorkeur_partij (V1) zijn terecht niet-partiële, niet-unieke FK-indexen, en zouden
-    // die filter meedoen aan de partiële-check laten falen. idx_voorkeur_retentie en
-    // idx_contactgegeven_retentie zijn wél niet-uniek maar moeten wél partieel zijn (anders scant
-    // de retentiescheduler's kandidaatquery ook al soft deleted rijen); die twee worden hier apart
-    // bij naam gecontroleerd in plaats van generiek meegenomen in de catalogusquery hierboven.
+    // idx_voorkeur_retentie en idx_contactgegeven_retentie zijn niet-uniek (dus niet gedekt door
+    // de catalogusquery hierboven) maar moeten wél partieel zijn, anders scant de
+    // retentiescheduler's kandidaatquery ook al soft deleted rijen — vandaar apart bij naam.
     @Test
     void retentieIndexenZijnPartieel() throws SQLException {
         try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
@@ -192,8 +182,8 @@ class MigrationValidationTest {
                     insertContactgegeven(conn, partijId, "Email", "een-verwijderd@test.com", false, null));
 
             // Twee soft deleted + één actief: nog steeds geaccepteerd — bewijst op DB-niveau wat
-            // PartijServiceTest.addContactgegeven_MeerdereCyclusVanToevoegenEnVerwijderen alleen op
-            // servicelaag-niveau claimt.
+            // PartijServiceTest.addContactgegeven_MeerdereCyclusVanToevoegenEnVerwijderen_LaatMeerdereVerwijderdeRijenToe
+            // alleen op servicelaag-niveau claimt.
             insertContactgegeven(conn, partijId, "Email", "twee-verwijderd@test.com", false, Instant.now());
             insertContactgegeven(conn, partijId, "Email", "twee-verwijderd@test.com", false, Instant.now());
             Assertions.assertDoesNotThrow(() ->

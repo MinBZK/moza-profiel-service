@@ -356,8 +356,7 @@ public class RetentieSchedulerTest {
      * al vóór déze run leeg was (haar enige kind is hier soft-deleted vóór het scheduler-aanroep,
      * niet erdoor) moet alsnog gecascadeerd worden. Draai dit terug naar "partij-ids die deze run
      * raakte" en deze test faalt, terwijl voorkeur_lastUsedAtOud_LaatsteActieveKind_VerwijdertOokPartij
-     * (waar de run zelf de partij leegmaakt) groen zou blijven — dat onderscheid is precies waar
-     * de vorige reviewronde deze rewrite voor vroeg.
+     * (waar de run zelf de partij leegmaakt) groen zou blijven.
      */
     @Test
     void partijAlLeegVoorDezeRun_WordtAlsnogGecascadeerd() {
@@ -465,8 +464,7 @@ public class RetentieSchedulerTest {
             UUID partijId = createPartij();
             Instant ouderste = Instant.now().atZone(ZoneOffset.UTC).minus(Period.ofYears(8)).toInstant();
             // Minder-oude eerst aangemaakt, oudste ná: invoegvolgorde staat zo haaks op de
-            // verwachte verwerkingsvolgorde, dus alleen een echte ORDER BY (niet toevallig de
-            // scan-/invoegvolgorde) kan deze test laten slagen.
+            // verwachte verwerkingsvolgorde.
             UUID minderOudeVoorkeur = createVoorkeur(partijId, ouderDanGrens(), null);
             UUID oudsteVoorkeur = createVoorkeur(partijId, ouderste, null);
 
@@ -645,8 +643,8 @@ public class RetentieSchedulerTest {
     }
 
     /**
-     * Bewijst het kernpunt van de eerste reviewronde: een gefaalde fase mag de scheduler niet
-     * "gezond" laten lijken. verwijderInactieveVoorkeuren() wordt gestubd om te falen; de andere
+     * Een gefaalde fase mag de scheduler niet "gezond" laten lijken.
+     * verwijderInactieveVoorkeuren() wordt gestubd om te falen; de andere
      * twee fasen draaien echt door, en de geslaagde-run-gauge mag niet bijgewerkt worden.
      */
     @Test

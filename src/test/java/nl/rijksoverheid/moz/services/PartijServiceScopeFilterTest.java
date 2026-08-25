@@ -536,7 +536,7 @@ class PartijServiceScopeFilterTest {
             maakLink("DV-B", "Dienst-B");
         });
 
-        partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+        Voorkeur origineel = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
                 voorkeurRequest(VoorkeurType.WebsiteTaal, "nl", "DV-A", "Dienst-A"));
         partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
                 voorkeurRequest(VoorkeurType.WebsiteTaal, "en", "DV-B", "Dienst-B"));
@@ -550,7 +550,11 @@ class PartijServiceScopeFilterTest {
                         voorkeurRequest(VoorkeurType.WebsiteTaal, "fy", "DV-A", "Dienst-A")));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
-        QuarkusTransaction.requiringNew().run(() -> Assertions.assertEquals(2, Voorkeur.count()));
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(2, Voorkeur.count());
+            Assertions.assertEquals("nl", Voorkeur.<Voorkeur>findById(origineel.id).getWaarde(),
+                    "de bestaande rij blijft ongewijzigd na het geweigerde conflict");
+        });
     }
 
     @Test

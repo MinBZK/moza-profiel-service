@@ -137,7 +137,8 @@ public class Voorkeur extends VerwijderbareEntiteit {
         return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }
 
-    // Alleen de scope-loze voorkeur voor dit (partij, type); maximaal één per sleutel.
+    // Alleen de scope-loze voorkeur voor dit (partij, type). firstResult(): uniciteit is
+    // applicatielogica, geen DB-constraint (zie PartijService.addVoorkeur).
     @Nullable
     public static Voorkeur find(Partij partij, VoorkeurType voorkeurType) {
         return find(
