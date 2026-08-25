@@ -77,7 +77,7 @@ public class EmailVerificatieController {
     @POST
     @Path("/emailverificatie")
     @RequireBody
-    @Logboek(name = "verifieerEmail", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-400")
+    @Logboek(name = "verifieerEmail", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-410")
     public Response verifieerEmail(@Valid EmailVerificatieRequest emailVerificatieRequest) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(emailVerificatieRequest.getIdentificatieNummer()));

@@ -85,7 +85,6 @@ public class ProfielController {
         PartijResponse result = partijService.getPartijResponse(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
 
         if (result == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Partij niet gevonden");
             throw Problems.notFound("Partij niet gevonden", "Geen partij gevonden voor het opgegeven identificatienummer.");
         }
@@ -102,8 +101,8 @@ public class ProfielController {
     @Logboek(name = "getPartijBulk", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartijBulk(@Valid PartijBulkRequest request) {
 
-        // The LDV standard wants one logregel per betrokkene; addSubject turns each into
-        // a child logregel of the action, so a not-found party is logged as looked up too.
+        // Subjects before the lookup, so a partij that is not found is logged as
+        // looked up too.
         for (var identificatie : request.getIdentificaties()) {
             logboekContext.addSubject(
                     hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()),
@@ -167,7 +166,6 @@ public class ProfielController {
         boolean updated = partijService.updateContactgegeven(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
 
         if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor update");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
@@ -192,7 +190,6 @@ public class ProfielController {
         boolean deleted = partijService.deleteContactgegeven(request.getIdentificatieType(), request.getIdentificatieNummer(), contactgegevenId);
 
         if (!deleted) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor verwijdering");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
@@ -246,7 +243,6 @@ public class ProfielController {
         boolean updated = partijService.updateVoorkeur(request.getIdentificatieType(), request.getIdentificatieNummer(), request);
 
         if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor update");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
@@ -271,7 +267,6 @@ public class ProfielController {
         boolean deleted = partijService.deleteVoorkeur(request.getIdentificatieType(), request.getIdentificatieNummer(), voorkeurId);
 
         if (!deleted) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
@@ -293,7 +288,6 @@ public class ProfielController {
         boolean updated = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(request);
 
         if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur of partij niet gevonden voor te-verwijderen-op update");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
@@ -316,7 +310,6 @@ public class ProfielController {
         boolean updated = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(request);
 
         if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven of partij niet gevonden voor te-verwijderen-op update");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
