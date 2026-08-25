@@ -35,6 +35,11 @@ public class Partij extends VerwijderbareEntiteit {
         return Collections.unmodifiableList(voorkeuren);
     }
 
+    @Override
+    Object entiteitId() {
+        return id;
+    }
+
     public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
         return find("""
         SELECT p FROM Partij p

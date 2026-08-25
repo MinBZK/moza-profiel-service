@@ -13,6 +13,7 @@ import jakarta.validation.constraints.NotNull;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
+import java.util.List;
 import java.util.UUID;
 
 // uk_identificatie (identificatie_type, identificatie_nummer) en uk_identificatie_per_partij
@@ -70,5 +71,14 @@ public class Identificatie extends VerwijderbareEntiteit {
 
     public void setPartij(Partij partij) {
         this.partij = partij;
+    }
+
+    @Override
+    Object entiteitId() {
+        return id;
+    }
+
+    public static List<Identificatie> find(Partij partij) {
+        return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
     }
 }

@@ -409,8 +409,11 @@ public class PartijService {
         partij.verwijder(nu);
         // Zonder dit blijft de oude identificatie binnen uk_identificatie's WHERE verwijderd_op
         // IS NULL staan en blokkeert ze findOrCreatePartij's nieuwe insert voor dezelfde
-        // (type, nummer) — zie V4-migratie.
-        partij.getIdentificaties().forEach(i -> i.verwijder(nu));
+        // (type, nummer) — zie V4-migratie. Filter i.p.v. blind forEach: vandaag onbereikbaar (een
+        // identificatie wordt alleen hier, samen met haar partij, verwijderd), maar zonder deze
+        // filter zou een toekomstige schending van die aanname elke nacht opnieuw op verwijder()'s
+        // guard stuklopen voor dezelfde partij, zonder zelfherstel.
+        partij.getIdentificaties().stream().filter(i -> !i.isVerwijderd()).forEach(i -> i.verwijder(nu));
 
         return true;
     }
@@ -451,7 +454,7 @@ public class PartijService {
                     List<Voorkeur> voorkeuren = Voorkeur.find(partij).stream()
                             .filter(this::touchIfStale).toList();
 
-                    return partijMapper.toResponse(partij, contactgegevens, voorkeuren);
+                    return partijMapper.toResponse(partij, Identificatie.find(partij), contactgegevens, voorkeuren);
                 })
                 .toList();
     }
@@ -475,7 +478,7 @@ public class PartijService {
         contactgegevens = contactgegevens.stream().filter(this::touchIfStale).toList();
         voorkeuren = voorkeuren.stream().filter(this::touchIfStale).toList();
 
-        return partijMapper.toResponse(partij, contactgegevens, voorkeuren);
+        return partijMapper.toResponse(partij, Identificatie.find(partij), contactgegevens, voorkeuren);
     }
 
     // Bulk update, geen setter: lastUpdated (via @PreUpdate) mag niet meebewegen met een touch-on-

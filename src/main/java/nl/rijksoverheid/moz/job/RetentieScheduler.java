@@ -215,13 +215,25 @@ public class RetentieScheduler {
 
         List<Voorkeur> kandidaten = Voorkeur.find(
                 "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
-                        + "WHERE v.id IN ?1", kandidaatIds)
+                        + "WHERE v.id IN ?1 AND v.verwijderdOp IS NULL", kandidaatIds)
                 .list();
 
         int verwijderd = 0;
         List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
 
         for (Voorkeur voorkeur : kandidaten) {
+            // Tussen de id-select hierboven en deze fetch-query kan een gelijktijdige API-aanroep
+            // dezelfde rij al hebben verwijderd — de WHERE-clausule hierboven voorkomt dat al dat
+            // zo'n rij hier binnenkomt, maar deze check blijft staan als expliciete belofte: skip
+            // i.p.v. de hele batch laten terugrollen op verwijder()'s guard.
+            if (voorkeur.isVerwijderd()) {
+                LOG.warn("Retentiescheduler: voorkeur " + voorkeur.id
+                        + " is tussen kandidaatselectie en verwerking al verwijderd; overgeslagen");
+                meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "gelijktijdig-verwijderd").increment();
+
+                continue;
+            }
+
             Identificatie identificatie = resolveerIdentiteitOfSlaOver(voorkeur.getPartij(), voorkeur.id, "voorkeur");
 
             if (identificatie == null) {
@@ -267,13 +279,23 @@ public class RetentieScheduler {
 
         List<Contactgegeven> kandidaten = Contactgegeven.find(
                 "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
-                        + "WHERE c.id IN ?1", kandidaatIds)
+                        + "WHERE c.id IN ?1 AND c.verwijderdOp IS NULL", kandidaatIds)
                 .list();
 
         int verwijderd = 0;
         List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
 
         for (Contactgegeven contact : kandidaten) {
+            // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde bescherming tegen een rij
+            // die tussen kandidaatselectie en deze fetch-query al elders is verwijderd.
+            if (contact.isVerwijderd()) {
+                LOG.warn("Retentiescheduler: contactgegeven " + contact.id
+                        + " is tussen kandidaatselectie en verwerking al verwijderd; overgeslagen");
+                meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "gelijktijdig-verwijderd").increment();
+
+                continue;
+            }
+
             Identificatie identificatie = resolveerIdentiteitOfSlaOver(contact.getPartij(), contact.id, "contactgegeven");
 
             if (identificatie == null) {

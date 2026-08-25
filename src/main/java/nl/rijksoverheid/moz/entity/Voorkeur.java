@@ -123,6 +123,11 @@ public class Voorkeur extends VerwijderbareEntiteit {
         this.lastUsedAt = lastUsedAt;
     }
 
+    @Override
+    Object entiteitId() {
+        return id;
+    }
+
     @Nullable
     public static Voorkeur find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();

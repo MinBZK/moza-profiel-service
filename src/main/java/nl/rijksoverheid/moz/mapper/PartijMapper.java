@@ -20,9 +20,9 @@ import java.util.List;
 
 /**
  * Mapt {@link Partij}-entiteiten naar hun response-DTO's. Zuiver veld-voor-veld kopiëren,
- * gegenereerd door MapStruct. Geen databasetoegang: het laden van de contactgegevens/voorkeuren,
- * en het bijwerken van lastUsedAt bij een stale read ("touch on read"), is aan de aanroeper, zie
- * {@link nl.rijksoverheid.moz.services.PartijService#touchIfStale}.
+ * gegenereerd door MapStruct. Geen databasetoegang: het laden van de identificaties/contactgegevens/
+ * voorkeuren, en het bijwerken van lastUsedAt bij een stale read ("touch on read"), is aan de
+ * aanroeper, zie {@link nl.rijksoverheid.moz.services.PartijService#touchIfStale}.
  *
  * <p>De {@code remove*Item}-doelen worden expliciet genegeerd. De generator zet bij elke
  * lijst-property een {@code addXItem} en een {@code removeXItem} neer die de klasse zelf
@@ -45,8 +45,10 @@ public abstract class PartijMapper {
     // toIdentificatieResponse/toScopeResponse-submappings hieronder zijn package-private: die
     // worden alleen door de MapStruct-gegenereerde impl in dit package zelf aangeroepen.
     @Mapping(target = "partijId", source = "partij.id")
-    @Mapping(target = "identificaties", source = "partij.identificaties")
-    // Bron expliciet aan de parameter gebonden, niet aan partij.contactgegevens/partij.voorkeuren.
+    // Bron expliciet aan de parameter gebonden, niet aan partij.identificaties/contactgegevens/voorkeuren:
+    // die rauwe @OneToMany-collecties zijn ongefilterd (zie OngefilterdeFinderTest) en zouden een
+    // soft deleted rij laten herleven in de response.
+    @Mapping(target = "identificaties", source = "identificaties")
     @Mapping(target = "contactgegevens", source = "contactgegevens")
     @Mapping(target = "voorkeuren", source = "voorkeuren")
     @Mapping(target = "removeIdentificatiesItem", ignore = true)
@@ -54,6 +56,7 @@ public abstract class PartijMapper {
     @Mapping(target = "removeVoorkeurenItem", ignore = true)
     public abstract PartijResponse toResponse(
             Partij partij,
+            List<Identificatie> identificaties,
             List<Contactgegeven> contactgegevens,
             List<Voorkeur> voorkeuren);
 
