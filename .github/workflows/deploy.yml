@@ -38,6 +38,10 @@
 
 name: ZAD Deploy
 
+# Read-only als basis; een job-blok vervangt dit volledig, vandaar de expliciete
+# contents: read per job.
+permissions: read-all
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
@@ -82,7 +86,7 @@ jobs:
       digest: ${{ steps.build.outputs.digest }} # immutable digest voor verse pull
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: '25'
@@ -135,7 +139,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write # deploy-URL als PR-comment posten
-      deployments: write # GitHub environment/deployment aanmaken
     environment:
       name: pr-${{ github.event.pull_request.number }}
       url: ${{ steps.deploy.outputs.url }}
@@ -172,8 +175,8 @@ jobs:
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
-      deployments: write
-      packages: write
+      deployments: write # voor delete-github-deployments hieronder
+      packages: write # voor delete-container hieronder
       pull-requests: write
     steps:
       - name: Cleanup ZAD environment
@@ -208,7 +211,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      deployments: write # GitHub environment/deployment aanmaken
     environment:
       name: stable
       url: ${{ steps.deploy.outputs.url }}

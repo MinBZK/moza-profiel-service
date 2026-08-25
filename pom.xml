@@ -12,7 +12,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.38.1</quarkus.platform.version>
+        <quarkus.platform.version>3.38.2</quarkus.platform.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
     </properties>
@@ -36,7 +36,7 @@
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>2.22.1</version>
+                <version>2.22.2</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -53,6 +53,22 @@
                 <groupId>io.swagger.parser.v3</groupId>
                 <artifactId>swagger-parser</artifactId>
                 <version>2.1.46</version>
+            </dependency>
+            <!-- Security-override: de quarkus-bom beheert httpclient5 op 5.6.1, dat bij een
+                 onbekende Content-Encoding in de response de connectie niet teruggeeft aan de
+                 pool; gefixt in 5.6.3. In deze boom komt httpclient5 alleen test-scope binnen,
+                 via Pact. httpclient5-fluent is niet zelf kwetsbaar maar wordt meegepind zodat
+                 beide artefacten uit dezelfde release komen. VERWIJDEREN zodra de quarkus-bom
+                 zelf httpclient5 >= 5.6.3 beheert; t/m 3.39.0.CR1 is dat nog 5.6.1. -->
+            <dependency>
+                <groupId>org.apache.httpcomponents.client5</groupId>
+                <artifactId>httpclient5</artifactId>
+                <version>5.6.4</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.httpcomponents.client5</groupId>
+                <artifactId>httpclient5-fluent</artifactId>
+                <version>5.6.4</version>
             </dependency>
             <!-- Security-pins voor test-scope transitives (via Pact) die niet door de quarkus-bom
                  beheerd worden en die Dependabot niet zelf kan updaten. -->
@@ -87,7 +103,7 @@
         <dependency>
             <groupId>io.quarkiverse.httpproblem</groupId>
             <artifactId>quarkus-http-problem</artifactId>
-            <version>3.38.1</version>
+            <version>3.38.2</version>
         </dependency>
         <dependency>
             <groupId>io.quarkiverse.openapi.generator</groupId>
@@ -228,7 +244,7 @@
         <dependency>
             <groupId>com.atlassian.oai</groupId>
             <artifactId>swagger-request-validator-restassured</artifactId>
-            <version>2.44.1</version>
+            <version>3.0.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -242,7 +258,7 @@
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit</artifactId>
-            <version>1.4.1</version>
+            <version>1.5.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -308,7 +324,7 @@
                                  quarkiverse-varianten zijn intern aan de
                                  ConstraintViolationExceptionMapper. -->
                             <schemaMappings>
-                                Instant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType,HttpProblem=io.quarkiverse.httpproblem.HttpProblem
+                                Instant=java.time.Instant,NullableInstant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType,HttpProblem=io.quarkiverse.httpproblem.HttpProblem
                             </schemaMappings>
                         </configuration>
                     </execution>
