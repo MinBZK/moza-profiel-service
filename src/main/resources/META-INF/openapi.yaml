@@ -43,6 +43,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -77,12 +80,18 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven was al geregistreerd voor deze partij en scope
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ContactgegevenResponse"
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven succesvol toegevoegd
           content:
             application/json:
@@ -112,6 +121,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Te-verwijderen-op succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -146,6 +158,9 @@ paths:
         required: true
       responses:
         "204":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Contactgegeven succesvol verwijderd
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -173,6 +188,9 @@ paths:
         required: true
       responses:
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Dienstverlener succesvol toegevoegd of al aanwezig met dezelfde
             beschrijving
           content:
@@ -212,6 +230,9 @@ paths:
         required: true
       responses:
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Dienst succesvol toegevoegd
           content:
             application/json:
@@ -243,6 +264,9 @@ paths:
           type: string
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Dienstverlener succesvol opgehaald
           content:
             application/json:
@@ -272,6 +296,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Email verificatie succesvol
         "400":
           description: "Request body ontbreekt, is ongeldig (schemaviolatie of een\
@@ -300,6 +327,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Email verificatie code aanvraag succesvol
         "400":
           description: "Request body ontbreekt of is ongeldig. Bij bean-validatie is\
@@ -337,6 +367,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Partij succesvol opgehaald
           content:
             application/json:
@@ -368,6 +401,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Alle profielen succesvol opgehaald
           content:
             application/json:
@@ -376,6 +412,9 @@ paths:
                 items:
                   $ref: "#/components/schemas/PartijResponse"
         "206":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Profielen gedeeltelijk opgehaald
           content:
             application/json:
@@ -409,6 +448,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -439,6 +481,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur was al geregistreerd voor deze partij en scope; een
             afwijkende waarde is overschreven
           content:
@@ -446,6 +491,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/VoorkeurResponse"
         "201":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur succesvol toegevoegd
           content:
             application/json:
@@ -475,6 +523,9 @@ paths:
         required: true
       responses:
         "200":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Te-verwijderen-op succesvol bijgewerkt
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -509,6 +560,9 @@ paths:
         required: true
       responses:
         "204":
+          headers:
+            API-Version:
+              $ref: "#/components/headers/ApiVersion"
           description: Voorkeur succesvol verwijderd
         "400":
           $ref: "#/components/responses/OngeldigeRequestBody"
@@ -517,6 +571,15 @@ paths:
         "500":
           $ref: "#/components/responses/InterneServerfout"
 components:
+  headers:
+    ApiVersion:
+      description: "Semantische versie van het API-contract, zoals ADR /core/version-header
+        vereist. SecurityHeadersFilter zet hem op elke respons; ApiVersion.CURRENT is de bron."
+      required: true
+      schema:
+        type: string
+        examples:
+        - 1.0.0
   responses:
     InterneServerfout:
       description: Interne serverfout
@@ -578,14 +641,6 @@ components:
           schema:
             $ref: "#/components/schemas/HttpProblem"
   schemas:
-    # De contractvalidatie handhaaft type niet (3.1-typen komen niet door de validator);
-    # required, enum, pattern, format, minItems en maxItems wél. Nullable-typen zijn hier
-    # dus documentatie voor de consumer, geen bewaking.
-    #
-    # Nullbaarheid van een $ref-veld hoort daarom in de beschrijving van zijn schema en
-    # niet in een anyOf met een null-tak: die tak matcht alles, waarmee de $ref-tak nooit
-    # meer wordt gecontroleerd. ContractHandhavingTest legt dat vast.
-    #
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
     # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
@@ -621,7 +676,7 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
     ContactgegevenResponse:
       description: "Contactgegeven van een partij. teVerwijderenOp is null zolang er geen verwijderdatum is gezet."
       # De velden die de server altijd meestuurt staan als required, zodat een consumer niet
@@ -659,7 +714,7 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         scopes:
           type: array
           items:
@@ -687,7 +742,7 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         id:
           $ref: "#/components/schemas/UUID"
         isDefault:
@@ -804,7 +859,7 @@ components:
       properties:
         type:
           type: string
-          format: uri
+          format: uri-reference
           description: A optional URI reference that identifies the problem type
           examples:
           - https://example.com/errors/not-found
@@ -827,7 +882,7 @@ components:
           - Record not found
         instance:
           type: string
-          format: uri
+          format: uri-reference
           description: A URI reference that identifies the specific occurrence of
             the problem
           examples:
@@ -839,7 +894,7 @@ components:
       properties:
         type:
           type: string
-          format: uri
+          format: uri-reference
           description: A optional URI reference that identifies the problem type
           examples:
           - https://example.com/errors/not-found
@@ -862,7 +917,7 @@ components:
           - Record not found
         instance:
           type: string
-          format: uri
+          format: uri-reference
           description: A URI reference that identifies the specific occurrence of
             the problem
           examples:
@@ -891,6 +946,15 @@ components:
       - RSIN
     Instant:
       type: string
+      format: date-time
+      examples:
+      - 2022-03-10T16:15:50Z
+    NullableInstant:
+      # Zelfde tijdstip als Instant, maar de null-tak staat in het type in plaats van
+      # alleen in een description. Een aparte schema-naam en niet Instant zelf nullbaar
+      # maken: createdAt en lastUpdated zijn altijd gevuld en blijven zo streng.
+      description: "Tijdstip dat ook expliciet null mag zijn."
+      type: [string, "null"]
       format: date-time
       examples:
       - 2022-03-10T16:15:50Z
@@ -971,7 +1035,7 @@ components:
       description: "Beperkt een contactgegeven of voorkeur tot een dienstverlener,\
         \ eventueel tot een dienst daarbinnen. Een leeg object betekent geen scope.\
         \ Een dienstNaam zonder dienstverlenerNaam levert een 400."
-      type: object
+      type: [object, "null"]
       properties:
         dienstverlenerNaam:
           type: [string, "null"]
@@ -1068,7 +1132,7 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
     VoorkeurResponse:
       description: "Voorkeur van een partij. teVerwijderenOp is null zolang er geen verwijderdatum is gezet."
       # Zie ContactgegevenResponse voor waarom required hier staat.
@@ -1092,7 +1156,7 @@ components:
         lastUpdated:
           $ref: "#/components/schemas/Instant"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         scopes:
           type: array
           items:
@@ -1128,6 +1192,6 @@ components:
         scope:
           $ref: "#/components/schemas/ScopeRequest"
         teVerwijderenOp:
-          $ref: "#/components/schemas/Instant"
+          $ref: "#/components/schemas/NullableInstant"
         id:
           $ref: "#/components/schemas/UUID"
