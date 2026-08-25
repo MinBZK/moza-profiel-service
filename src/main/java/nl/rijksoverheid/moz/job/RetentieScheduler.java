@@ -3,25 +3,17 @@ package nl.rijksoverheid.moz.job;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.context.Context;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.transaction.Status;
-import jakarta.transaction.Synchronization;
 import jakarta.transaction.Transactional;
-import jakarta.transaction.TransactionSynchronizationRegistry;
-import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
-import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
-import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Voorkeur;
-import nl.rijksoverheid.moz.helper.HashHelper;
+import nl.rijksoverheid.moz.logboek.GeauditeerdeIdentiteit;
+import nl.rijksoverheid.moz.logboek.LogboekSpanEmitter;
 import nl.rijksoverheid.moz.services.PartijService;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
@@ -32,18 +24,15 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Verwijdert (soft-delete) Voorkeur/Contactgegeven-records die lang niet zijn gebruikt.
  * <p>
- * Laadt bewust de kandidaat-entiteiten (i.p.v. een blinde bulk-update): retentieverwijdering van
- * persoonsgegevens is zelf een AVG-verwerkingsactiviteit en heeft dus een logboek-vermelding per
- * subject nodig, net als elk controllerpad. Dat kan alleen als de betrokken partij/identificatie
- * per rij bekend is. Zie {@link nl.rijksoverheid.moz.controller.ProfielController#getPartijBulk}
- * voor hetzelfde patroon (handmatige LogboekContext + span per subject i.p.v. @Logboek, dat een
- * enkel subject per aanroep veronderstelt en dus niet past op een batchjob).
+ * Laadt bewust de kandidaat-entiteiten i.p.v. een blinde bulk-update: retentieverwijdering is
+ * zelf een AVG-verwerkingsactiviteit en heeft dus een logboek-vermelding per subject nodig. Zie
+ * {@link nl.rijksoverheid.moz.controller.ProfielController#getPartijBulk} voor hetzelfde patroon.
  */
 @ApplicationScoped
 public class RetentieScheduler {
@@ -68,22 +57,24 @@ public class RetentieScheduler {
     // standaard uit. Zie bepaalVerwerkingslimiet.
     private static final String MAX_PER_RUN_OVERRIDE_PROPERTY = "retentie.scheduler.max-per-run.override";
 
-    private final HashHelper hashHelper;
-    private final ProcessingHandler processingHandler;
+    // Query is bewust breed: elke actieve partij zonder actieve children, ongeacht ouderdom. Geen
+    // index op partij.verwijderdOp, dus dit is een scan over alle actieve partijen; voor nu
+    // acceptabel (nog geen productiedata).
+    private static final String LEGE_PARTIJ_WHERE = "p.verwijderdOp IS NULL "
+            + "AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v.verwijderdOp IS NULL) "
+            + "AND NOT EXISTS (SELECT 1 FROM Contactgegeven c WHERE c.partij = p AND c.verwijderdOp IS NULL)";
+
     private final MeterRegistry meterRegistry;
     private final PartijService partijService;
-    private final TransactionSynchronizationRegistry txSyncRegistry;
+    private final LogboekSpanEmitter logboekSpanEmitter;
 
     private final AtomicLong laatsteRunEpochSeconds = new AtomicLong(0);
     private final AtomicLong laatsteGeslaagdeRunEpochSeconds = new AtomicLong(0);
 
-    public RetentieScheduler(HashHelper hashHelper, ProcessingHandler processingHandler, MeterRegistry meterRegistry,
-            PartijService partijService, TransactionSynchronizationRegistry txSyncRegistry) {
-        this.hashHelper = hashHelper;
-        this.processingHandler = processingHandler;
+    public RetentieScheduler(MeterRegistry meterRegistry, PartijService partijService, LogboekSpanEmitter logboekSpanEmitter) {
         this.meterRegistry = meterRegistry;
         this.partijService = partijService;
-        this.txSyncRegistry = txSyncRegistry;
+        this.logboekSpanEmitter = logboekSpanEmitter;
     }
 
     @PostConstruct
@@ -196,9 +187,14 @@ public class RetentieScheduler {
             return 0;
         }
 
+        // p.verwijderdOp IS NULL: vandaag onbereikbaar (een partij wordt pas soft-deleted als ze geen
+        // actieve voorkeuren/contactgegevens meer heeft), maar zonder deze filter zou een toekomstige
+        // schending van die aanname hier een rij onder een soft deleted partij laten hangen.
+        // p.identificaties blijft bewust ongefilterd: filteren van een fetched collectie zou hem
+        // stilzwijgend afkappen — primaireIdentificatie() filtert al in Java.
         List<Voorkeur> kandidaten = Voorkeur.find(
                 "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
-                        + "WHERE v.id IN ?1 AND v.verwijderdOp IS NULL", kandidaatIds)
+                        + "WHERE v.id IN ?1 AND v.verwijderdOp IS NULL AND p.verwijderdOp IS NULL", kandidaatIds)
                 .list();
 
         int verwijderd = 0;
@@ -260,9 +256,11 @@ public class RetentieScheduler {
             return 0;
         }
 
+        // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde p.verwijderdOp-filter en zelfde
+        // reden om p.identificaties ongefilterd te laten.
         List<Contactgegeven> kandidaten = Contactgegeven.find(
                 "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
-                        + "WHERE c.id IN ?1 AND c.verwijderdOp IS NULL", kandidaatIds)
+                        + "WHERE c.id IN ?1 AND c.verwijderdOp IS NULL AND p.verwijderdOp IS NULL", kandidaatIds)
                 .list();
 
         int verwijderd = 0;
@@ -298,22 +296,23 @@ public class RetentieScheduler {
     // Eigen transactie per partij (i.p.v. één transactie voor de hele cascade): een falende
     // partij mag de andere kandidaten niet terugdraaien.
     private boolean cascadeDeleteLegePartijen() {
-        List<UUID> kandidaatIds = Partij.getEntityManager()
-                .createQuery("SELECT p.id FROM Partij p WHERE p.verwijderdOp IS NULL "
-                        + "AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v.verwijderdOp IS NULL) "
-                        + "AND NOT EXISTS (SELECT 1 FROM Contactgegeven c WHERE c.partij = p AND c.verwijderdOp IS NULL)",
-                        UUID.class)
-                .getResultList();
+        // Zelfde patroon als verwijderInactieveVoorkeuren/-Contactgegevens: eerst tellen, dan pas
+        // de begrensde id-lijst ophalen, zodat de cap ook het geheugen begrenst en niet alleen het
+        // aantal transacties hieronder.
+        long aantalKandidaten = Partij.getEntityManager()
+                .createQuery("SELECT COUNT(p) FROM Partij p WHERE " + LEGE_PARTIJ_WHERE, Long.class)
+                .getSingleResult();
 
-        // Dezelfde bovengrens als de andere twee fasen: zonder cap zou de klok-/configuratiefout
-        // die de andere fasen al afvangen hier alsnog ongebreideld doorwerken (één transactie per
-        // kandidaat-partij, onbegrensd). Geen collectiefetch op deze query, dus geen risico op de
-        // in-memory-paginering die verwijderInactieveVoorkeuren/-Contactgegevens vermijden.
-        long limiet = bepaalVerwerkingslimiet("partij", kandidaatIds.size());
+        long limiet = bepaalVerwerkingslimiet("partij", aantalKandidaten);
 
-        if (limiet < kandidaatIds.size()) {
-            kandidaatIds = kandidaatIds.subList(0, (int) limiet);
+        if (limiet == 0) {
+            return true;
         }
+
+        List<UUID> kandidaatIds = Partij.getEntityManager()
+                .createQuery("SELECT p.id FROM Partij p WHERE " + LEGE_PARTIJ_WHERE, UUID.class)
+                .setMaxResults((int) limiet)
+                .getResultList();
 
         Instant nu = Instant.now();
         boolean alleGeslaagd = true;
@@ -321,18 +320,26 @@ public class RetentieScheduler {
 
         for (UUID id : kandidaatIds) {
             try {
-                AtomicBoolean cascadeteDezeKeer = new AtomicBoolean(false);
+                AtomicReference<PartijService.CascadeResultaat> resultaat = new AtomicReference<>();
 
                 QuarkusTransaction.requiringNew().run(() -> {
                     Partij partij = Partij.findById(id);
-
-                    if (partij != null && partijService.deleteLegePartij(partij, nu)) {
-                        cascadeteDezeKeer.set(true);
-                    }
+                    resultaat.set(partij == null ? null : partijService.deleteLegePartij(partij, nu));
                 });
 
-                if (cascadeteDezeKeer.get()) {
+                if (resultaat.get() == PartijService.CascadeResultaat.GECASCADEERD) {
                     gecascadeerd++;
+                } else if (resultaat.get() == PartijService.CascadeResultaat.HEEFT_ACTIEVE_KINDEREN) {
+                    // Legitiem: een gebruiker voegde een nieuw actief kind toe tussen selectie en
+                    // verwerking. Geen anomalie — telt niet mee voor alleFasenGeslaagd.
+                    LOG.info("Retentiescheduler: partij " + id + " heeft ondertussen weer een actief kind; niet gecascadeerd");
+                } else {
+                    // AL_VERWIJDERD (concurrente delete) of null (kandidaat tussen selectie en
+                    // verwerking verdwenen) — beide wijzen op een onverwachte state-wijziging.
+                    String reden = resultaat.get() == PartijService.CascadeResultaat.AL_VERWIJDERD
+                            ? "gelijktijdig-verwijderd" : "kandidaat-verdwenen";
+                    LOG.warn("Retentiescheduler: partij " + id + " niet gecascadeerd (" + resultaat.get() + "); overgeslagen");
+                    meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", reden).increment();
                 }
             } catch (Exception e) {
                 LOG.error("Retentiescheduler: cascade-verwijdering van partij " + id + " mislukt", e);
@@ -409,52 +416,14 @@ public class RetentieScheduler {
         return identificatie;
     }
 
-    // Emitteert pas ná commit: een logboek-span mag nooit een verwijdering claimen die niet heeft
-    // plaatsgevonden. Garandeert alleen de volgorde, niet dat de span de exporter haalt.
+    // LogboekSpanEmitter isoleert al per identiteit (zie
+    // voorkeur_EenLogboekSpanFaaltInBatch_OverigeWordtTochGeemitteerdEnAnomalieOpgehoogd in
+    // RetentieSchedulerTest) — opFout voegt hier alleen de retentie-specifieke telemetrie toe.
     private void registreerLogboekNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String type, String naam, String processingActivityId) {
-        if (identiteiten.isEmpty()) {
-            return;
-        }
-
-        txSyncRegistry.registerInterposedSynchronization(new Synchronization() {
-            @Override
-            public void beforeCompletion() {
-            }
-
-            @Override
-            public void afterCompletion(int status) {
-                if (status != Status.STATUS_COMMITTED) {
-                    return;
-                }
-
-                // Eigen try/catch per identiteit: dit draait in de completion-callback van de
-                // transactiemanager, waar een exception niet naar een aanroeper propageert die er
-                // iets aan kan doen. Zonder vangst stopt één falende span (bv. startSpan() geeft
-                // null terug, zie RetentieSchedulerTest) de hele resterende batch — de rijen zijn
-                // dan al verwijderd, maar zonder logboek-vermelding, en niets meldt dat.
-                for (GeauditeerdeIdentiteit identiteit : identiteiten) {
-                    try {
-                        LogboekContext ctx = new LogboekContext();
-                        ctx.setProcessingActivityId(processingActivityId);
-                        ctx.setDataSubjectId(hashHelper.hashIdentifier(identiteit.identificatieNummer()));
-                        ctx.setDataSubjectType(String.valueOf(identiteit.identificatieType()));
-                        ctx.setStatus(StatusCode.OK);
-                        Span span = processingHandler.startSpan(naam, Context.current());
-                        processingHandler.addLogboekContextToSpan(span, ctx);
-                        span.end();
-                    } catch (Exception e) {
-                        LOG.error("Retentiescheduler: logboek-emissie voor " + naam + " mislukt ná commit "
-                                + "(de rij is al verwijderd; dit is dus een gemist audit-spoor)", e);
-                        meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "logboek-fout").increment();
-                    }
-                }
-            }
+        logboekSpanEmitter.registreerNaCommit(identiteiten, naam, processingActivityId, e -> {
+            LOG.error("Retentiescheduler: logboek-emissie voor " + naam + " mislukt ná commit "
+                    + "(de rij is al verwijderd; dit is dus een gemist audit-spoor)", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "logboek-fout").increment();
         });
-    }
-
-    // Alleen de scalaire velden, niet de entity zelf: na commit is de persistence context die
-    // Identificatie beheerde mogelijk al gesloten, en deze twee waarden zijn het enige dat de
-    // afterCompletion-callback nodig heeft.
-    private record GeauditeerdeIdentiteit(String identificatieNummer, IdentificatieType identificatieType) {
     }
 }

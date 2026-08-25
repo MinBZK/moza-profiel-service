@@ -1,12 +1,15 @@
 package nl.rijksoverheid.moz.services;
 
 import nl.rijksoverheid.moz.exception.BusinessException;
+import io.opentelemetry.api.trace.Span;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.transaction.TransactionalException;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
@@ -27,9 +30,12 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.helper.HashHelper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.time.Duration;
@@ -50,6 +56,22 @@ public class PartijServiceTest {
 
     @InjectMock
     EmailVerificatieService emailVerificatieService;
+
+    @InjectMock
+    ProcessingHandler processingHandler;
+
+    @Inject
+    HashHelper hashHelper;
+
+    private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
+
+    @BeforeEach
+    void stubProcessingHandler() {
+        // deleteLegePartij emitteert een logboek-span; zonder stub geeft de gemockte startSpan()
+        // null terug en NPE't de daaropvolgende span.end() (gevangen en geannuleerd, maar dan mist
+        // de test de span die hij net wilde verifiëren).
+        Mockito.doReturn(Mockito.mock(Span.class)).when(processingHandler).startSpan(Mockito.anyString(), Mockito.any());
+    }
 
     @AfterEach
     @Transactional
@@ -145,9 +167,9 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Assertions.assertNotNull(partij);
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
-            Assertions.assertEquals("test@test.com", partij.getContactgegevens().get(0).getWaarde());
-            Assertions.assertEquals("test-ref-id", partij.getContactgegevens().get(0).getVerificatieReferentieId());
+            Assertions.assertEquals(1, Contactgegeven.find(partij).size());
+            Assertions.assertEquals("test@test.com", Contactgegeven.find(partij).get(0).getWaarde());
+            Assertions.assertEquals("test-ref-id", Contactgegeven.find(partij).get(0).getVerificatieReferentieId());
         });
     }
 
@@ -162,7 +184,7 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Assertions.assertNotNull(partij);
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
+            Assertions.assertEquals(1, Contactgegeven.find(partij).size());
         });
     }
 
@@ -196,8 +218,8 @@ public class PartijServiceTest {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
             Assertions.assertNotNull(partij);
-            Assertions.assertEquals(1, partij.getVoorkeuren().size());
-            Assertions.assertEquals("nl", partij.getVoorkeuren().get(0).getWaarde());
+            Assertions.assertEquals(1, Voorkeur.find(partij).size());
+            Assertions.assertEquals("nl", Voorkeur.find(partij).get(0).getWaarde());
         });
     }
 
@@ -308,7 +330,11 @@ public class PartijServiceTest {
             cgId.set(cg.id);
         });
 
-        Instant voorLezen = Instant.now();
+        // 50 ms speling: voorLezen en de opgeslagen timestamp komen elk uit een eigen Instant.now()-
+        // aanroep. H2's microseconde-afronding (geverifieerd) is op zichzelf te klein om dit te
+        // verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd strikt
+        // geordend zijn.
+        Instant voorLezen = Instant.now().minusMillis(50);
         partijService.getPartijResponse(IdentificatieType.BSN, "123456789", new PartijRequest());
 
         QuarkusTransaction.requiringNew().run(() -> {
@@ -399,8 +425,8 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
-            Assertions.assertEquals(1, partij.getContactgegevens().get(0).getScopes().size());
+            Assertions.assertEquals(1, Contactgegeven.find(partij).size());
+            Assertions.assertEquals(1, Contactgegeven.find(partij).get(0).getScopes().size());
         });
     }
 
@@ -443,8 +469,8 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
-            Contactgegeven cg = partij.getContactgegevens().get(0);
+            Assertions.assertEquals(1, Contactgegeven.find(partij).size());
+            Contactgegeven cg = Contactgegeven.find(partij).get(0);
             Assertions.assertEquals(1, cg.getScopes().size(), "de scope van OtherDV mag niet toegevoegd worden bij een conflict");
             Assertions.assertEquals("TestDV", cg.getScopes().get(0).getDienstverlenerDienst().getDienstverlener().getNaam());
         });
@@ -469,8 +495,8 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(1, partij.getVoorkeuren().size());
-            Assertions.assertEquals("nl", partij.getVoorkeuren().get(0).getWaarde());
+            Assertions.assertEquals(1, Voorkeur.find(partij).size());
+            Assertions.assertEquals("nl", Voorkeur.find(partij).get(0).getWaarde());
         });
     }
 
@@ -583,7 +609,7 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(3, partij.getContactgegevens().size(),
+            Assertions.assertEquals(3, Contactgegeven.find(partij).size(),
                     "Filtered read must not delete contactgegevens that were excluded by the filter");
         });
     }
@@ -927,8 +953,8 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Assertions.assertEquals(1, partij.getContactgegevens().size());
-            Assertions.assertEquals("user@test.com", partij.getContactgegevens().get(0).getWaarde());
+            Assertions.assertEquals(1, Contactgegeven.find(partij).size());
+            Assertions.assertEquals("user@test.com", Contactgegeven.find(partij).get(0).getWaarde());
         });
     }
 
@@ -948,8 +974,10 @@ public class PartijServiceTest {
             voorkeurId.set(voorkeur.id);
         });
 
-        // 50 ms speling: de teruggelezen tijdstempel is op DB-precisie afgerond en kan net vóór
-        // "voor" liggen.
+        // 50 ms speling: voor en de opgeslagen timestamp komen elk uit een eigen Instant.now()-
+        // aanroep. H2's microseconde-afronding (geverifieerd) is op zichzelf te klein om dit te
+        // verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd strikt
+        // geordend zijn.
         Instant voor = Instant.now().minusMillis(50);
         Voorkeur result = partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
 
@@ -1039,6 +1067,34 @@ public class PartijServiceTest {
                 () -> partijService.deleteLegePartij(partij, Instant.now()));
     }
 
+    /**
+     * Bewijst waarom lockEnLeesVerwijderdOp een losse scalar-query gebruikt i.p.v.
+     * partij.isVerwijderd(): elke publieke aanroeper van deleteLegePartij filtert zelf al vooraf op
+     * verwijderdOp IS NULL, dus geen enkele bestaande test neemt deze tak. Simuleert de race met
+     * een geneste transactie i.p.v. threads — deleteLegePartij is public/MANDATORY, dus dat volstaat.
+     */
+    @Test
+    void deleteLegePartij_PartijTussentijdsAlVerwijderdInAndereTransactie_LeestGecommitteStand() {
+        AtomicReference<UUID> partijId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+            partijId.set(partij.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId.get());
+
+            QuarkusTransaction.requiringNew().run(() ->
+                    Partij.update("verwijderdOp = ?1 WHERE id = ?2", Instant.now(), partijId.get()));
+
+            Assertions.assertEquals(PartijService.CascadeResultaat.AL_VERWIJDERD,
+                    partijService.deleteLegePartij(partij, Instant.now()),
+                    "moet de gecommitte stand lezen (partij.isVerwijderd() zou hier stilzwijgend false blijven zeggen)");
+        });
+    }
+
     @Test
     void verwijderVoorkeur_LaatsteActieveKind_VerwijdertOokPartij() {
         AtomicReference<UUID> partijId = new AtomicReference<>();
@@ -1065,6 +1121,62 @@ public class PartijServiceTest {
             Assertions.assertTrue(partij.getIdentificaties().stream().allMatch(i -> i.getVerwijderdOp() != null),
                     "identificaties van een gecascadete partij moeten ook mee-cascaden (uk_identificatie is partieel)");
         });
+    }
+
+    /**
+     * Bewijst dat deleteLegePartij's audit-vermelding daadwerkelijk wordt geëmitteerd — niet alleen
+     * dat de partij en identificatie verwijderd worden. Zonder deze test zou
+     * registreerPartijVerwijderingLogboek kunnen teruggeven zonder ooit een span te emitteren, en
+     * zou niets dat merken.
+     */
+    @Test
+    void verwijderVoorkeur_LaatsteActieveKind_EmitLogboekSpanVoorPartijverwijdering() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
+
+        Mockito.verify(processingHandler).startSpan(Mockito.eq("verwijderPartij"), Mockito.any());
+        ArgumentCaptor<LogboekContext> captor = ArgumentCaptor.forClass(LogboekContext.class);
+        Mockito.verify(processingHandler).addLogboekContextToSpan(Mockito.any(), captor.capture());
+        LogboekContext context = captor.getValue();
+        Assertions.assertEquals(PARTIJ_PROCESSING_ACTIVITY_ID, context.getProcessingActivityId());
+        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), context.getDataSubjectId());
+        Assertions.assertEquals("BSN", context.getDataSubjectType());
+    }
+
+    /**
+     * Een partij zonder actieve identificaties (findOrCreatePartij voegt er altijd één toe, dus dit
+     * wijst op datacorruptie) mag nog steeds gecascadeerd worden — maar zonder logboek-span, want er
+     * is geen identiteit om te auditeren.
+     */
+    @Test
+    void deleteLegePartij_PartijZonderIdentificatie_CascadeertZonderLogboekSpan() {
+        AtomicReference<UUID> partijId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.persist();
+            partijId.set(partij.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = Partij.findById(partijId.get());
+            Assertions.assertEquals(PartijService.CascadeResultaat.GECASCADEERD,
+                    partijService.deleteLegePartij(partij, Instant.now()));
+        });
+
+        Mockito.verify(processingHandler, Mockito.never()).startSpan(Mockito.anyString(), Mockito.any());
     }
 
     @Test
@@ -1145,8 +1257,10 @@ public class PartijServiceTest {
             contactId.set(contact.id);
         });
 
-        // 50 ms speling: de teruggelezen tijdstempel is op DB-precisie afgerond en kan net vóór
-        // "voor" liggen.
+        // 50 ms speling: voor en de opgeslagen timestamp komen elk uit een eigen Instant.now()-
+        // aanroep. H2's microseconde-afronding (geverifieerd) is op zichzelf te klein om dit te
+        // verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd strikt
+        // geordend zijn.
         Instant voor = Instant.now().minusMillis(50);
         Contactgegeven result = partijService.verwijderContactgegeven(IdentificatieType.BSN, "123456789", contactId.get());
 

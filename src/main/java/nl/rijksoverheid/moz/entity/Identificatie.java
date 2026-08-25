@@ -5,8 +5,6 @@ import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.NotNull;
@@ -24,10 +22,6 @@ import java.util.UUID;
 @Entity
 @Audited
 public class Identificatie extends VerwijderbareEntiteit {
-
-    @Id
-    @GeneratedValue
-    public UUID id;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -71,11 +65,6 @@ public class Identificatie extends VerwijderbareEntiteit {
 
     public void setPartij(Partij partij) {
         this.partij = partij;
-    }
-
-    @Override
-    Object entiteitId() {
-        return id;
     }
 
     public static List<Identificatie> find(Partij partij) {

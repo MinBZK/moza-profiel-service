@@ -8,6 +8,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.lang.ArchRule;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.VerwijderbareEntiteit;
 import nl.rijksoverheid.moz.entity.Voorkeur;
@@ -26,19 +27,21 @@ import static com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.Wi
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
- * findById/listAll/streamAll/deleteAll zijn geërfd van PanacheEntityBase en filteren
- * verwijderdOp niet — anders dan Contactgegeven.find(partij, id) e.d., die dat wél doen. Verwart
- * een latere refactor de twee, dan komt een soft deleted rij weer tevoorschijn: resurrection,
- * expliciet verboden (zie PartijService.findOrCreatePartij). Eerste uitzondering:
- * RetentieScheduler.cascadeDeleteLegePartijen roept Partij.findById(id) aan op een id dat net uit
- * een eigen, al-gefilterde reconciliatiequery komt.
+ * findById/listAll/streamAll/deleteAll/findByIdOptional/findByIds/findAll/deleteById/update/delete
+ * zijn geërfd van PanacheEntityBase en filteren verwijderdOp niet — anders dan Contactgegeven.find(partij, id)
+ * e.d., die dat wél doen. Partij.getIdentificaties() valt om dezelfde reden onder deze regel: die
+ * geeft de rauwe, ongefilterde @OneToMany-collectie terug. Verwart een latere refactor de twee, dan
+ * komt een soft deleted rij weer tevoorschijn — resurrection, expliciet verboden, zie
+ * PartijService.findOrCreatePartij.
  * <p>
- * Partij.getContactgegevens()/getVoorkeuren()/getIdentificaties() vallen om dezelfde reden onder
- * deze regel: ze geven de rauwe, ongefilterde @OneToMany-collectie terug. getContactgegevens/
- * getVoorkeuren hebben vandaag geen aanroeper buiten het entity-pakket (productiecode gebruikt
- * Contactgegeven.find(partij)/Voorkeur.find(partij), die wél filteren). getIdentificaties heeft er
- * wél één: PartijService.deleteLegePartij cascadet welbewust élke identificatie van een net-
- * verwijderde partij, ongeacht status — vandaar de tweede uitzondering hieronder.
+ * Twee uitzonderingen: RetentieScheduler.cascadeDeleteLegePartijen roept Partij.findById(id) aan op
+ * een id dat net uit een eigen, al-gefilterde reconciliatiequery komt; PartijService.deleteLegePartij
+ * roept Partij.getIdentificaties() aan om de nog actieve identificaties van een net-verwijderde
+ * partij te cascaden.
+ * <p>
+ * Geen dekking voor Panache's getEntityManager(): een handmatige JPQL-query daarop omzeilt deze
+ * regel net zo goed als hij verbiedt. Productiecode filtert daar zelf, zie RetentieScheduler en
+ * PartijService.deleteLegePartij.
  */
 class OngefilterdeFinderTest {
 
@@ -54,7 +57,8 @@ class OngefilterdeFinderTest {
 
     private static final DescribedPredicate<JavaAccess<?>> DOEL_IS_ONGEFILTERDE_FINDER =
             target(owner(IS_ONGEFILTERDE_ENTITEIT))
-                    .and(target(nameMatching("findById|listAll|streamAll|deleteAll|getContactgegevens|getVoorkeuren|getIdentificaties")));
+                    .and(target(nameMatching("findById|findByIdOptional|findByIds|findAll|listAll|streamAll"
+                            + "|deleteAll|deleteById|update|delete|getIdentificaties")));
 
     private static final DescribedPredicate<JavaAccess<?>> IS_CASCADE_UITZONDERING =
             DescribedPredicate.describe("de uitzondering in RetentieScheduler.cascadeDeleteLegePartijen",
@@ -96,9 +100,9 @@ class OngefilterdeFinderTest {
     }
 
     /**
-     * Losse test van de getContactgegevens/getVoorkeuren-namen in DOEL_IS_ONGEFILTERDE_FINDER:
-     * regelDetecteertEenEchteOvertreding alleen bewijst niet dat déze twee namen ook echt in de
-     * regex zitten — een tikfout daarin zou door die test heen glippen zolang findById nog werkt.
+     * Losse test van de getIdentificaties-naam in DOEL_IS_ONGEFILTERDE_FINDER:
+     * regelDetecteertEenEchteOvertreding alleen bewijst niet dat déze naam ook echt in de regex
+     * zit — een tikfout daarin zou door die test heen glippen zolang findById nog werkt.
      */
     @Test
     void regelDetecteertEenOngefilterdeGetterOvertreding() {
@@ -108,6 +112,19 @@ class OngefilterdeFinderTest {
                 "de regel hoort OvertrederViaGetter.lees() te vlaggen");
     }
 
+    /**
+     * Losse test van update/delete in DOEL_IS_ONGEFILTERDE_FINDER — het mechanisme dat een soft
+     * deleted rij zou kunnen resurrecten (bv. {@code Contactgegeven.update("verwijderdOp = null
+     * WHERE id = ?1", id)}) en dus compileert zonder deze regel.
+     */
+    @Test
+    void regelDetecteertEenOngefilterdeUpdateOvertreding() {
+        JavaClasses klassen = new ClassFileImporter().importClasses(OvertrederViaUpdate.class);
+
+        Assertions.assertThrows(AssertionError.class, () -> REGEL.check(klassen),
+                "de regel hoort OvertrederViaUpdate.verwijder() te vlaggen");
+    }
+
     static class Overtreder {
         Voorkeur lees(UUID id) {
             return Voorkeur.findById(id);
@@ -115,8 +132,14 @@ class OngefilterdeFinderTest {
     }
 
     static class OvertrederViaGetter {
-        List<Contactgegeven> lees(Partij partij) {
-            return partij.getContactgegevens();
+        List<Identificatie> lees(Partij partij) {
+            return partij.getIdentificaties();
+        }
+    }
+
+    static class OvertrederViaUpdate {
+        long verwijder(UUID id) {
+            return Contactgegeven.update("verwijderdOp = null WHERE id = ?1", id);
         }
     }
 }

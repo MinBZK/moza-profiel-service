@@ -22,7 +22,7 @@ import java.util.List;
  * Mapt {@link Partij}-entiteiten naar hun response-DTO's. Zuiver veld-voor-veld kopiëren,
  * gegenereerd door MapStruct. Geen databasetoegang: het laden van de identificaties/contactgegevens/
  * voorkeuren, en het bijwerken van lastUsedAt bij een stale read ("touch on read"), is aan de
- * aanroeper, zie {@link nl.rijksoverheid.moz.services.PartijService#touchIfStale}.
+ * aanroeper, zie {@code PartijService.touchIfStale}.
  *
  * <p>De {@code remove*Item}-doelen worden expliciet genegeerd. De generator zet bij elke
  * lijst-property een {@code addXItem} en een {@code removeXItem} neer die de klasse zelf
@@ -41,9 +41,10 @@ import java.util.List;
         unmappedTargetPolicy = ReportingPolicy.ERROR)
 public abstract class PartijMapper {
 
-    // public: aangeroepen vanuit andere packages (PartijService, ProfielController). De
-    // toIdentificatieResponse/toScopeResponse-submappings hieronder zijn package-private: die
-    // worden alleen door de MapStruct-gegenereerde impl in dit package zelf aangeroepen.
+    // public: toResponse wordt vanuit een ander package aangeroepen (PartijService); mapContactgegeven/
+    // mapVoorkeur hieronder vanuit ProfielController. De toIdentificatieResponse/toScopeResponse-
+    // submappings zijn package-private: die worden alleen door de MapStruct-gegenereerde impl in
+    // dit package zelf aangeroepen.
     @Mapping(target = "partijId", source = "partij.id")
     // Bron expliciet aan de parameter gebonden, niet aan partij.identificaties/contactgegevens/voorkeuren:
     // die rauwe @OneToMany-collecties zijn ongefilterd (zie OngefilterdeFinderTest) en zouden een

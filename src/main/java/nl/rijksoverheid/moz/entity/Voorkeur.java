@@ -7,8 +7,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -28,10 +26,6 @@ import java.util.UUID;
 @Entity
 @Audited
 public class Voorkeur extends VerwijderbareEntiteit {
-
-    @Id
-    @GeneratedValue
-    public UUID id;
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -123,11 +117,6 @@ public class Voorkeur extends VerwijderbareEntiteit {
         this.lastUsedAt = lastUsedAt;
     }
 
-    @Override
-    Object entiteitId() {
-        return id;
-    }
-
     @Nullable
     public static Voorkeur find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
@@ -158,5 +147,11 @@ public class Voorkeur extends VerwijderbareEntiteit {
                         + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
                 partij, voorkeurType, scope
         ).firstResult();
+    }
+
+    // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-delete van
+    // dezelfde rij mag lastUsedAt niet meer bumpen.
+    public static long touch(UUID id, Instant nu) {
+        return update("lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id);
     }
 }

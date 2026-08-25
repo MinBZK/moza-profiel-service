@@ -1,11 +1,13 @@
 package nl.rijksoverheid.moz.services;
 
+import io.opentelemetry.api.trace.Span;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
@@ -56,9 +58,15 @@ class PartijServiceScopeFilterTest {
     @InjectMock
     EmailVerificatieService emailVerificatieService;
 
+    @InjectMock
+    ProcessingHandler processingHandler;
+
     @BeforeEach
     void setup() {
         Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+        // deleteLegePartij emitteert een logboek-span; zonder stub geeft de gemockte startSpan()
+        // null terug en NPE't de daaropvolgende span.end().
+        Mockito.doReturn(Mockito.mock(Span.class)).when(processingHandler).startSpan(Mockito.anyString(), Mockito.any());
     }
 
     @AfterEach
@@ -583,6 +591,59 @@ class PartijServiceScopeFilterTest {
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
                 () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, update));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
+    }
+
+    /**
+     * De 3-arg Voorkeur.find(partij, type, scope) filtert ook op verwijderdOp — ongetest tot deze
+     * test, want elke andere soft-delete-test in de suite gebruikt een ongescopte voorkeur (die
+     * treft de 2-arg overload). Zonder dat filter zou een soft-deleted gescopte voorkeur voorgoed
+     * een 409 op addVoorkeur blijven geven: er is geen DB-constraint die dat alsnog afdwingt.
+     */
+    @Test
+    void gescopteVoorkeurSoftDeleted_KanOpnieuwWordenToegevoegd() {
+        QuarkusTransaction.requiringNew().run(() -> maakLink("DV-A", "Dienst-A"));
+
+        Voorkeur origineel = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "nl", "DV-A", "Dienst-A"));
+
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, BSN_NUMMER, origineel.id);
+
+        Voorkeur opnieuw = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "en", "DV-A", "Dienst-A"));
+
+        Assertions.assertNotEquals(origineel.id, opnieuw.id,
+                "een soft deleted gescopte voorkeur mag niet blokkeren: er moet een nieuwe rij komen");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Voorkeur.<Voorkeur>findById(opnieuw.id).getVerwijderdOp()));
+    }
+
+    /** updateVoorkeur-tegenhanger van gescopteVoorkeurSoftDeleted_KanOpnieuwWordenToegevoegd. */
+    @Test
+    void updateVoorkeurNaarScopeVanSoftDeletedVoorkeur_GeenConflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            maakLink("DV-A", "Dienst-A");
+            maakLink("DV-B", "Dienst-B");
+        });
+
+        Voorkeur gescopt = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "nl", "DV-A", "Dienst-A"));
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, BSN_NUMMER, gescopt.id);
+
+        Voorkeur andere = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "en", "DV-B", "Dienst-B"));
+
+        VoorkeurUpdateRequest update = new VoorkeurUpdateRequest();
+        update.setId(andere.id);
+        update.setIdentificatieType(IdentificatieType.BSN);
+        update.setIdentificatieNummer(BSN_NUMMER);
+        update.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        update.setWaarde("de");
+        update.setScope(new ScopeRequest());
+        update.getScope().setDienstverlenerNaam("DV-A");
+        update.getScope().setDienstNaam("Dienst-A");
+
+        Assertions.assertTrue(partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, update),
+                "de scope van een soft deleted voorkeur mag geen conflict meer geven");
     }
 
     private VoorkeurRequest voorkeurRequest(VoorkeurType type, String waarde, String dvNaam, String dienstNaam) {

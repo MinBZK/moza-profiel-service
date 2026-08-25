@@ -24,6 +24,8 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.logboek.GeauditeerdeIdentiteit;
+import nl.rijksoverheid.moz.logboek.LogboekSpanEmitter;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import org.jboss.logging.Logger;
 
@@ -48,17 +50,30 @@ public class PartijService {
     // elke aanroep lastUsedAt bijwerken. Zie touchIfStale.
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
+    // Placeholder: nog geen echte verwerkingsactiviteit-ID geregistreerd voor partij/identificatie-
+    // verwijdering (anders dan PS-630/631 in RetentieScheduler, voor voorkeur/contactgegeven).
+    private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
+
     private final PartijMapper partijMapper;
     private final EmailVerificatieService emailVerificatieService;
     private final DienstverlenerService dienstverlenerService;
+    private final LogboekSpanEmitter logboekSpanEmitter;
 
     public PartijService(
             PartijMapper partijMapper,
             EmailVerificatieService emailVerificatieService,
-            DienstverlenerService dienstverlenerService) {
+            DienstverlenerService dienstverlenerService,
+            LogboekSpanEmitter logboekSpanEmitter) {
         this.partijMapper = partijMapper;
         this.emailVerificatieService = emailVerificatieService;
         this.dienstverlenerService = dienstverlenerService;
+        this.logboekSpanEmitter = logboekSpanEmitter;
+    }
+
+    public enum CascadeResultaat {
+        GECASCADEERD,
+        AL_VERWIJDERD,
+        HEEFT_ACTIEVE_KINDEREN
     }
 
     @Transactional
@@ -278,16 +293,8 @@ public class PartijService {
 
     private void demoteCurrentDefault(Partij partij, ContactType type, UUID exceptId) {
         // Moet vóór contact.setType/setIsDefault draaien: op dat moment is contact nog clean,
-        // dus deze bulk-update demote de andere rij vóórdat contacts eigen wijziging ooit
-        // flusht — anders zouden beide rijen tijdelijk isDefault = true kunnen dragen voor
-        // hetzelfde (partij, type), wat op contactgegeven_default_per_type botst.
-        // lastUpdated wordt expliciet meegebumped omdat een bulk-update @PreUpdate bypasst.
-        // Filtert wél op verwijderdOp: een rij met een soft delete behoudt haar isDefault-waarde
-        // zoals die was op het moment van verwijderen (zie verwijderContactgegeven) en mag daarom
-        // hier niet aangeraakt worden — die rij zit toch al buiten de partiële index.
-        Contactgegeven.update(
-                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND verwijderdOp IS NULL AND id <> ?4",
-                Instant.now(), partij, type, exceptId);
+        // dus deze bulk-update demote de andere rij vóórdat contacts eigen wijziging ooit flusht.
+        Contactgegeven.demoteDefault(partij, type, exceptId, Instant.now());
     }
 
     @Transactional
@@ -338,11 +345,9 @@ public class PartijService {
         }
     }
 
-    // identificatieType/Nummer resolven de partij vóórdat de voorkeur wordt opgezocht: de
-    // partij-scoped, soft-delete-veilige Voorkeur.find(partij, id) hieronder garandeert zo dat een
-    // id alleen wordt verwijderd als hij ook echt bij de opgegeven identiteit hoort, en dat een
-    // al-verwijderde rij niet als gevonden telt. Bestaat de partij niet, of hoort de id niet bij
-    // deze partij, dan is dat ononderscheidbaar van "niet gevonden" — net als bij updateVoorkeur.
+    // Partij eerst resolven zodat Voorkeur.find(partij, id) hieronder garandeert dat id ook echt
+    // bij deze identiteit hoort en niet al verwijderd is. Onbekende partij of id: beide
+    // ononderscheidbaar van "niet gevonden", net als bij updateVoorkeur.
     @Transactional
     public Voorkeur verwijderVoorkeur(IdentificatieType identificatieType, String identificatieNummer, UUID id) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
@@ -382,37 +387,52 @@ public class PartijService {
 
     // Publiek: ook aangeroepen door RetentieScheduler. MANDATORY zodat de mutatie op een detached
     // entity niet stilzwijgend verloren gaat bij een toekomstige, niet-transactionele aanroeper.
-    // Retourneert of deze aanroep de partij daadwerkelijk cascadete.
     @Transactional(Transactional.TxType.MANDATORY)
-    public boolean deleteLegePartij(Partij partij, Instant nu) {
+    public CascadeResultaat deleteLegePartij(Partij partij, Instant nu) {
         if (lockEnLeesVerwijderdOp(partij) != null) {
-            return false;
+            return CascadeResultaat.AL_VERWIJDERD;
         }
 
         boolean hasActiveContactgegevens = Contactgegeven.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
         boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
 
         if (hasActiveContactgegevens || hasActiveVoorkeuren) {
-            return false;
+            return CascadeResultaat.HEEFT_ACTIEVE_KINDEREN;
         }
 
         partij.verwijder(nu);
-        // Zonder dit blijft de oude identificatie binnen uk_identificatie's WHERE verwijderd_op
-        // IS NULL staan en blokkeert ze findOrCreatePartij's nieuwe insert voor dezelfde
-        // (type, nummer) — zie V4-migratie. Filter i.p.v. blind forEach: vandaag onbereikbaar (een
-        // identificatie wordt alleen hier, samen met haar partij, verwijderd), maar zonder deze
-        // filter zou een toekomstige schending van die aanname elke nacht opnieuw op verwijder()'s
-        // guard stuklopen voor dezelfde partij, zonder zelfherstel.
-        partij.getIdentificaties().stream().filter(i -> !i.isVerwijderd()).forEach(i -> i.verwijder(nu));
+        // Filter i.p.v. blind forEach: al verwijderde identificaties opnieuw verwijderen zou op
+        // verwijder()'s guard stuklopen. Nodig zodat findOrCreatePartij later dezelfde
+        // (type, nummer) weer kan invoegen (uk_identificatie, V4-migratie).
+        List<Identificatie> nogActief = partij.getIdentificaties().stream().filter(i -> !i.isVerwijderd()).toList();
 
-        return true;
+        if (nogActief.isEmpty()) {
+            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie of
+            // een misgelopen migratie, niet op een routinegeval — zie ook resolveerIdentiteitOfSlaOver.
+            LOG.error("PartijService: partij " + partij.id + " had geen actieve identificatie meer bij "
+                    + "verwijdering (invariant violation, zie findOrCreatePartij); geen audit-vermelding "
+                    + "voor deze verwijdering mogelijk");
+        }
+
+        nogActief.forEach(i -> i.verwijder(nu));
+        registreerPartijVerwijderingLogboek(nogActief.stream()
+                .map(i -> new GeauditeerdeIdentiteit(i.getIdentificatieNummer(), i.getIdentificatieType()))
+                .toList());
+
+        return CascadeResultaat.GECASCADEERD;
     }
 
-    // Losse scalar-query i.p.v. de entity: een lock op een al-managed entity ververst haar
-    // veldwaarden niet, dus verwijderdOp zou anders de stand van vóór de lock houden. Zonder deze
-    // lock kan dit racen met findOrCreatePartij (voegt gelijktijdig een nieuwe actieve child toe)
-    // of met een tweede, gelijktijdige aanroep van deleteLegePartij voor dezelfde partij — de lock
-    // blokkeert tot de concurrente transactie commit/rollbackt en serialiseert zo beide op deze rij.
+    // Eén span per erased identificatie, niet per partij — elk identificatienummer is zelf
+    // persoonsgegeven.
+    private void registreerPartijVerwijderingLogboek(List<GeauditeerdeIdentiteit> identiteiten) {
+        logboekSpanEmitter.registreerNaCommit(identiteiten, "verwijderPartij", PARTIJ_PROCESSING_ACTIVITY_ID,
+                e -> LOG.error("PartijService: logboek-emissie voor partijverwijdering mislukt ná commit "
+                        + "(de identificatie is al verwijderd; dit is dus een gemist audit-spoor)", e));
+    }
+
+    // Losse scalar-query i.p.v. partij.isVerwijderd(): een lock ververst het al-managed object niet,
+    // dus alleen de query ziet de zojuist gecommitte stand. De lock zelf serialiseert gelijktijdige
+    // aanroepen (deze methode of findOrCreatePartij) op dezelfde partij-rij.
     private Instant lockEnLeesVerwijderdOp(Partij partij) {
         Partij.getEntityManager().lock(partij, LockModeType.PESSIMISTIC_WRITE);
 
@@ -433,7 +453,8 @@ public class PartijService {
                 .flatMap(entry -> {
                     List<Partij> found = Partij.list(
                             "SELECT p FROM Partij p JOIN p.identificaties i " +
-                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2 AND p.verwijderdOp IS NULL",
+                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2 "
+                            + "AND p.verwijderdOp IS NULL AND i.verwijderdOp IS NULL",
                             entry.getKey(), entry.getValue());
 
                     return found.stream();
@@ -479,10 +500,7 @@ public class PartijService {
             return true;
         }
 
-        // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-delete
-        // van dezelfde rij mag lastUsedAt niet meer bumpen.
-        long geraakt = Contactgegeven.update(
-                "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), cg.id);
+        long geraakt = Contactgegeven.touch(cg.id, Instant.now());
 
         if (geraakt == 0) {
             LOG.warn("touchIfStale: contactgegeven " + cg.id + " was inmiddels soft-deleted, uit response gefilterd");
@@ -496,8 +514,7 @@ public class PartijService {
             return true;
         }
 
-        long geraakt = Voorkeur.update(
-                "lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", Instant.now(), voorkeur.id);
+        long geraakt = Voorkeur.touch(voorkeur.id, Instant.now());
 
         if (geraakt == 0) {
             LOG.warn("touchIfStale: voorkeur " + voorkeur.id + " was inmiddels soft-deleted, uit response gefilterd");

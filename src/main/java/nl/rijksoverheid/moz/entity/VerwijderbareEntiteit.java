@@ -2,13 +2,23 @@ package nl.rijksoverheid.moz.entity;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.annotation.Nullable;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 
+// Public: OngefilterdeFinderTest (ander package) verwijst rechtstreeks naar deze klasse. Geen
+// @SQLRestriction: dat is niet per query uit te zetten, en meerdere tests inspecteren juist een
+// soft deleted rij rechtstreeks.
 @MappedSuperclass
 public abstract class VerwijderbareEntiteit extends PanacheEntityBase {
+
+    @Id
+    @GeneratedValue
+    public UUID id;
 
     @Nullable
     private Instant verwijderdOp;
@@ -30,11 +40,9 @@ public abstract class VerwijderbareEntiteit extends PanacheEntityBase {
         Objects.requireNonNull(nu, "nu mag niet null zijn");
 
         if (verwijderdOp != null) {
-            throw new IllegalStateException(getClass().getSimpleName() + " " + entiteitId() + " is al verwijderd op " + verwijderdOp);
+            throw new IllegalStateException(getClass().getSimpleName() + " " + id + " is al verwijderd op " + verwijderdOp);
         }
 
         verwijderdOp = nu;
     }
-
-    abstract Object entiteitId();
 }

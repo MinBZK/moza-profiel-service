@@ -523,7 +523,7 @@ public class RetentieSchedulerTest {
     }
 
     /**
-     * Geen ORDER BY op de reconciliatiequery (zie cascadeDeleteLegePartijen's klasse-comment) — dus
+     * cascadeDeleteLegePartijen's kandidaatquery heeft geen ORDER BY — dus
      * anders dan de voorkeur/contactgegeven-override-test hierboven kan deze test niet aantonen wélke
      * partij overblijft, alleen dat de afkap tot precies één kandidaat cascadeert.
      */
@@ -715,12 +715,17 @@ public class RetentieSchedulerTest {
         Mockito.verify(processingHandler).startSpan(Mockito.eq("verwijderVoorkeurRetentie"), Mockito.any());
 
         ArgumentCaptor<LogboekContext> captor = ArgumentCaptor.forClass(LogboekContext.class);
-        Mockito.verify(processingHandler).addLogboekContextToSpan(Mockito.any(), captor.capture());
-        Assertions.assertEquals(VOORKEUR_PROCESSING_ACTIVITY_ID, captor.getValue().getProcessingActivityId());
+        // times(2): de partij wordt ná deze fase ook gecascadeerd (haar enige kind is net
+        // verwijderd), wat een eigen addLogboekContextToSpan-aanroep voor de identificatie oplevert.
+        Mockito.verify(processingHandler, Mockito.times(2)).addLogboekContextToSpan(Mockito.any(), captor.capture());
+        LogboekContext voorkeurContext = captor.getAllValues().stream()
+                .filter(ctx -> VOORKEUR_PROCESSING_ACTIVITY_ID.equals(ctx.getProcessingActivityId()))
+                .findFirst()
+                .orElseThrow();
         // Niet alleen de constante: dataSubjectId/Type zijn de eigenlijke persoonsgegevens in de
         // vermelding, en de enige reden dat deze scheduler per rij laadt i.p.v. een bulk-update.
-        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), captor.getValue().getDataSubjectId());
-        Assertions.assertEquals("BSN", captor.getValue().getDataSubjectType());
+        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), voorkeurContext.getDataSubjectId());
+        Assertions.assertEquals("BSN", voorkeurContext.getDataSubjectType());
     }
 
     @Test
@@ -733,10 +738,15 @@ public class RetentieSchedulerTest {
         Mockito.verify(processingHandler).startSpan(Mockito.eq("verwijderContactgegevenRetentie"), Mockito.any());
 
         ArgumentCaptor<LogboekContext> captor = ArgumentCaptor.forClass(LogboekContext.class);
-        Mockito.verify(processingHandler).addLogboekContextToSpan(Mockito.any(), captor.capture());
-        Assertions.assertEquals(CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID, captor.getValue().getProcessingActivityId());
-        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), captor.getValue().getDataSubjectId());
-        Assertions.assertEquals("BSN", captor.getValue().getDataSubjectType());
+        // times(2): de partij wordt ná deze fase ook gecascadeerd (haar enige kind is net
+        // verwijderd), wat een eigen addLogboekContextToSpan-aanroep voor de identificatie oplevert.
+        Mockito.verify(processingHandler, Mockito.times(2)).addLogboekContextToSpan(Mockito.any(), captor.capture());
+        LogboekContext contactContext = captor.getAllValues().stream()
+                .filter(ctx -> CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID.equals(ctx.getProcessingActivityId()))
+                .findFirst()
+                .orElseThrow();
+        Assertions.assertEquals(hashHelper.hashIdentifier("123456789"), contactContext.getDataSubjectId());
+        Assertions.assertEquals("BSN", contactContext.getDataSubjectType());
     }
 
     /**
@@ -781,7 +791,10 @@ public class RetentieSchedulerTest {
 
         retentieScheduler.verwijderInactieveRecords();
 
-        Mockito.verify(processingHandler, Mockito.times(2)).startSpan(Mockito.anyString(), Mockito.any());
+        // Naamgescopeerd i.p.v. anyString(): beide partijen worden ná deze fase ook gecascadeerd
+        // (hun enige kind is net verwijderd), wat zijn eigen logboek-spans emitteert — dit telt
+        // specifiek de voorkeur-fase, niet de batch als geheel.
+        Mockito.verify(processingHandler, Mockito.times(2)).startSpan(Mockito.eq("verwijderVoorkeurRetentie"), Mockito.any());
         Assertions.assertEquals(anomalieVoor + 1,
                 meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "logboek-fout").count());
         Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
@@ -852,6 +865,64 @@ public class RetentieSchedulerTest {
     }
 
     /**
+     * Een partij die tussen de reconciliatiequery en de daadwerkelijke verwerking gelijktijdig door
+     * een andere transactie wordt verwijderd (AL_VERWIJDERD) blijft een anomalie. Simuleert de race
+     * via de spy i.p.v. threads, net als
+     * deleteLegePartij_PartijTussentijdsAlVerwijderdInAndereTransactie_LeestGecommitteStand in
+     * PartijServiceTest dat op een lager niveau al doet.
+     */
+    @Test
+    void partijWordtGelijktijdigVerwijderdTussenSelectieEnCascade_TeltAlsAnomalieEnHoudtRunTegen() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "gelijktijdig-verwijderd").count();
+        double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
+
+        UUID partijId = createPartij();
+
+        Mockito.doAnswer(invocation -> {
+            QuarkusTransaction.requiringNew().run(() ->
+                    Partij.update("verwijderdOp = ?1 WHERE id = ?2", Instant.now(), partijId));
+            return invocation.callRealMethod();
+        }).when(partijServiceSpy).deleteLegePartij(Mockito.argThat(p -> partijId.equals(p.id)), Mockito.any());
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        Assertions.assertEquals(anomalieVoor + 1,
+                meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "gelijktijdig-verwijderd").count());
+        Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
+                "een gelijktijdig verwijderde kandidaat mag de geslaagde-run-gauge niet bijwerken");
+    }
+
+    /**
+     * Een partij die tussen selectie en verwerking weer een actief kind krijgt (HEEFT_ACTIEVE_KINDEREN)
+     * is geen anomalie — in tegenstelling tot
+     * partijWordtGelijktijdigVerwijderdTussenSelectieEnCascade_… hierboven. Zonder dat onderscheid zou
+     * deze legitieme uitkomst hier onterecht als mislukte run gerapporteerd worden.
+     */
+    @Test
+    void partijKrijgtActiefKindTussenSelectieEnCascade_TeltNietAlsAnomalieEnRunBlijftGeslaagd() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "gelijktijdig-verwijderd").count();
+        double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
+
+        UUID partijId = createPartij();
+
+        Mockito.doAnswer(invocation -> {
+            createVoorkeur(partijId, Instant.now(), null);
+            return invocation.callRealMethod();
+        }).when(partijServiceSpy).deleteLegePartij(Mockito.argThat(p -> partijId.equals(p.id)), Mockito.any());
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        Assertions.assertEquals(anomalieVoor,
+                meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "gelijktijdig-verwijderd").count(),
+                "een legitiem nieuw actief kind is geen anomalie");
+        Assertions.assertTrue(meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value() > geslaagdVoor,
+                "run moet gewoon als geslaagd gelden");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "partij met een nieuw actief kind mag niet gecascadeerd worden"));
+    }
+
+    /**
      * Pint Hibernate 6's root-entity-deduplicatie voor de scheduler's fetch-join query, net als
      * PartijServiceScopeFilterTest.rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug dat al doet
      * voor findFilteredContactgegevens — maar met een strenger faalpad: zonder dedup zou
@@ -871,7 +942,10 @@ public class RetentieSchedulerTest {
 
         retentieScheduler.verwijderInactieveRecords();
 
-        Mockito.verify(processingHandler, Mockito.times(1)).startSpan(Mockito.anyString(), Mockito.any());
+        // Naamgescopeerd i.p.v. anyString(): de partij wordt ná deze fase ook gecascadeerd (haar
+        // enige kind is net verwijderd), wat zijn eigen logboek-span per identificatie emitteert —
+        // dit telt specifiek de voorkeur-fase, wat het punt van deze test is.
+        Mockito.verify(processingHandler, Mockito.times(1)).startSpan(Mockito.eq("verwijderVoorkeurRetentie"), Mockito.any());
         Assertions.assertEquals(verwijderdVoor + 1,
                 meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").count(),
                 "een partij met twee identificaties mag de voorkeur niet dubbel tellen");

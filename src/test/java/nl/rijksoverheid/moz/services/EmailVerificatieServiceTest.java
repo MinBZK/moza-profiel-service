@@ -125,7 +125,7 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = Contactgegeven.find(partij).stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElse(null);
@@ -187,7 +187,7 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = Contactgegeven.find(partij).stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();
@@ -467,7 +467,7 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "111111106");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = Contactgegeven.find(partij).stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();

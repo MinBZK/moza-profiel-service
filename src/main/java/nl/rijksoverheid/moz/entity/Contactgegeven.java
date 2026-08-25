@@ -7,8 +7,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -33,10 +31,6 @@ import java.util.UUID;
 @Entity
 @Audited
 public class Contactgegeven extends VerwijderbareEntiteit {
-
-    @Id
-    @GeneratedValue
-    public UUID id;
 
     @JsonIgnore
     @ManyToOne(optional = false)
@@ -174,11 +168,6 @@ public class Contactgegeven extends VerwijderbareEntiteit {
         this.lastUsedAt = lastUsedAt;
     }
 
-    @Override
-    Object entiteitId() {
-        return id;
-    }
-
     @Nullable
     public static Contactgegeven find(Partij partij, UUID id) {
         return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
@@ -210,5 +199,19 @@ public class Contactgegeven extends VerwijderbareEntiteit {
                 "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3) AND verwijderdOp IS NULL",
                 partij, ContactType.Email, email
         ).firstResult();
+    }
+
+    // Aanroeper moet dit vóór eigen setType/setIsDefault draaien (voorkomt twee tijdelijk-actieve
+    // isDefault-rijen). lastUpdated expliciet meegebumped: bulk-update bypasst @PreUpdate.
+    public static long demoteDefault(Partij partij, ContactType type, UUID exceptId, Instant nu) {
+        return update(
+                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND verwijderdOp IS NULL AND id <> ?4",
+                nu, partij, type, exceptId);
+    }
+
+    // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-delete van
+    // dezelfde rij mag lastUsedAt niet meer bumpen.
+    public static long touch(UUID id, Instant nu) {
+        return update("lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id);
     }
 }
