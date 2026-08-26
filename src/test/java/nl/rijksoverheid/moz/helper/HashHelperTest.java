@@ -1,13 +1,13 @@
 package nl.rijksoverheid.moz.helper;
 
-import jakarta.inject.Inject;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
-import java.security.MessageDigest;
+import javax.crypto.Mac;
 import java.security.NoSuchAlgorithmException;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -18,12 +18,11 @@ import static org.mockito.Mockito.mockStatic;
 
 public class HashHelperTest {
 
-
     private HashHelper hashHelper;
 
     @BeforeEach
     void setUp() {
-        hashHelper = new HashHelper();
+        hashHelper = new HashHelper(Optional.of("test-pepper"));
     }
 
     @Test
@@ -37,15 +36,15 @@ public class HashHelperTest {
         String identifier = "test";
 
         // When & Then
-        try (MockedStatic<MessageDigest> mockedMessageDigest = mockStatic(MessageDigest.class)) {
-            mockedMessageDigest.when(() -> MessageDigest.getInstance(anyString()))
-                    .thenThrow(new NoSuchAlgorithmException("SHA-256 not available"));
+        try (MockedStatic<Mac> mockedMac = mockStatic(Mac.class)) {
+            mockedMac.when(() -> Mac.getInstance(anyString()))
+                    .thenThrow(new NoSuchAlgorithmException("HmacSHA256 not available"));
 
             RuntimeException exception = assertThrows(RuntimeException.class,
                     () -> hashHelper.hashIdentifier(identifier),
                     "Should throw RuntimeException when algorithm is not available");
 
-            assertEquals("SHA-256 algorithm not available", exception.getMessage());
+            assertEquals("HmacSHA256 could not be initialised", exception.getMessage());
             assertInstanceOf(NoSuchAlgorithmException.class, exception.getCause());
         }
     }
@@ -62,5 +61,42 @@ public class HashHelperTest {
 
         // Then
         assertNotEquals(hash1, hash2, "Different inputs should produce different hashes");
+    }
+
+    @Test
+    void hashIdentifier_SameInputSamePepper_IsStable() {
+        // Given
+        String identifier = "123456789";
+
+        // When
+        String hash1 = hashHelper.hashIdentifier(identifier);
+        String hash2 = new HashHelper(Optional.of("test-pepper")).hashIdentifier(identifier);
+
+        // Then
+        assertEquals(hash1, hash2, "Same input and pepper should produce the same pseudonym");
+    }
+
+    @Test
+    void hashIdentifier_SameInputOtherPepper_DiffersFromOriginal() {
+        // Given
+        String identifier = "123456789";
+        HashHelper otherPepper = new HashHelper(Optional.of("ander-pepper"));
+
+        // When
+        String hash1 = hashHelper.hashIdentifier(identifier);
+        String hash2 = otherPepper.hashIdentifier(identifier);
+
+        // Then
+        assertNotEquals(hash1, hash2, "Changing the pepper should change the pseudonym");
+    }
+
+    @Test
+    void constructor_MissingPepper_Throws() {
+        assertThrows(IllegalStateException.class, () -> new HashHelper(Optional.empty()));
+    }
+
+    @Test
+    void constructor_BlankPepper_Throws() {
+        assertThrows(IllegalStateException.class, () -> new HashHelper(Optional.of("  ")));
     }
 }

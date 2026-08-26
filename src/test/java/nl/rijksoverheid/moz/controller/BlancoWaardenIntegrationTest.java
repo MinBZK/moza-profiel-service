@@ -27,7 +27,6 @@ import java.util.stream.IntStream;
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
@@ -117,6 +116,43 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
                 .body("violations.field", hasItem("naam"));
+    }
+
+    /**
+     * De enige andere test op dit endpoint stuurt géén body en wordt daardoor al door
+     * {@code RequireBodyReaderInterceptor} beantwoord, vóórdat de bean-validatie draait.
+     * Zonder deze test raakt niets over HTTP de {@code @Valid} op de {@code DienstRequest}-
+     * parameter, noch de pattern op {@code naam}.
+     */
+    @Test
+    void dienstMetBlancoNaamWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"   \",\"beschrijving\":\"Beschrijving\"}")
+                .when().post("/api/profielservice/v1/dienstverlener/BestaatNiet/diensten")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("naam"));
+    }
+
+    /**
+     * Dezelfde DTO als bij het contactgegeven-endpoint hierboven, dus de constraints zijn
+     * al gedekt; wat hier bij komt is de parameterbinding op deze methode.
+     */
+    @Test
+    void voorkeurTeVerwijderenOpMetBlancoDienstverlenerNaamWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"identificatieType":"BSN","identificatieNummer":"111111104",
+                         "dienstverlenerNaam":"   ","teVerwijderenOp":"2030-01-01T00:00:00Z"}
+                        """)
+                .when().patch("/api/profielservice/v1/voorkeur/te-verwijderen-op")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("dienstverlenerNaam"));
     }
 
     @Test
@@ -248,7 +284,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificaties")));
+                .body("violations.field", hasItem("identificaties"));
     }
 
     /**
@@ -270,7 +306,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificaties")));
+                .body("violations.field", hasItem("identificaties"));
     }
 
     /**
@@ -294,7 +330,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificatieNummer")));
+                .body("violations.field", hasItem("identificaties[0].identificatieNummer"));
     }
 
     /**

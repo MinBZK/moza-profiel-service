@@ -643,7 +643,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .contentType(ContentType.JSON)
                 .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
-                .statusCode(BAD_REQUEST);
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                // De melding onderscheidt RequireBodyReaderInterceptor van de @NotNull op
+                // de gegenereerde interface. Alleen de eerste houdt het verzoek tegen vóór
+                // @Logboek, zodat er geen LDV-span ontstaat voor een verzoek zonder gegevens.
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
     }
 
     @Test
@@ -652,7 +657,12 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .contentType(ContentType.JSON)
                 .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
-                .statusCode(BAD_REQUEST);
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                // De melding onderscheidt RequireBodyReaderInterceptor van de @NotNull op
+                // de gegenereerde interface. Alleen de eerste houdt het verzoek tegen vóór
+                // @Logboek, zodat er geen LDV-span ontstaat voor een verzoek zonder gegevens.
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
     }
 
     /**

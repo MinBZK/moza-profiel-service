@@ -53,6 +53,22 @@ Lokale ontwikkel-secrets horen in een gitignored `src/main/resources/application
 
 Productie-configuratie staat in de deployment-repo.
 
+### `hash.pepper`
+
+`HashHelper` pseudonimiseert identificatienummers (BSN/KVK/RSIN) tot het subject-id in
+het Logboek Dataverwerkingen met een keyed HMAC-SHA-256. De sleutel komt uit
+`hash.pepper`; zonder die sleutel is een hash over een BSN triviaal terug te rekenen.
+
+`application.properties` bevat een dev/test-placeholder. Prod en acc krijgen een eigen
+geheime waarde uit het secret; de lege `%prod`/`%acc`-override staat in de
+deployment-repo, dus daar start de applicatie niet op zonder waarde. Deze repo zet die
+override niet, dus een ZAD-preview zonder `HASH_PEPPER` valt terug op de placeholder
+hierboven in plaats van te falen. Zie `docs/zad-deploy.md`.
+
+Het pseudoniem is stabiel zolang de pepper gelijk blijft. Bij het roteren van de pepper
+krijgen alle subjecten een nieuw pseudoniem en correleren oude logboekregels niet meer
+met nieuwe.
+
 ## Quarkus
 
 Dit project draait op Quarkus. Meer informatie hierover staat in [quarkus.md](quarkus.md).
