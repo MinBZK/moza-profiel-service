@@ -5,6 +5,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import jakarta.transaction.Transactional;
+import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Dienst;
+import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
+import nl.rijksoverheid.moz.entity.Identificatie;
+import nl.rijksoverheid.moz.entity.Partij;
+import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
+import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
+import nl.rijksoverheid.moz.entity.Voorkeur;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,10 +29,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_ACCEPTABLE;
 
 /**
@@ -54,7 +71,80 @@ class AcceptHeaderIntegrationTest {
             {"identificatieType":"BSN","identificatieNummer":"111111104"}
             """;
 
-    private record Operatie(String methode, String pad, boolean produceertJson) {
+    private static final String DIENSTVERLENER = "AcceptHeaderIntegrationTest-DV";
+
+    /** Eén geval per operatie die application/json declareert, met invoer die werkelijk slaagt. */
+    private record SuccesGeval(String methode, String padTemplate, String body) {
+        String pad() {
+            return padTemplate.replace("{naam}", DIENSTVERLENER).replace("{dienstverlenerNaam}", DIENSTVERLENER);
+        }
+
+        @Override
+        public String toString() {
+            return methode + " " + padTemplate;
+        }
+    }
+
+    private static final List<SuccesGeval> SUCCESGEVALLEN = List.of(
+            // Telefoonnummer en geen Email: een e-mailadres zou een verificatiecode aanvragen
+            // bij de externe dienst, en daar gaat deze test niet over.
+            new SuccesGeval("POST", "/api/profielservice/v1/contactgegeven", """
+                    {"identificatieType":"BSN","identificatieNummer":"111111104",
+                     "type":"Telefoonnummer","waarde":"0612345678"}
+                    """),
+            new SuccesGeval("POST", "/api/profielservice/v1/voorkeur", """
+                    {"identificatieType":"BSN","identificatieNummer":"111111104",
+                     "voorkeurType":"WebsiteTaal","waarde":"nl"}
+                    """),
+            new SuccesGeval("POST", "/api/profielservice/v1/partij", BODY),
+            new SuccesGeval("POST", "/api/profielservice/v1/partijen/bulk", """
+                    {"identificaties":[{"identificatieType":"BSN","identificatieNummer":"111111104"}]}
+                    """),
+            new SuccesGeval("POST", "/api/profielservice/v1/dienstverlener",
+                    "{\"naam\":\"" + DIENSTVERLENER + "\"}"),
+            new SuccesGeval("POST", "/api/profielservice/v1/dienstverlener/{dienstverlenerNaam}/diensten",
+                    "{\"naam\":\"Proefdienst\"}"),
+            new SuccesGeval("GET", "/api/profielservice/v1/dienstverlener/{naam}", null));
+
+    static Stream<Arguments> succesGevallen() {
+        return SUCCESGEVALLEN.stream().map(Arguments::of);
+    }
+
+    /**
+     * De partij en de dienstverlener moeten bestaan voordat de operaties die ze opzoeken kunnen
+     * slagen. Ze worden via de API aangemaakt, zodat deze test geen aannames doet over de opslag.
+     */
+    @BeforeEach
+    void seed() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"identificatieType":"BSN","identificatieNummer":"111111104",
+                         "type":"Telefoonnummer","waarde":"0611111111"}
+                        """)
+                .when().post("/api/profielservice/v1/contactgegeven")
+                .then().statusCode(anyOf(is(200), is(201)));
+
+        given().contentType(ContentType.JSON)
+                .body("{\"naam\":\"" + DIENSTVERLENER + "\"}")
+                .when().post("/api/profielservice/v1/dienstverlener")
+                .then().statusCode(201);
+    }
+
+    @AfterEach
+    @Transactional
+    void ruimOp() {
+        ScopeContactgegeven.deleteAll();
+        ScopeVoorkeur.deleteAll();
+        Contactgegeven.deleteAll();
+        Voorkeur.deleteAll();
+        DienstverlenerDienst.deleteAll();
+        Dienst.deleteAll();
+        Identificatie.deleteAll();
+        Partij.deleteAll();
+        Dienstverlener.deleteAll();
+    }
+
+    private record Operatie(String methode, String padTemplate, String pad, boolean produceertJson) {
         @Override
         public String toString() {
             return methode + " " + pad;
@@ -94,8 +184,8 @@ class AcceptHeaderIntegrationTest {
                 }
             }
 
-            operaties.add(new Operatie(
-                    opEntry.getKey().toUpperCase(Locale.ROOT), vulPadParameters(padEntry.getKey()), produceertJson));
+            operaties.add(new Operatie(opEntry.getKey().toUpperCase(Locale.ROOT),
+                    padEntry.getKey(), vulPadParameters(padEntry.getKey()), produceertJson));
         }));
 
         Assertions.assertFalse(operaties.isEmpty(), "Geen operaties uit het contract gelezen");
@@ -173,20 +263,50 @@ class AcceptHeaderIntegrationTest {
     }
 
     /**
-     * De parameterized tests hierboven sturen een body die de meeste operaties afwijzen, waardoor
-     * de 2xx-tak van de assertie zelden geraakt wordt. Deze test dwingt één echt geslaagd antwoord
-     * af, zodat het geval dat werkelijk misging ook daadwerkelijk gedekt is.
+     * Een geslaagd antwoord hoort application/json te dragen, ook wanneer de aanroeper
+     * problem+json prefereert. Dit is het geval dat werkelijk misging.
+     * <p>
+     * De parameterized tests hierboven bereiken die 2xx-tak niet: zij sturen één generieke body
+     * die elke operatie afwijst, dus daar is de verwachting altijd problem+json. Vandaar per
+     * operatie een body die wél slaagt. Dat kan niet uit het contract worden afgeleid — geldige
+     * invoer volgt niet uit een schema — dus bewaakt
+     * {@link #elkeOperatieMetJsonResponsHeeftEenSuccesGeval()} dat deze lijst niet achterloopt.
+     */
+    @ParameterizedTest(name = "{0} labelt een geslaagd antwoord als application/json")
+    @MethodSource("succesGevallen")
+    void geslaagdAntwoordBlijftJsonOokAlsDeAanroeperProblemJsonPrefereert(SuccesGeval geval) {
+        var verzoek = given().accept("application/problem+json;q=0.9, application/json;q=0.1");
+
+        if (geval.body() != null) {
+            verzoek = verzoek.contentType(ContentType.JSON).body(geval.body());
+        }
+
+        var antwoord = verzoek.when().request(geval.methode(), geval.pad()).then().extract();
+
+        Assertions.assertEquals(2, antwoord.statusCode() / 100,
+                geval + " hoort te slagen, anders toetst deze test niets; kreeg "
+                        + antwoord.statusCode() + " " + antwoord.body().asString());
+        Assertions.assertTrue(antwoord.contentType().startsWith("application/json"),
+                geval + " gaf Content-Type " + antwoord.contentType());
+    }
+
+    /**
+     * Zonder deze controle zou een nieuwe operatie met een JSON-body stilzwijgend buiten de
+     * succestest hierboven vallen — precies de faalwijze die deze klasse moet vangen.
      */
     @Test
-    void geslaagdAntwoordBlijftJsonOokAlsDeAanroeperProblemJsonPrefereert() {
-        given()
-                .accept("application/problem+json;q=0.9, application/json;q=0.1")
-                .contentType(ContentType.JSON)
-                .body("{\"naam\":\"Dienstverlener uit AcceptHeaderIntegrationTest\"}")
-                .when().post("/api/profielservice/v1/dienstverlener")
-                .then()
-                .statusCode(201)
-                .contentType("application/json");
+    void elkeOperatieMetJsonResponsHeeftEenSuccesGeval() throws Exception {
+        Set<String> uitHetContract = operatiesUitHetContract().stream()
+                .filter(Operatie::produceertJson)
+                .map(operatie -> operatie.methode() + " " + operatie.padTemplate())
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        Set<String> gedekt = SUCCESGEVALLEN.stream()
+                .map(geval -> geval.methode() + " " + geval.padTemplate())
+                .collect(Collectors.toCollection(TreeSet::new));
+
+        Assertions.assertEquals(uitHetContract, gedekt,
+                "Elke operatie die application/json declareert hoort een succesgeval te hebben");
     }
 
     private record Antwoord(int statusCode, String contentType) {}
