@@ -14,7 +14,7 @@ Communicatie, commentaar en commitmessages in het Nederlands.
 De grens tussen Nederlands en Engels loopt door de code heen:
 
 - **Domeinbegrippen blijven Nederlands**, ook als identifier: `Partij`,
-  `Contactgegeven`, `Voorkeur`, `Dienstverlener`, `teVerwijderenOp`,
+  `Contactgegeven`, `Voorkeur`, `Dienstverlener`, `verwijderdOp`,
   `RegelDekkingTest`.
 - **Vast technisch idioom blijft Engels.** Circuit breaker, retry, timeout,
   scheduler, mapper, filter. Vertalen maakt die termen minder herkenbaar, niet
@@ -22,8 +22,10 @@ De grens tussen Nederlands en Engels loopt door de code heen:
 - **Testnamen zijn Nederlandse volzinnen**:
   `contractEnDomeintypeKennenDezelfdeWaarden`, niet `testEnumParity`.
 
-Vaste term: **soft delete**, nooit "zachtverwijderd". Een contactgegeven of
-voorkeur met een `teVerwijderenOp` in de toekomst is soft deleted.
+Vaste term: **soft delete**, nooit "zachtverwijderd". Een rij met een gezette
+`verwijderdOp` is soft deleted; `VerwijderbareEntiteit.isVerwijderd()` is de
+toets. Sinds V4 draagt het hele domeinmodel die kolom — ook `Partij` en
+`Identificatie` — en is `teVerwijderenOp` verdwenen.
 
 ## Technische stack
 
@@ -124,12 +126,12 @@ server meer accepteert dan `format: uuid` belooft
 
 ## Bewakingstests
 
-Twaalf klassen bewaken elk één specifiek gat. Ze overlappen bewust niet, en de
+Dertien klassen bewaken elk één specifiek gat. Ze overlappen bewust niet, en de
 meeste lichten in hun javadoc toe wat ze níet dekken — lees die voordat je er
 een aanpast. Raak je iets uit de rechterkolom aan, dan is de klasse links
 degene die je moet uitbreiden.
 
-Acht staan in `src/test/java/nl/rijksoverheid/moz/architectuur/`; de drie
+Negen staan in `src/test/java/nl/rijksoverheid/moz/architectuur/`; de drie
 contracttests direct in `.../moz/`, en `OpenApiValidationTest` in
 `.../moz/controller/`.
 
@@ -145,6 +147,7 @@ contracttests direct in `.../moz/`, en `OpenApiValidationTest` in
 | `EnumPariteitTest` | Contract-enums == domein-enums; `schemaMappings` haalt die vergelijking anders uit de build weg |
 | `UpdateSchemaPariteitTest` | Elk update-schema == zijn create-schema plus precies de toegestane extra's |
 | `ValidatieExtensiesTest` | `x-class-extra-annotation` en `x-implements` staan samen op de schema's die de elfproef dragen |
+| `OngefilterdeFinderTest` | Dat niemand een soft deleted rij terughaalt via een ongefilterde Panache-finder of de rauwe `@OneToMany`-collectie |
 | `RequestDtoOnveranderbaarheidTest` | Productiecode muteert geen binnenkomend request |
 | `RegelDekkingTest` | Dat `GEEN_MUTERENDE_NAAM` en `GEEN_AANROEP_MET_PARAMETERS` écht vangen — in de test hierboven draaien ze tegen code die ze niet overtreedt |
 
@@ -313,7 +316,7 @@ Instant clearedAt = registreerGebruik(cg);
 ContactgegevenResponse cr = mapContactgegeven(cg);
 if (clearedAt != null) {
     cr.lastUpdated = clearedAt;
-    cr.teVerwijderenOp = null;
+    cr.verwijderdOp = null;
 }
 return cr;
 
@@ -323,7 +326,7 @@ ContactgegevenResponse cr = mapContactgegeven(cg);
 
 if (clearedAt != null) {
     cr.lastUpdated = clearedAt;
-    cr.teVerwijderenOp = null;
+    cr.verwijderdOp = null;
 }
 
 return cr;
@@ -368,7 +371,7 @@ die koppeling moet van twee kanten zichtbaar zijn:
 | `src/main/resources/db/migration/` | Flyway-migraties |
 | `pom.xml` | Quarkus-BOM, generator-configuratie en de JaCoCo-gate — met toelichting per keuze |
 | `.github/dependabot.yml` | Groepering én versie-pins met hun reden; lees dit vóór je een dependency handmatig optrekt |
-| `src/test/java/.../architectuur/` | Acht van de twaalf bewakingstests; zie de tabel hierboven voor de rest |
+| `src/test/java/.../architectuur/` | Negen van de dertien bewakingstests; zie de tabel hierboven voor de rest |
 | `docs/zad-deploy.md` | ZAD PR-preview-deploys: hoe de workflow werkt en hoe je hem debugt |
 | `FUZZING.md` | Fuzz-opzet, JUnit-targets en ClusterFuzzLite |
 | `.github/workflows/` | CI: Maven-build, CodeQL, Scorecard, ClusterFuzzLite, ZAD-deploy |
