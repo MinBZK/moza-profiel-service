@@ -366,7 +366,7 @@ public class PartijService {
         if (voorkeur != null) {
             Instant nu = Instant.now();
             voorkeur.verwijder(nu);
-            deleteLegePartij(partij, nu);
+            meldGeenIdentificatie(deleteLegePartij(partij, nu));
         }
 
         return voorkeur;
@@ -387,10 +387,18 @@ public class PartijService {
         if (contact != null) {
             Instant nu = Instant.now();
             contact.verwijder(nu);
-            deleteLegePartij(partij, nu);
+            meldGeenIdentificatie(deleteLegePartij(partij, nu));
         }
 
         return contact;
+    }
+
+    // Zonder dit ziet alleen de nachtelijke reconciliatie deze anomalie (tot 24u vertraging); de
+    // scheduler telt dezelfde uitkomst onder dezelfde tag, dus één gedeelde teller volstaat.
+    private void meldGeenIdentificatie(CascadeResultaat resultaat) {
+        if (resultaat == CascadeResultaat.GEEN_IDENTIFICATIE) {
+            meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").increment();
+        }
     }
 
     // Publiek: ook aangeroepen door RetentieScheduler. MANDATORY zodat de mutatie op een detached

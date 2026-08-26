@@ -6,6 +6,7 @@ import io.opentelemetry.api.trace.Span;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.mockito.InjectSpy;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.transaction.TransactionalException;
@@ -67,6 +68,12 @@ public class PartijServiceTest {
 
     @Inject
     MeterRegistry meterRegistry;
+
+    // Alleen gebruikt om deleteLegePartij's uitkomst te forceren op GEEN_IDENTIFICATIE: een spy
+    // i.p.v. een mock zodat de rest van de cascade (de voorkeur/het contactgegeven zelf) echt
+    // verwijderd wordt.
+    @InjectSpy
+    PartijService partijServiceSpy;
 
     private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
 
@@ -1285,6 +1292,68 @@ public class PartijServiceTest {
 
         Assertions.assertEquals(anomalieVoor + 1, meterRegistry
                 .counter("retentie.anomalie", "entiteit", "partij", "reden", "logboek-fout").count());
+    }
+
+    /**
+     * Zonder deze koppeling ziet alleen de nachtelijke reconciliatie een GEEN_IDENTIFICATIE-uitkomst
+     * (tot 24u vertraging); deze test bewijst dat het synchrone API-pad dezelfde anomalieteller direct
+     * verhoogt.
+     */
+    @Test
+    void verwijderVoorkeur_DeleteLegePartijGeeftGeenIdentificatie_VerhoogtAnomalieteller() {
+        double anomalieVoor = meterRegistry
+                .counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").count();
+
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        Mockito.doReturn(PartijService.CascadeResultaat.GEEN_IDENTIFICATIE)
+                .when(partijServiceSpy).deleteLegePartij(Mockito.any(), Mockito.any());
+
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
+
+        Assertions.assertEquals(anomalieVoor + 1, meterRegistry
+                .counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").count());
+    }
+
+    /** Contactgegeven-tegenhanger van verwijderVoorkeur_DeleteLegePartijGeeftGeenIdentificatie_.... */
+    @Test
+    void verwijderContactgegeven_DeleteLegePartijGeeftGeenIdentificatie_VerhoogtAnomalieteller() {
+        double anomalieVoor = meterRegistry
+                .counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").count();
+
+        AtomicReference<UUID> contactId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Telefoonnummer);
+            contact.setWaarde("0612345678");
+            contact.setPartij(partij);
+            contact.persist();
+            contactId.set(contact.id);
+        });
+
+        Mockito.doReturn(PartijService.CascadeResultaat.GEEN_IDENTIFICATIE)
+                .when(partijServiceSpy).deleteLegePartij(Mockito.any(), Mockito.any());
+
+        partijService.verwijderContactgegeven(IdentificatieType.BSN, "123456789", contactId.get());
+
+        Assertions.assertEquals(anomalieVoor + 1, meterRegistry
+                .counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").count());
     }
 
     @Test

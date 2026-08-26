@@ -172,8 +172,10 @@ public class ProfielController implements ProfielApi {
 
     @Override
     @Transactional
-    // PS-631 is hergebruikt van het verwijderde deleteContactgegeven-PATCH-endpoint; bevestiging van
-    // de definitieve ID loopt via https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
+    // PS-631 komt van het verwijderde updateContactgegevenTeVerwijderenOp-PATCH-endpoint (niet van
+    // de PS-591 die dit DELETE-endpoint zelf had) en wordt ook door RetentieScheduler gebruikt voor
+    // de retentietaak. Welke ID('s) hier definitief horen is nog open, zie
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
     @Logboek(name = "verwijderContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
     public Response verwijderContactgegeven(
             UUID contactgegevenId,
@@ -240,8 +242,10 @@ public class ProfielController implements ProfielApi {
 
     @Override
     @Transactional
-    // PS-630 is hergebruikt van het verwijderde deleteVoorkeur-PATCH-endpoint; bevestiging van de
-    // definitieve ID loopt via https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
+    // PS-630 komt van het verwijderde updateVoorkeurTeVerwijderenOp-PATCH-endpoint (niet van de
+    // PS-478 die dit DELETE-endpoint zelf had) en wordt ook door RetentieScheduler gebruikt voor
+    // de retentietaak. Welke ID('s) hier definitief horen is nog open, zie
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
     @Logboek(name = "verwijderVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
     public Response verwijderVoorkeur(
             UUID voorkeurId,
