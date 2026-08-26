@@ -124,7 +124,8 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("verificatieCode")));
+                .body("violations.field", hasItem("verificatieCode"))
+                .body("violations.in", hasItem("body"));
 
         Mockito.verify(emailVerificatieService, Mockito.never()).verifieerEmail(Mockito.any());
     }
@@ -181,7 +182,8 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("email")));
+                .body("violations.field", hasItem("email"))
+                .body("violations.in", hasItem("body"));
 
         Mockito.verify(emailVerificatieService, Mockito.never()).vraagEmailVerificatieCodeAan(Mockito.any());
     }

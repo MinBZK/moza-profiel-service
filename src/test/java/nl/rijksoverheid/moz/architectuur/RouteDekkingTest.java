@@ -6,6 +6,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import jakarta.ws.rs.DELETE;
@@ -25,10 +26,12 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Bewaakt dat het contract en de JAX-RS-routes elkaar dekken, in beide richtingen: pad en
@@ -38,6 +41,9 @@ import java.util.regex.Pattern;
 class RouteDekkingTest {
 
     private static final String CONTROLLER_PAKKET = "nl.rijksoverheid.moz.controller";
+
+    /** De uit het contract gegenereerde server-interfaces die de controllers implementeren (#751). */
+    private static final String SERVER_API_PAKKET = "nl.rijksoverheid.moz.api.generated.api";
 
     /** JAX-RS staat een reguliere expressie toe achter de naam: {@code {id: [0-9]+}}. */
     private static final Pattern PAD_PARAMETER = Pattern.compile("\\{\\s*([^}:\\s]+)\\s*(?::[^}]*)?}");
@@ -138,6 +144,22 @@ class RouteDekkingTest {
                 .withImportOption(new ImportOption.DoNotIncludeTests())
                 .importPackages("nl.rijksoverheid.moz");
 
+        // Elke interface die door een concrete klasse geïmplementeerd wordt. Een gegenereerde
+        // server-interface telt alleen als route wanneer hij hierin voorkomt. Zonder die eis
+        // vergelijkt deze test het contract met zichzelf: beide zijden komen dan uit
+        // openapi.yaml. Een operatie onder een nieuwe tag levert dan een interface op die
+        // niemand implementeert, waarna de build slaagt, deze test groen blijft en het endpoint
+        // in productie een 404 geeft.
+        // Abstract telt niet mee: JAX-RS registreert een abstracte klasse nooit als resource,
+        // dus zou een abstracte implementatie wel aan deze eis voldoen terwijl het endpoint
+        // niet bestaat.
+        Set<String> geimplementeerdeInterfaces = klassen.stream()
+                .filter(klasse -> !klasse.isInterface()
+                        && !klasse.getModifiers().contains(JavaModifier.ABSTRACT))
+                .flatMap(klasse -> klasse.getAllRawInterfaces().stream())
+                .map(JavaClass::getName)
+                .collect(Collectors.toSet());
+
         Map<String, Route> routes = new TreeMap<>();
 
         for (JavaClass klasse : klassen) {
@@ -145,11 +167,15 @@ class RouteDekkingTest {
                 continue;
             }
 
-            // Interfaces buiten het controllerpakket zijn REST-clients: de gegenereerde
-            // VerificationControllerApi draagt @Path("") en beschrijft wat wij áánroepen. Binnen
-            // het controllerpakket telt een interface wél mee, zodat een handgeschreven resource
-            // met een implementatie zonder eigen @Path niet onzichtbaar wordt.
-            if (klasse.isInterface() && !klasse.getPackageName().equals(CONTROLLER_PAKKET)) {
+            // Onze routes staan sinds #751 op de gegenereerde server-interfaces, die de
+            // controllers implementeren; die tellen mee zodra er een implementatie is, net als
+            // een handgeschreven interface in het controllerpakket. Andere interfaces met @Path
+            // zijn REST-clients: de gegenereerde VerificationControllerApi draagt @Path("") en
+            // beschrijft wat wij áánroepen, niet wat wij aanbieden.
+            if (klasse.isInterface()
+                    && !klasse.getPackageName().equals(CONTROLLER_PAKKET)
+                    && !(klasse.getPackageName().equals(SERVER_API_PAKKET)
+                            && geimplementeerdeInterfaces.contains(klasse.getName()))) {
                 continue;
             }
 

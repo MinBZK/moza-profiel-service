@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * afterCompletion beslist als enige óf er een vermelding komt. De service-tests committen altijd,
@@ -26,7 +27,7 @@ class LogboekCommitSynchronizationTest {
         Mockito.doReturn(Mockito.mock(Span.class))
                 .when(processingHandler).startSpan(Mockito.anyString(), Mockito.any());
 
-        return new LogboekCommitSynchronization(new HashHelper(), processingHandler, IDENTITEITEN,
+        return new LogboekCommitSynchronization(new HashHelper(Optional.of("test-pepper")), processingHandler, IDENTITEITEN,
                 "verwijderPartij", "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900",
                 e -> {
                     throw new AssertionError("opFout hoort hier niet aangeroepen te worden", e);

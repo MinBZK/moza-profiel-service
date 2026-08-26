@@ -490,7 +490,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void deleteContactgegeven_NotFound() {
+    void verwijderContactgegeven_NotFound() {
         var body = new PartijIdentificatieRequest();
         body.setIdentificatieType(BSN);
         body.setIdentificatieNummer("111111114");
@@ -616,21 +616,31 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void deleteContactgegeven_BadRequest() {
+    void verwijderContactgegeven_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
                 .delete("/api/profielservice/v1/contactgegeven/" + UUID.randomUUID())
                 .then()
-                .statusCode(BAD_REQUEST);
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                // De melding onderscheidt RequireBodyReaderInterceptor van de @NotNull op
+                // de gegenereerde interface. Alleen de eerste houdt het verzoek tegen vóór
+                // @Logboek, zodat er geen LDV-span ontstaat voor een verzoek zonder gegevens.
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
     }
 
     @Test
-    void deleteVoorkeur_BadRequest() {
+    void verwijderVoorkeur_BadRequest() {
         given()
                 .contentType(ContentType.JSON)
                 .delete("/api/profielservice/v1/voorkeur/" + UUID.randomUUID())
                 .then()
-                .statusCode(BAD_REQUEST);
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                // De melding onderscheidt RequireBodyReaderInterceptor van de @NotNull op
+                // de gegenereerde interface. Alleen de eerste houdt het verzoek tegen vóór
+                // @Logboek, zodat er geen LDV-span ontstaat voor een verzoek zonder gegevens.
+                .body("detail", equalTo("Request body mag niet leeg zijn"));
     }
 
     /**
@@ -640,7 +650,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
      * verzoek staan tot de service er een 404 van maakt.
      */
     @Test
-    void deleteContactgegeven_BlancoIdentificatieNummer_GeeftViolations() {
+    void verwijderContactgegeven_BlancoIdentificatieNummer_GeeftViolations() {
         given()
                 .contentType(ContentType.JSON)
                 .body("{\"identificatieType\":\"KVK\",\"identificatieNummer\":\" \"}")
@@ -651,7 +661,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void deleteVoorkeur_BlancoIdentificatieNummer_GeeftViolations() {
+    void verwijderVoorkeur_BlancoIdentificatieNummer_GeeftViolations() {
         given()
                 .contentType(ContentType.JSON)
                 .body("{\"identificatieType\":\"KVK\",\"identificatieNummer\":\" \"}")
@@ -662,7 +672,7 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @Test
-    void deleteVoorkeur_NotFound() {
+    void verwijderVoorkeur_NotFound() {
         var body = new PartijIdentificatieRequest();
         body.setIdentificatieType(BSN);
         body.setIdentificatieNummer("111111119");

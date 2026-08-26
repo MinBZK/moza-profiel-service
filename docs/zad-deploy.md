@@ -189,6 +189,7 @@ Benodigde env-vars op de `feature`-deployment (en analoog op `stable`):
 | `QUARKUS_SCHEDULER_ENABLED` | `false` | Zie "Gedeelde database + Quartz" hierboven — alleen nodig op `feature` (previews), niet per se op `stable` |
 | `NOTIFYNL_EMAILVERIFICATIE_API_KEY` | Elke niet-lege placeholder, bv. `zad-preview-key` | Verplicht, zie hieronder ("`%prod`-lege waarden" valkuil). Profiel-service belt niet rechtstreeks NotifyNL; `EmailVerificatieService` stuurt deze waarde mee als veld in de request-body naar de verificatie-service (`POST /request`). Op ZAD wijst die URL naar de gedeelde WireMock-mock (zie boven), die de body niet valideert — elke waarde werkt, als hij maar niet leeg is |
 | `NOTIFYNL_EMAILVERIFICATIE_TEMPLATE_ID` | Elke niet-lege placeholder, bv. `zad-preview-template` | Idem |
+| `HASH_PEPPER` | Elke niet-lege waarde, bv. `zad-preview-pepper` | Sleutel voor de HMAC waarmee `HashHelper` identificatienummers pseudonimiseert. Niet strikt verplicht: deze repo zet geen `%prod`-override, dus zonder env-var draait de preview op de dev-placeholder uit `application.properties` — een waarde die in de repo staat. Zie ook de valkuil hieronder |
 | `LOGBOEKDATAVERWERKING_ENABLED` | `false` | Verplicht ondanks dat LDV uitstaat — zie valkuil hieronder |
 | `LOGBOEKDATAVERWERKING_SERVICE_NAME` | `profiel-service` | Verplicht, zelfde valkuil |
 | `MOZA_CORS_ORIGINS` | — | Alleen nodig als een frontend vanaf een andere origin de preview aanroept; Swagger UI op `/docs` is same-origin |
@@ -212,6 +213,9 @@ leest. Dat mechanisme verschilt wél per var, met een ander foutbeeld tot gevolg
 - **`QUARKUS_DATASOURCE_*`**: Agroal-datasourceconfig, geen `@ConfigProperty`-
   injectie. Een ontbrekende username/password faalt niet in bovenstaande
   boot-sweep, maar pas bij de eerste connectiepoging, met een ander foutbeeld.
+- **`HASH_PEPPER`**: staat andersom. Ontbreken mag (de dev-placeholder geldt dan),
+  maar hem leeg zetten faalt: `HashHelper` is `@Startup` en weigert een lege pepper
+  met `hash.pepper is not configured`.
 - **`LOGBOEKDATAVERWERKING_ENABLED`/`_SERVICE_NAME`**: worden lazy gelezen via
   `ConfigProvider.getValue(...)` in de LDV-wrapper (`ConfigurationLoader`), niet
   via `@ConfigProperty`. Een ontbrekende waarde faalt pas bij de eerste keer dat
