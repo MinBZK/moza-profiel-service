@@ -26,19 +26,13 @@ tags:
 # foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
 #
 # Om dezelfde reden bepaalt het geheel van gedeclareerde mediatypes wélke Accept-
-# header een operatie bedient. Bij een succesrespons zonder body blijft alleen
-# application/problem+json over, en wijst JAX-RS een verzoek af dat uitsluitend
-# application/json accepteert — met een 406, nog voordat de resource draait.
-# Dat wordt bewust geaccepteerd: `content: application/json` op zo'n respons zou
-# het oplossen maar declareert een body die niet bestaat, en OpenApiValidationTest
-# keurt dat terecht af. AcceptHeaderIntegrationTest legt het gedrag vast.
+# header een operatie bedient: zonder JSON-succesbody blijft alleen
+# application/problem+json over, en volgt een 406 op een verzoek dat uitsluitend
+# application/json accepteert. AcceptHeaderIntegrationTest legt dat vast.
 #
-# Die 406 staat bewust bij géén enkele operatie als response. Anders dan de
-# foutcodes die hier wél gedocumenteerd zijn, komt hij niet uit de applicatie maar
-# uit de content-onderhandeling van JAX-RS, en kan elke operatie hem geven:
-# `POST /partij` declareert application/json en antwoordt op `Accept: text/xml`
-# net zo goed met een 406. Hem op alleen de operaties zonder responsebody zetten
-# zou dus suggereren dat de andere hem niet kunnen geven.
+# De 406 staat bij géén enkele operatie als response: hij komt niet uit de
+# applicatie maar uit de content-onderhandeling van JAX-RS, en kan elke operatie
+# treffen.
 paths:
   /api/profielservice/v1/contactgegeven:
     put:
