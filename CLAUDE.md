@@ -60,7 +60,9 @@ draagt pad, HTTP-methode, mediatypes en de validatie van de body; de controller
 draagt alleen de implementatie. `RouteDekkingTest` bewaakt dat contract en
 routes elkaar blijven dekken.
 
-**Zet geen JAX-RS-annotatie op een controllermethode.** Twee gemeten faalwijzen,
+**Zet geen route- of validatie-annotatie op een controllermethode.**
+`ControllerAnnotatiesTest` verbiedt de HTTP-methodes, `@Path`, `@Consumes`,
+`@Produces`, `@Valid`, `@PathParam` en `@QueryParam`. Twee gemeten faalwijzen,
 die in tegengestelde richting misleiden. Een HTTP-methode-annotatie laat álle
 annotaties van de interface voor die methode vervallen, ook `@Path`: de
 gedocumenteerde route geeft dan een 404 die niet van "resource niet gevonden" te
@@ -138,7 +140,7 @@ contracttests direct in `.../moz/`, en `OpenApiValidationTest` in
 | `ControllerAnnotatiesTest` | Dat controllers de JAX-RS-annotaties van hun gegenereerde interface niet alsnog zelf dragen |
 | `OpenApiValidationTest` | Abstracte basisklasse zonder eigen tests: levert de validatiefilter die de vorm van de berichten tegen het gepubliceerde document toetst. Vijf integratietests erven ervan |
 | `ContractHandhavingTest` | Dat het contract werkelijk afwijst wat het zegt af te wijzen (een contract dat álles afwijst is óók groen) |
-| `StandardErrorResponsesTest` | Elke operatie documenteert een 500 → `HttpProblem` en een 400 → `HttpValidationProblem` |
+| `StandardErrorResponsesTest` | Elke operatie documenteert een 500 → `HttpProblem`. Een 400 is optioneel, maar wijst dan naar `HttpValidationProblem`; overige foutcodes juist naar een kale `HttpProblem` |
 | `OpenApiMetadataTest` | Contractversie == `ApiVersion.CURRENT`, plus de door ADR vereiste `info`-velden |
 | `EnumPariteitTest` | Contract-enums == domein-enums; `schemaMappings` haalt die vergelijking anders uit de build weg |
 | `UpdateSchemaPariteitTest` | Elk update-schema == zijn create-schema plus precies de toegestane extra's |
@@ -193,7 +195,7 @@ ClusterFuzzLite-targets.
 ### Coverage
 
 JaCoCo-gate: **85% line, 80% branch** op BUNDLE-niveau, uitgesloten zijn
-`nl/rijksoverheid/moz/external/**` en `nl/rijksoverheid/moz/api/generated/**`.
+`nl/rijksoverheid/moz/external/**/*` en `nl/rijksoverheid/moz/api/generated/**/*`.
 `pom.xml` is leidend voor die getallen — controleer ze daar voor je je erop
 baseert.
 

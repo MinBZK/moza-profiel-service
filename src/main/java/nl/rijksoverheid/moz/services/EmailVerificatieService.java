@@ -129,6 +129,7 @@ public class EmailVerificatieService {
             if (referenceId != null) {
                 return referenceId;
             }
+
             LOG.error("Email verificatie verzoek mislukt");
             return null;
         } catch (CircuitBreakerOpenException e) {

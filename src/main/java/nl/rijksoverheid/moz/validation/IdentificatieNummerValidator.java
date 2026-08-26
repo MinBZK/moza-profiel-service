@@ -59,6 +59,7 @@ public class IdentificatieNummerValidator implements ConstraintValidator<ValidId
             if (multiplier == 1) {
                 multiplier = -1;
             }
+
             sum += digit * multiplier;
         }
 

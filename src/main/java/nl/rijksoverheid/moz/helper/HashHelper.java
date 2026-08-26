@@ -17,7 +17,7 @@ import java.util.Optional;
  * Logboek Dataverwerkingen gebruikt.
  */
 // Keyed HMAC en geen kale digest: een BSN heeft maar ~10^9 mogelijke waarden, dus een
-// kale hash is triviaal terug te rekenen. Een salt per aanroep kan niet, want het
+// kale hash triviaal te brute-forcen is. Een salt per aanroep kan niet, want het
 // pseudoniem moet per subject stabiel blijven.
 @Startup
 @ApplicationScoped
