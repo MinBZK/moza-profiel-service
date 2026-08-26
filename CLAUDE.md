@@ -53,11 +53,20 @@ uit (`mp.openapi.scan.disable=true`), dus datzelfde bestand wordt statisch op
 Pas het contract aan en draai de build opnieuw. De DTO's landen in
 `nl.rijksoverheid.moz.api.generated.model`.
 
-De controllers zijn wél handgeschreven. `generateApis=false` staat er omdat
-Quarkus REST geen server-resources via een gegenereerde JAX-RS interface
-ondersteunt: de parameter-binding gaat dan verloren. De controllers zijn dus
-concrete resources die de paden uit het contract implementeren, en
-`RouteDekkingTest` bewaakt dat ze niet uiteenlopen.
+De controllers implementeren sinds `MinBZK/MijnOverheidZakelijk#751` de
+gegenereerde interfaces uit `nl.rijksoverheid.moz.api.generated.api`
+(`generateApis=true`, `interfaceOnly=true`, `returnResponse=true`). De interface
+draagt pad, HTTP-methode, mediatypes en de validatie van de body; de controller
+draagt alleen de implementatie. `RouteDekkingTest` bewaakt dat contract en
+routes elkaar blijven dekken.
+
+**Zet geen JAX-RS-annotatie op een controllermethode.** Twee gemeten faalwijzen,
+die in tegengestelde richting misleiden. Een HTTP-methode-annotatie laat álle
+annotaties van de interface voor die methode vervallen, ook `@Path`: de
+gedocumenteerde route geeft dan een 404 die niet van "resource niet gevonden" te
+onderscheiden is. Een `@Consumes` of `@Produces` wordt juist genegeerd, want die
+van de interface wint — het Content-Type van een succesantwoord zet je op de
+`Response` zelf. `ControllerAnnotatiesTest` bewaakt dit.
 
 Niet-evidente schakelaars in de generator-configuratie (zie `pom.xml` voor de
 volledige toelichting per stuk):
@@ -113,12 +122,12 @@ server meer accepteert dan `format: uuid` belooft
 
 ## Bewakingstests
 
-Elf klassen bewaken elk één specifiek gat. Ze overlappen bewust niet, en de
+Twaalf klassen bewaken elk één specifiek gat. Ze overlappen bewust niet, en de
 meeste lichten in hun javadoc toe wat ze níet dekken — lees die voordat je er
 een aanpast. Raak je iets uit de rechterkolom aan, dan is de klasse links
 degene die je moet uitbreiden.
 
-Zeven staan in `src/test/java/nl/rijksoverheid/moz/architectuur/`; de drie
+Acht staan in `src/test/java/nl/rijksoverheid/moz/architectuur/`; de drie
 contracttests direct in `.../moz/`, en `OpenApiValidationTest` in
 `.../moz/controller/`.
 
@@ -126,6 +135,7 @@ contracttests direct in `.../moz/`, en `OpenApiValidationTest` in
 |--------|---------|
 | `OpenApiContractDriftTest` | Gepubliceerd `/openapi.json` is gelijk aan het contractbestand — dus: de configuratie, niet de inhoud |
 | `RouteDekkingTest` | Contract ↔ JAX-RS-routes, beide richtingen: pad en HTTP-methode |
+| `ControllerAnnotatiesTest` | Dat controllers de JAX-RS-annotaties van hun gegenereerde interface niet alsnog zelf dragen |
 | `OpenApiValidationTest` | Abstracte basisklasse zonder eigen tests: levert de validatiefilter die de vorm van de berichten tegen het gepubliceerde document toetst. Vijf integratietests erven ervan |
 | `ContractHandhavingTest` | Dat het contract werkelijk afwijst wat het zegt af te wijzen (een contract dat álles afwijst is óók groen) |
 | `StandardErrorResponsesTest` | Elke operatie documenteert een 500 → `HttpProblem` en een 400 → `HttpValidationProblem` |
@@ -350,7 +360,7 @@ die koppeling moet van twee kanten zichtbaar zijn:
 | `src/main/resources/db/migration/` | Flyway-migraties |
 | `pom.xml` | Quarkus-BOM, generator-configuratie en de JaCoCo-gate — met toelichting per keuze |
 | `.github/dependabot.yml` | Groepering én versie-pins met hun reden; lees dit vóór je een dependency handmatig optrekt |
-| `src/test/java/.../architectuur/` | Zeven van de elf bewakingstests; zie de tabel hierboven voor de rest |
+| `src/test/java/.../architectuur/` | Acht van de twaalf bewakingstests; zie de tabel hierboven voor de rest |
 | `docs/zad-deploy.md` | ZAD PR-preview-deploys: hoe de workflow werkt en hoe je hem debugt |
 | `FUZZING.md` | Fuzz-opzet, JUnit-targets en ClusterFuzzLite |
 | `.github/workflows/` | CI: Maven-build, CodeQL, Scorecard, ClusterFuzzLite, ZAD-deploy |
