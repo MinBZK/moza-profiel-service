@@ -22,6 +22,7 @@ public class IdentificatieNummerValidator implements ConstraintValidator<ValidId
         if (bsn.length() > 9 || !bsn.matches("\\d+")) {
             return false;
         }
+
         return passesElfProef(bsn);
     }
 
@@ -29,6 +30,7 @@ public class IdentificatieNummerValidator implements ConstraintValidator<ValidId
         if (rsin.length() > 9 || !rsin.matches("\\d+")) {
             return false;
         }
+
         return passesElfProef(rsin);
     }
 
@@ -53,6 +55,7 @@ public class IdentificatieNummerValidator implements ConstraintValidator<ValidId
         for (int i = 0; i < 9; i++) {
             int digit = Character.getNumericValue(paddedNumber.charAt(i));
             int multiplier = 9 - i;
+
             if (multiplier == 1) {
                 multiplier = -1;
             }

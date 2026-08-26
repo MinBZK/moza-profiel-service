@@ -299,6 +299,10 @@ vóór het `if`-blok, ná het `if`-blok, en vóór een afsluitende `return`. Een
 dat het eerste statement van een methode of blok is heeft geen witregel ervóór
 nodig.
 
+De regel geldt voor `if`-statements met accolades. Een eenregelige guard clause
+(`if (partij == null) return false;`) valt erbuiten: die hoort juist tegen de
+regel erboven aan te staan.
+
 ```java
 // Niet
 Instant clearedAt = registreerGebruik(cg);
