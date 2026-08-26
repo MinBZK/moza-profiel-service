@@ -24,6 +24,15 @@ tags:
 # server-interfaces gegenereerd worden (#751) leidt de generator er @Produces uit
 # af, en kiest JAX-RS de eerste vermelde media type als standaard. Staat een
 # foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
+#
+# Om dezelfde reden bepaalt het geheel van gedeclareerde mediatypes wélke Accept-
+# header een operatie bedient: zonder JSON-succesbody blijft alleen
+# application/problem+json over, en volgt een 406 op een verzoek dat uitsluitend
+# application/json accepteert. AcceptHeaderIntegrationTest legt dat vast.
+#
+# De 406 staat bij géén enkele operatie als response: hij komt niet uit de
+# applicatie maar uit de content-onderhandeling van JAX-RS, en kan elke operatie
+# treffen.
 paths:
   /api/profielservice/v1/contactgegeven:
     put:
@@ -1085,7 +1094,10 @@ components:
     UUID:
       type: string
       format: uuid
-      pattern: "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+      # Bewust geen pattern ernaast: format legt de vorm al vast, en op een path-parameter
+      # zet de generator er @Pattern van op een java.util.UUID (de schemaMapping). Hibernate
+      # Validator heeft voor die combinatie geen validator en werpt HV000030, wat elke DELETE
+      # op een 500 zet. In de DTO's speelt dat niet: daar laat de generator de pattern weg.
     Violation:
       type: object
       description: Validation constraint violation details

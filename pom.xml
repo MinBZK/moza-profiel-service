@@ -270,10 +270,6 @@
 
     <build>
         <plugins>
-            <!-- Contract-first DTO-generatie (#651) uit src/main/resources/META-INF/openapi.yaml.
-                 schemaMappings hergebruiken de bestaande domeintypes (common enums, java.time.Instant,
-                 java.util.UUID) zodat de gegenereerde DTOs naadloos aansluiten op entities/services
-                 zonder conversielaag. -->
             <plugin>
                 <groupId>org.openapitools</groupId>
                 <artifactId>openapi-generator-maven-plugin</artifactId>
@@ -294,20 +290,17 @@
                             <generatorName>jaxrs-spec</generatorName>
                             <output>${project.build.directory}/generated-sources/server</output>
                             <modelPackage>nl.rijksoverheid.moz.api.generated.model</modelPackage>
-                            <!-- Alleen DTO's genereren. Quarkus REST (RESTEasy Reactive) ondersteunt
-                                 geen server-resources via gegenereerde JAX-RS interfaces (parameter-binding
-                                 gaat verloren), dus de interfaces zijn niet bruikbaar; de controllers zijn
-                                 concrete resources die het contract implementeren. Zie #651. -->
-                            <generateApis>false</generateApis>
+                            <apiPackage>nl.rijksoverheid.moz.api.generated.api</apiPackage>
+                            <generateApis>true</generateApis>
                             <generateApiTests>false</generateApiTests>
                             <generateModelTests>false</generateModelTests>
                             <generateApiDocumentation>false</generateApiDocumentation>
                             <generateModelDocumentation>false</generateModelDocumentation>
                             <generateSupportingFiles>false</generateSupportingFiles>
-                            <!-- interfaceOnly/returnResponse/useTags en apiPackage zijn hier
-                                 weggelaten: die sturen alleen de API-generatie aan, en die staat
-                                 uit. -->
                             <configOptions>
+                                <interfaceOnly>true</interfaceOnly>
+                                <returnResponse>true</returnResponse>
+                                <useTags>true</useTags>
                                 <useJakartaEe>true</useJakartaEe>
                                 <useSwaggerAnnotations>false</useSwaggerAnnotations>
                                 <useBeanValidation>true</useBeanValidation>
@@ -318,11 +311,10 @@
                                 <openApiNullable>false</openApiNullable>
                                 <sourceFolder>src/main/java</sourceFolder>
                             </configOptions>
-                            <!-- HttpProblem wijst naar het type dat de applicatie werkelijk gooit,
-                                 zodat er geen ongebruikte gelijknamige klasse naast komt.
-                                 HttpValidationProblem en Violation blijven wél gegenereerd: de
-                                 quarkiverse-varianten zijn intern aan de
-                                 ConstraintViolationExceptionMapper. -->
+                            <!-- Haal HttpProblem hier niet weg: dan genereert de plugin er
+                                 stilzwijgend een tweede, ongebruikte klasse naast het type dat
+                                 de applicatie werkelijk gooit, en blijft de build groen.
+                                 HttpValidationProblem en Violation staan er bewust niet in. -->
                             <schemaMappings>
                                 Instant=java.time.Instant,NullableInstant=java.time.Instant,UUID=java.util.UUID,IdentificatieType=nl.rijksoverheid.moz.common.IdentificatieType,ContactType=nl.rijksoverheid.moz.common.ContactType,VoorkeurType=nl.rijksoverheid.moz.common.VoorkeurType,HttpProblem=io.quarkiverse.httpproblem.HttpProblem
                             </schemaMappings>
