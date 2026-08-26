@@ -14,7 +14,7 @@ Bedankt voor je interesse in deze repository. Bekijk eerst de overkoepelende ric
     --ruleset https://static.developer.overheid.nl/adr/ruleset.yaml
   ```
 
-  Het contract haalt dit vandaag niet schoon (21 errors, gemeten 2026-08-19). Vergelijk daarom vóór en ná je wijziging en zorg dat je er geen bevindingen bíj maakt. De bekende afwijkingen: geen `servers`-array (bewust, `OpenApiMetadataTest.contractAdverteertGeenServers` legt dat vast — nodig voor de ZAD-previews), OpenAPI 3.1 waar de ruleset 3.0 verwacht, `/openapi.json` niet in het contract gedeclareerd, en 18× een niet-gedocumenteerde `API-Version`-responseheader die `SecurityHeadersFilter` wél stuurt.
+  Het contract haalt dit vandaag niet schoon (3 errors + 1 warning, gemeten 2026-08-20). Vergelijk daarom vóór en ná je wijziging en zorg dat je er geen bevindingen bíj maakt. De bekende afwijkingen: geen `servers`-array (bewust, `OpenApiMetadataTest.contractAdverteertGeenServers` legt dat vast — nodig voor de ZAD-previews), OpenAPI 3.1 waar de ruleset 3.0 verwacht, `/openapi.json` niet in het contract gedeclareerd, en `UUID` als schemanaam (die volgt uit `schemaMappings` en is dus geen vrije keuze).
 - **Schema-changes**: voeg een nieuwe Flyway migratie toe in `src/main/resources/db/migration/`. SQL moet zowel op H2 (test profile) als PostgreSQL (dev/prod) draaien.
 - **Secrets**: nooit committen. Lokale dev-config in `src/main/resources/application-dev.properties` (gitignored). Productie-secrets via de deployment-repo `moz/profiel-service/config/`.
 

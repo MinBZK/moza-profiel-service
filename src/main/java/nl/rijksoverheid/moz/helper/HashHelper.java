@@ -13,12 +13,12 @@ import java.util.Base64;
 import java.util.Optional;
 
 /**
- * Pseudonymises an identifier (BSN/KVK/RSIN) into the subject id used in the
- * Logboek Dataverwerkingen.
+ * Pseudonimiseert een identificatienummer (BSN/KVK/RSIN) tot het subject-id dat het
+ * Logboek Dataverwerkingen gebruikt.
  */
-// Keyed HMAC, not a plain digest: a BSN has only ~10^9 possible values, so a bare
-// hash is trivially brute-forced back. A per-call salt is not an option, the
-// pseudonym has to stay stable per subject.
+// Keyed HMAC en geen kale digest: een BSN heeft maar ~10^9 mogelijke waarden, dus een
+// kale hash is triviaal terug te rekenen. Een salt per aanroep kan niet, want het
+// pseudoniem moet per subject stabiel blijven.
 @Startup
 @ApplicationScoped
 public class HashHelper {
