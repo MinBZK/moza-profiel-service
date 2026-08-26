@@ -247,10 +247,14 @@
             <artifactId>logboekdataverwerking-wrapper</artifactId>
             <version>1.4.0-SNAPSHOT</version>
         </dependency>
+        <!-- provided en niet compile: de extensie draait als devservice en hoort niet in het
+             productie-artefact. Ook niet test: dev-mode leest het testclasspath niet, dus met
+             test-scope verdwijnt de WireMock-devservice uit quarkus:dev. -->
         <dependency>
             <groupId>io.quarkiverse.wiremock</groupId>
             <artifactId>quarkus-wiremock</artifactId>
             <version>1.6.3</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Contract testing -->
