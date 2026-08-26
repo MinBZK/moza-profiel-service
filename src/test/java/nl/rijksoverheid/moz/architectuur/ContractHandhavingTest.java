@@ -48,25 +48,17 @@ class ContractHandhavingTest {
     }
 
     @Test
-    void ongeldigeTeVerwijderenOpWordtDoorHetContractAfgewezen() {
-        Assertions.assertTrue(heeftFouten(contactgegeven("\"teVerwijderenOp\":\"geen datum\"")),
-                "teVerwijderenOp hoort op format date-time te stranden");
-    }
-
-    @Test
-    void geldigeScopeEnVerwijderdatumWordenGeaccepteerd() {
+    void geldigeScopeWordtGeaccepteerd() {
         Assertions.assertFalse(
                 heeftFouten(contactgegeven("\"scope\":{\"dienstverlenerNaam\":\"Gemeente Amsterdam\"}")),
                 "Een gevulde scope hoort gewoon door het contract te komen");
-        Assertions.assertFalse(heeftFouten(contactgegeven("\"teVerwijderenOp\":\"2099-01-01T00:00:00Z\"")),
-                "Een geldige verwijderdatum hoort gewoon door het contract te komen");
     }
 
-    /** Weglaten mag: beide velden zijn optioneel. */
+    /** Weglaten mag: scope is optioneel. */
     @Test
-    void zonderScopeEnVerwijderdatumWordtGeaccepteerd() {
+    void zonderScopeWordtGeaccepteerd() {
         Assertions.assertFalse(heeftFouten(contactgegeven(null)),
-                "scope en teVerwijderenOp zijn optioneel");
+                "scope is optioneel");
     }
 
     private static String contactgegeven(String extraVeld) {

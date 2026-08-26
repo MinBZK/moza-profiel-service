@@ -1,20 +1,23 @@
 package nl.rijksoverheid.moz.services;
 
+import io.opentelemetry.api.trace.Span;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.common.ContactType;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
+import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
+import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
 import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
-import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
@@ -55,9 +58,15 @@ class PartijServiceScopeFilterTest {
     @InjectMock
     EmailVerificatieService emailVerificatieService;
 
+    @InjectMock
+    ProcessingHandler processingHandler;
+
     @BeforeEach
     void setup() {
         Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
+        // deleteLegePartij emitteert een logboek-span; zonder stub geeft de gemockte startSpan()
+        // null terug en NPE't de daaropvolgende span.end().
+        Mockito.doReturn(Mockito.mock(Span.class)).when(processingHandler).startSpan(Mockito.anyString(), Mockito.any());
     }
 
     @AfterEach
@@ -390,7 +399,7 @@ class PartijServiceScopeFilterTest {
 
         var result = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request);
 
-        UUID id = result.contactgegeven().id;
+        UUID id = result.id;
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertTrue(Contactgegeven.<Contactgegeven>findById(id).getScopes().isEmpty()));
     }
@@ -428,7 +437,7 @@ class PartijServiceScopeFilterTest {
 
         var result = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, request);
 
-        UUID id = result.contactgegeven().id;
+        UUID id = result.id;
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven cg = Contactgegeven.findById(id);
             Assertions.assertEquals(1, cg.getScopes().size());
@@ -454,6 +463,79 @@ class PartijServiceScopeFilterTest {
     }
 
     @Test
+    void updateContactgegevenMetNieuweScope_VoegtScopeToeZonderBestaandeTeVerliezen() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            maakLink("DV-A", "Dienst-A");
+            maakLink("DV-B", "Dienst-B");
+        });
+
+        ContactgegevenRequest create = new ContactgegevenRequest();
+        create.setIdentificatieType(IdentificatieType.BSN);
+        create.setIdentificatieNummer(BSN_NUMMER);
+        create.setType(ContactType.Telefoonnummer);
+        create.setWaarde("0612345678");
+        create.setScope(new ScopeRequest());
+        create.getScope().setDienstverlenerNaam("DV-A");
+        create.getScope().setDienstNaam("Dienst-A");
+
+        Contactgegeven created = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, create);
+
+        ContactgegevenUpdateRequest update = new ContactgegevenUpdateRequest();
+        update.setId(created.id);
+        update.setIdentificatieType(IdentificatieType.BSN);
+        update.setIdentificatieNummer(BSN_NUMMER);
+        update.setType(ContactType.Telefoonnummer);
+        update.setWaarde("0612345678");
+        update.setScope(new ScopeRequest());
+        update.getScope().setDienstverlenerNaam("DV-B");
+        update.getScope().setDienstNaam("Dienst-B");
+
+        boolean updated = partijService.updateContactgegeven(IdentificatieType.BSN, BSN_NUMMER, update);
+        Assertions.assertTrue(updated);
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Contactgegeven cg = Contactgegeven.findById(created.id);
+            Assertions.assertEquals(2, cg.getScopes().size(), "de PUT moet de nieuwe scope toevoegen, niet de bestaande vervangen");
+            List<String> dvNamen = cg.getScopes().stream()
+                    .map(s -> s.getDienstverlenerDienst().getDienstverlener().getNaam())
+                    .toList();
+            Assertions.assertTrue(dvNamen.containsAll(List.of("DV-A", "DV-B")));
+        });
+    }
+
+    @Test
+    void updateContactgegevenMetZelfdeScope_VoegtGeenDubbeleScopeToe() {
+        QuarkusTransaction.requiringNew().run(() -> maakLink("DV-A", "Dienst-A"));
+
+        ContactgegevenRequest create = new ContactgegevenRequest();
+        create.setIdentificatieType(IdentificatieType.BSN);
+        create.setIdentificatieNummer(BSN_NUMMER);
+        create.setType(ContactType.Telefoonnummer);
+        create.setWaarde("0612345678");
+        create.setScope(new ScopeRequest());
+        create.getScope().setDienstverlenerNaam("DV-A");
+        create.getScope().setDienstNaam("Dienst-A");
+
+        Contactgegeven created = partijService.addContactgegeven(IdentificatieType.BSN, BSN_NUMMER, create);
+
+        ContactgegevenUpdateRequest update = new ContactgegevenUpdateRequest();
+        update.setId(created.id);
+        update.setIdentificatieType(IdentificatieType.BSN);
+        update.setIdentificatieNummer(BSN_NUMMER);
+        update.setType(ContactType.Telefoonnummer);
+        update.setWaarde("0612345678");
+        update.setScope(new ScopeRequest());
+        update.getScope().setDienstverlenerNaam("DV-A");
+        update.getScope().setDienstNaam("Dienst-A");
+
+        partijService.updateContactgegeven(IdentificatieType.BSN, BSN_NUMMER, update);
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(1, Contactgegeven.<Contactgegeven>findById(created.id).getScopes().size(),
+                        "dezelfde scope opnieuw meesturen mag geen duplicaat scope-record opleveren"));
+    }
+
+    @Test
     void gescopteVoorkeurenVanTweeDienstverleners_BlijvenAparteRijen() {
         // De upsert-invariant is (partij, voorkeurType, scope). Twee dienstverleners met
         // dezelfde voorkeurType mogen elkaars waarde dus niet overschrijven.
@@ -462,7 +544,7 @@ class PartijServiceScopeFilterTest {
             maakLink("DV-B", "Dienst-B");
         });
 
-        partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+        Voorkeur origineel = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
                 voorkeurRequest(VoorkeurType.WebsiteTaal, "nl", "DV-A", "Dienst-A"));
         partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
                 voorkeurRequest(VoorkeurType.WebsiteTaal, "en", "DV-B", "Dienst-B"));
@@ -470,14 +552,16 @@ class PartijServiceScopeFilterTest {
         QuarkusTransaction.requiringNew().run(() ->
                 Assertions.assertEquals(2, Voorkeur.count(), "Elke scope houdt een eigen rij"));
 
-        // Zelfde scope opnieuw: upsert, geen derde rij.
-        var upsert = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
-                voorkeurRequest(VoorkeurType.WebsiteTaal, "fy", "DV-A", "Dienst-A"));
+        // Zelfde scope opnieuw: conflict, geen derde rij en de bestaande rij blijft ongewijzigd.
+        BusinessException ex = Assertions.assertThrows(BusinessException.class,
+                () -> partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                        voorkeurRequest(VoorkeurType.WebsiteTaal, "fy", "DV-A", "Dienst-A")));
+        Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
 
-        Assertions.assertFalse(upsert.wasCreated());
         QuarkusTransaction.requiringNew().run(() -> {
             Assertions.assertEquals(2, Voorkeur.count());
-            Assertions.assertEquals("fy", Voorkeur.<Voorkeur>findById(upsert.voorkeur().id).getWaarde());
+            Assertions.assertEquals("nl", Voorkeur.<Voorkeur>findById(origineel.id).getWaarde(),
+                    "de bestaande rij blijft ongewijzigd na het geweigerde conflict");
         });
     }
 
@@ -495,7 +579,7 @@ class PartijServiceScopeFilterTest {
 
         // De eerste voorkeur naar de scope van de tweede duwen botst op de invariant.
         VoorkeurUpdateRequest update = new VoorkeurUpdateRequest();
-        update.setId(eerste.voorkeur().id);
+        update.setId(eerste.id);
         update.setIdentificatieType(IdentificatieType.BSN);
         update.setIdentificatieNummer(BSN_NUMMER);
         update.setVoorkeurType(VoorkeurType.WebsiteTaal);
@@ -507,6 +591,59 @@ class PartijServiceScopeFilterTest {
         BusinessException ex = Assertions.assertThrows(BusinessException.class,
                 () -> partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, update));
         Assertions.assertEquals(BusinessException.Kind.CONFLICT, ex.getKind());
+    }
+
+    /**
+     * De 3-arg Voorkeur.find(partij, type, scope) filtert ook op verwijderdOp — ongetest tot deze
+     * test, want elke andere soft-delete-test in de suite gebruikt een ongescopte voorkeur (die
+     * treft de 2-arg overload). Zonder dat filter zou een soft-deleted gescopte voorkeur voorgoed
+     * een 409 op addVoorkeur blijven geven: er is geen DB-constraint die dat alsnog afdwingt.
+     */
+    @Test
+    void gescopteVoorkeurSoftDeleted_KanOpnieuwWordenToegevoegd() {
+        QuarkusTransaction.requiringNew().run(() -> maakLink("DV-A", "Dienst-A"));
+
+        Voorkeur origineel = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "nl", "DV-A", "Dienst-A"));
+
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, BSN_NUMMER, origineel.id);
+
+        Voorkeur opnieuw = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "en", "DV-A", "Dienst-A"));
+
+        Assertions.assertNotEquals(origineel.id, opnieuw.id,
+                "een soft deleted gescopte voorkeur mag niet blokkeren: er moet een nieuwe rij komen");
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Voorkeur.<Voorkeur>findById(opnieuw.id).getVerwijderdOp()));
+    }
+
+    /** updateVoorkeur-tegenhanger van gescopteVoorkeurSoftDeleted_KanOpnieuwWordenToegevoegd. */
+    @Test
+    void updateVoorkeurNaarScopeVanSoftDeletedVoorkeur_GeenConflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            maakLink("DV-A", "Dienst-A");
+            maakLink("DV-B", "Dienst-B");
+        });
+
+        Voorkeur gescopt = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "nl", "DV-A", "Dienst-A"));
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, BSN_NUMMER, gescopt.id);
+
+        Voorkeur andere = partijService.addVoorkeur(IdentificatieType.BSN, BSN_NUMMER,
+                voorkeurRequest(VoorkeurType.WebsiteTaal, "en", "DV-B", "Dienst-B"));
+
+        VoorkeurUpdateRequest update = new VoorkeurUpdateRequest();
+        update.setId(andere.id);
+        update.setIdentificatieType(IdentificatieType.BSN);
+        update.setIdentificatieNummer(BSN_NUMMER);
+        update.setVoorkeurType(VoorkeurType.WebsiteTaal);
+        update.setWaarde("de");
+        update.setScope(new ScopeRequest());
+        update.getScope().setDienstverlenerNaam("DV-A");
+        update.getScope().setDienstNaam("Dienst-A");
+
+        Assertions.assertTrue(partijService.updateVoorkeur(IdentificatieType.BSN, BSN_NUMMER, update),
+                "de scope van een soft deleted voorkeur mag geen conflict meer geven");
     }
 
     private VoorkeurRequest voorkeurRequest(VoorkeurType type, String waarde, String dvNaam, String dienstNaam) {

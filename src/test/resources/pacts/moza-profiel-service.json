@@ -148,7 +148,7 @@
       }
     },
     {
-      "description": "addVoorkeur - Bestaande Voorkeur geeft 200 terug",
+      "description": "addVoorkeur - Bestaande Voorkeur geeft 409 terug",
       "providerStates": [
         {
           "name": "Partij met WebsiteTaal voorkeur voor BSN 111111111"
@@ -168,23 +168,13 @@
         }
       },
       "response": {
-        "status": 200,
-        "body": {
-          "id": "00000000-0000-0000-0000-000000000001",
-          "voorkeurType": "WebsiteTaal",
-          "waarde": "en"
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/problem+json"
         },
-        "matchingRules": {
-          "body": {
-            "$.id": {
-              "matchers": [{"match": "type"}],
-              "combine": "AND"
-            },
-            "$.voorkeurType": {
-              "matchers": [{"match": "type"}],
-              "combine": "AND"
-            }
-          }
+        "body": {
+          "title": "Conflict",
+          "status": 409
         }
       }
     },
