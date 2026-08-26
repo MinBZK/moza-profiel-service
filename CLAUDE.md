@@ -209,7 +209,9 @@ Twee dingen die hier vaak misgaan:
   `jacoco-quarkus.exec` accumuleren.
 - **De excludelijst staat op twee plekken** — in `pom.xml` en als
   `quarkus.jacoco.excludes` in `src/test/resources/application.properties`. Die
-  horen gelijk te blijven.
+  horen letterlijk gelijk te blijven. Lopen ze uiteen, dan merk je dat niet: de
+  gate leest de lijst uit `pom.xml`, dus de build blijft groen en de cijfers
+  veranderen niet.
 
 ## Database en migraties
 
