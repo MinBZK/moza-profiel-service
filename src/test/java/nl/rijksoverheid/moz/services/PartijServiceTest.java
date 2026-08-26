@@ -1,6 +1,7 @@
 package nl.rijksoverheid.moz.services;
 
 import nl.rijksoverheid.moz.exception.BusinessException;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.Span;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -62,6 +64,9 @@ public class PartijServiceTest {
 
     @Inject
     HashHelper hashHelper;
+
+    @Inject
+    MeterRegistry meterRegistry;
 
     private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
 
@@ -315,7 +320,9 @@ public class PartijServiceTest {
     @Test
     void getPartijResponse_ContactgegevenIsStale_WerktLastUsedAtBij() {
         AtomicReference<UUID> cgId = new AtomicReference<>();
-        Instant ouder = Instant.now().minus(Duration.ofHours(48));
+        // Getruncate naar microseconden: H2 rondt Instant-kolommen daarop af, dus zonder dit zou de
+        // exacte-gelijkheid-assertie hieronder op sub-microseconde ruis kunnen stuklopen.
+        Instant ouder = Instant.now().minus(Duration.ofHours(48)).truncatedTo(ChronoUnit.MICROS);
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -373,9 +380,10 @@ public class PartijServiceTest {
      * filteren zelf al op verwijderdOp IS NULL.
      */
     @Test
-    void touchIfStale_RijInmiddelsSoftDeleted_GeeftFalseTerug() {
+    void touchIfStale_RijInmiddelsSoftDeleted_GeeftFalseTerugEnLaatLastUsedAtOngemoeid() {
         AtomicReference<UUID> cgId = new AtomicReference<>();
-        Instant ouder = Instant.now().minus(Duration.ofHours(48));
+        // Getruncate naar microseconden, zie getPartijResponse_ContactgegevenIsStale_WerktLastUsedAtBij.
+        Instant ouder = Instant.now().minus(Duration.ofHours(48)).truncatedTo(ChronoUnit.MICROS);
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
             partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
@@ -396,10 +404,75 @@ public class PartijServiceTest {
         AtomicReference<Boolean> nogActief = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Contactgegeven cg = Contactgegeven.findById(cgId.get());
-            nogActief.set(partijService.touchIfStale(cg));
+            nogActief.set(roepTouchIfStaleAan(cg));
         });
 
         Assertions.assertFalse(nogActief.get());
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(ouder, Contactgegeven.<Contactgegeven>findById(cgId.get()).getLastUsedAt(),
+                        "een reeds soft-deleted rij mag lastUsedAt niet alsnog bijwerken"));
+    }
+
+    /**
+     * Voorkeur-tegenhanger van touchIfStale_RijInmiddelsSoftDeleted_...: hetzelfde filter zit ook
+     * in de Voorkeur-overload van touchIfStale, maar had daar geen eigen dekking.
+     */
+    @Test
+    void touchIfStale_VoorkeurInmiddelsSoftDeleted_GeeftFalseTerugEnLaatLastUsedAtOngemoeid() {
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        // Getruncate naar microseconden, zie getPartijResponse_ContactgegevenIsStale_WerktLastUsedAtBij.
+        Instant ouder = Instant.now().minus(Duration.ofHours(48)).truncatedTo(ChronoUnit.MICROS);
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "987654321"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setPartij(partij);
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setLastUsedAt(ouder);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Voorkeur.update("verwijderdOp = ?1 WHERE id = ?2", Instant.now(), voorkeurId.get()));
+
+        AtomicReference<Boolean> nogActief = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Voorkeur voorkeur = Voorkeur.findById(voorkeurId.get());
+            nogActief.set(roepTouchIfStaleAan(voorkeur));
+        });
+
+        Assertions.assertFalse(nogActief.get());
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertEquals(ouder, Voorkeur.<Voorkeur>findById(voorkeurId.get()).getLastUsedAt(),
+                        "een reeds soft-deleted rij mag lastUsedAt niet alsnog bijwerken"));
+    }
+
+    // Via reflectie omdat touchIfStale private is: de zichtbaarheid verruimen puur om deze test te
+    // laten compileren zou de productiecode aanpassen aan de test.
+    private boolean roepTouchIfStaleAan(Contactgegeven cg) {
+        try {
+            Method methode = PartijService.class.getDeclaredMethod("touchIfStale", Contactgegeven.class);
+            methode.setAccessible(true);
+
+            return (boolean) methode.invoke(partijService, cg);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("touchIfStale is niet aanroepbaar", e);
+        }
+    }
+
+    private boolean roepTouchIfStaleAan(Voorkeur voorkeur) {
+        try {
+            Method methode = PartijService.class.getDeclaredMethod("touchIfStale", Voorkeur.class);
+            methode.setAccessible(true);
+
+            return (boolean) methode.invoke(partijService, voorkeur);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("touchIfStale is niet aanroepbaar", e);
+        }
     }
 
     @Test
@@ -1158,11 +1231,11 @@ public class PartijServiceTest {
 
     /**
      * Een partij zonder actieve identificaties (findOrCreatePartij voegt er altijd één toe, dus dit
-     * wijst op datacorruptie) mag nog steeds gecascadeerd worden — maar zonder logboek-span, want er
-     * is geen identiteit om te auditeren.
+     * wijst op datacorruptie) wordt niet verwijderd: er is geen identiteit om de verwijdering aan te
+     * auditeren, en de rij weghalen zou dat spoor definitief onmogelijk maken.
      */
     @Test
-    void deleteLegePartij_PartijZonderIdentificatie_CascadeertZonderLogboekSpan() {
+    void deleteLegePartij_PartijZonderIdentificatie_WordtNietVerwijderdEnEmitGeenLogboekSpan() {
         AtomicReference<UUID> partijId = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -1172,11 +1245,46 @@ public class PartijServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findById(partijId.get());
-            Assertions.assertEquals(PartijService.CascadeResultaat.GECASCADEERD,
+            Assertions.assertEquals(PartijService.CascadeResultaat.GEEN_IDENTIFICATIE,
                     partijService.deleteLegePartij(partij, Instant.now()));
         });
 
         Mockito.verify(processingHandler, Mockito.never()).startSpan(Mockito.anyString(), Mockito.any());
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Partij.<Partij>findById(partijId.get()).getVerwijderdOp(),
+                        "een partij zonder identificatie mag niet verwijderd worden"));
+    }
+
+    /**
+     * Een gemiste audit-vermelding uit het synchrone API-pad moet op dezelfde anomalieteller landen
+     * als die van de retentiescheduler; anders ziet diens gezondheidscheck deze fout nooit.
+     */
+    @Test
+    void deleteLegePartij_LogboekSpanFaalt_VerhoogtAnomalieteller() {
+        double anomalieVoor = meterRegistry
+                .counter("retentie.anomalie", "entiteit", "partij", "reden", "logboek-fout").count();
+
+        AtomicReference<UUID> voorkeurId = new AtomicReference<>();
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "123456789"));
+            partij.persist();
+
+            Voorkeur voorkeur = new Voorkeur();
+            voorkeur.setVoorkeurType(VoorkeurType.WebsiteTaal);
+            voorkeur.setWaarde("nl");
+            voorkeur.setPartij(partij);
+            voorkeur.persist();
+            voorkeurId.set(voorkeur.id);
+        });
+
+        Mockito.doThrow(new RuntimeException("kapot"))
+                .when(processingHandler).startSpan(Mockito.eq("verwijderPartij"), Mockito.any());
+
+        partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
+
+        Assertions.assertEquals(anomalieVoor + 1, meterRegistry
+                .counter("retentie.anomalie", "entiteit", "partij", "reden", "logboek-fout").count());
     }
 
     @Test

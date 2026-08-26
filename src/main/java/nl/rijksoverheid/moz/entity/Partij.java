@@ -11,6 +11,8 @@ import jakarta.persistence.OneToMany;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 @Entity
 @Audited
 public class Partij extends VerwijderbareEntiteit {
@@ -23,14 +25,9 @@ public class Partij extends VerwijderbareEntiteit {
     private List<Identificatie> identificaties = new ArrayList<>();
 
     public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
-        return find("""
-        SELECT p FROM Partij p
-        JOIN p.identificaties i
-        WHERE i.identificatieType = ?1
-          AND i.identificatieNummer = ?2
-          AND p.verwijderdOp IS NULL
-          AND i.verwijderdOp IS NULL
-    """, type, nummer).firstResult();
+        return find("SELECT p FROM Partij p JOIN p.identificaties i "
+                + "WHERE i.identificatieType = ?1 AND i.identificatieNummer = ?2 "
+                + "AND p." + ACTIEF + " AND i." + ACTIEF, type, nummer).firstResult();
     }
 
     public void addIdentificatie(Identificatie identificatie) {

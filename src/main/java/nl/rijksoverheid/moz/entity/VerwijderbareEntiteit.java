@@ -10,11 +10,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 
-// Public: OngefilterdeFinderTest (ander package) verwijst rechtstreeks naar deze klasse. Geen
-// @SQLRestriction: dat is niet per query uit te zetten, en meerdere tests inspecteren juist een
+// Geen @SQLRestriction: dat is niet per query uit te zetten, en meerdere tests inspecteren juist een
 // soft deleted rij rechtstreeks.
 @MappedSuperclass
-public abstract class VerwijderbareEntiteit extends PanacheEntityBase {
+abstract class VerwijderbareEntiteit extends PanacheEntityBase {
 
     @Id
     @GeneratedValue

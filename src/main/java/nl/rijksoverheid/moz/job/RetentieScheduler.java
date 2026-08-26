@@ -27,12 +27,14 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 /**
  * Verwijdert (soft-delete) Voorkeur/Contactgegeven-records die lang niet zijn gebruikt.
  * <p>
  * Laadt bewust de kandidaat-entiteiten i.p.v. een blinde bulk-update: retentieverwijdering is
- * zelf een AVG-verwerkingsactiviteit en heeft dus een logboek-vermelding per subject nodig. Zie
- * {@link nl.rijksoverheid.moz.controller.ProfielController#getPartijBulk} voor hetzelfde patroon.
+ * zelf een AVG-verwerkingsactiviteit en heeft dus een logboek-vermelding per subject nodig, net
+ * zo fijnmazig als de vermelding die de API-endpoints per request schrijven.
  */
 @ApplicationScoped
 public class RetentieScheduler {
@@ -43,6 +45,9 @@ public class RetentieScheduler {
     // geen tuning-parameter. Wijzigen is een besluit voor wie die grondslag beheert.
     private static final Period RETENTIE_GRENS = Period.ofYears(7);
 
+    // Hergebruikt van de verwijderde PATCH-endpoints, terwijl de retentiejob een materieel andere
+    // verwerkingsactiviteit is; bevestiging loopt via
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
     private static final String VOORKEUR_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630";
     private static final String CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631";
 
@@ -60,9 +65,9 @@ public class RetentieScheduler {
     // Query is bewust breed: elke actieve partij zonder actieve children, ongeacht ouderdom. Geen
     // index op partij.verwijderdOp, dus dit is een scan over alle actieve partijen; voor nu
     // acceptabel (nog geen productiedata).
-    private static final String LEGE_PARTIJ_WHERE = "p.verwijderdOp IS NULL "
-            + "AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v.verwijderdOp IS NULL) "
-            + "AND NOT EXISTS (SELECT 1 FROM Contactgegeven c WHERE c.partij = p AND c.verwijderdOp IS NULL)";
+    private static final String LEGE_PARTIJ_WHERE = "p." + ACTIEF
+            + " AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v." + ACTIEF + ") "
+            + "AND NOT EXISTS (SELECT 1 FROM Contactgegeven c WHERE c.partij = p AND c." + ACTIEF + ")";
 
     private final MeterRegistry meterRegistry;
     private final PartijService partijService;
@@ -167,16 +172,16 @@ public class RetentieScheduler {
         Instant grens = berekenGrens(nu);
 
         long limiet = bepaalVerwerkingslimiet("voorkeur", Voorkeur.count(
-                "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
+                ACTIEF + " AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
 
         if (limiet == 0) {
             return 0;
         }
 
         // Eerst id's ophalen, dan pas fetch-join: een collectiefetch met maxResults pagineert
-        // anders in-memory (HHH90003004) i.p.v. met een SQL LIMIT.
+        // anders in-memory i.p.v. met een SQL LIMIT.
         List<UUID> kandidaatIds = Voorkeur.getEntityManager()
-                .createQuery("SELECT v.id FROM Voorkeur v WHERE v.verwijderdOp IS NULL "
+                .createQuery("SELECT v.id FROM Voorkeur v WHERE v." + ACTIEF + " "
                         + "AND COALESCE(v.lastUsedAt, v.createdAt) <= :grens "
                         + "ORDER BY COALESCE(v.lastUsedAt, v.createdAt)", UUID.class)
                 .setParameter("grens", grens)
@@ -194,17 +199,15 @@ public class RetentieScheduler {
         // stilzwijgend afkappen — primaireIdentificatie() filtert al in Java.
         List<Voorkeur> kandidaten = Voorkeur.find(
                 "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
-                        + "WHERE v.id IN ?1 AND v.verwijderdOp IS NULL AND p.verwijderdOp IS NULL", kandidaatIds)
+                        + "WHERE v.id IN ?1 AND v." + ACTIEF + " AND p." + ACTIEF, kandidaatIds)
                 .list();
 
         int verwijderd = 0;
         List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
 
         for (Voorkeur voorkeur : kandidaten) {
-            // Tussen de id-select hierboven en deze fetch-query kan een gelijktijdige API-aanroep
-            // dezelfde rij al hebben verwijderd — de WHERE-clausule hierboven voorkomt dat al dat
-            // zo'n rij hier binnenkomt, maar deze check blijft staan als expliciete belofte: skip
-            // i.p.v. de hele batch laten terugrollen op verwijder()'s guard.
+            // De fetch-query filtert deze rijen al weg; deze check blijft staan zodat een rij die er
+            // toch doorheen komt wordt overgeslagen i.p.v. de hele batch te laten terugrollen.
             if (voorkeur.isVerwijderd()) {
                 LOG.warn("Retentiescheduler: voorkeur " + voorkeur.id
                         + " is tussen kandidaatselectie en verwerking al verwijderd; overgeslagen");
@@ -236,7 +239,7 @@ public class RetentieScheduler {
         Instant grens = berekenGrens(nu);
 
         long limiet = bepaalVerwerkingslimiet("contactgegeven", Contactgegeven.count(
-                "verwijderdOp IS NULL AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
+                ACTIEF + " AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
 
         if (limiet == 0) {
             return 0;
@@ -245,7 +248,7 @@ public class RetentieScheduler {
         // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde twee-staps aanpak tegen
         // in-memory paginering bij een collectiefetch.
         List<UUID> kandidaatIds = Contactgegeven.getEntityManager()
-                .createQuery("SELECT c.id FROM Contactgegeven c WHERE c.verwijderdOp IS NULL "
+                .createQuery("SELECT c.id FROM Contactgegeven c WHERE c." + ACTIEF + " "
                         + "AND COALESCE(c.lastUsedAt, c.createdAt) <= :grens "
                         + "ORDER BY COALESCE(c.lastUsedAt, c.createdAt)", UUID.class)
                 .setParameter("grens", grens)
@@ -260,15 +263,14 @@ public class RetentieScheduler {
         // reden om p.identificaties ongefilterd te laten.
         List<Contactgegeven> kandidaten = Contactgegeven.find(
                 "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
-                        + "WHERE c.id IN ?1 AND c.verwijderdOp IS NULL AND p.verwijderdOp IS NULL", kandidaatIds)
+                        + "WHERE c.id IN ?1 AND c." + ACTIEF + " AND p." + ACTIEF, kandidaatIds)
                 .list();
 
         int verwijderd = 0;
         List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
 
         for (Contactgegeven contact : kandidaten) {
-            // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde bescherming tegen een rij
-            // die tussen kandidaatselectie en deze fetch-query al elders is verwijderd.
+            // Zie verwijderInactieveVoorkeuren voor waarom deze check blijft staan.
             if (contact.isVerwijderd()) {
                 LOG.warn("Retentiescheduler: contactgegeven " + contact.id
                         + " is tussen kandidaatselectie en verwerking al verwijderd; overgeslagen");
@@ -324,22 +326,22 @@ public class RetentieScheduler {
 
                 QuarkusTransaction.requiringNew().run(() -> {
                     Partij partij = Partij.findById(id);
-                    resultaat.set(partij == null ? null : partijService.deleteLegePartij(partij, nu));
+                    resultaat.set(partij == null
+                            ? PartijService.CascadeResultaat.NIET_GEVONDEN
+                            : partijService.deleteLegePartij(partij, nu));
                 });
 
-                if (resultaat.get() == PartijService.CascadeResultaat.GECASCADEERD) {
-                    gecascadeerd++;
-                } else if (resultaat.get() == PartijService.CascadeResultaat.HEEFT_ACTIEVE_KINDEREN) {
+                // Bewust zonder default-tak: een zesde uitkomst hoort hier op te vallen in review,
+                // niet stilzwijgend als "niets aan de hand" te eindigen.
+                switch (resultaat.get()) {
+                    case GECASCADEERD -> gecascadeerd++;
                     // Legitiem: een gebruiker voegde een nieuw actief kind toe tussen selectie en
                     // verwerking. Geen anomalie — telt niet mee voor alleFasenGeslaagd.
-                    LOG.info("Retentiescheduler: partij " + id + " heeft ondertussen weer een actief kind; niet gecascadeerd");
-                } else {
-                    // AL_VERWIJDERD (concurrente delete) of null (kandidaat tussen selectie en
-                    // verwerking verdwenen) — beide wijzen op een onverwachte state-wijziging.
-                    String reden = resultaat.get() == PartijService.CascadeResultaat.AL_VERWIJDERD
-                            ? "gelijktijdig-verwijderd" : "kandidaat-verdwenen";
-                    LOG.warn("Retentiescheduler: partij " + id + " niet gecascadeerd (" + resultaat.get() + "); overgeslagen");
-                    meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", reden).increment();
+                    case HEEFT_ACTIEVE_KINDEREN -> LOG.info("Retentiescheduler: partij " + id
+                            + " heeft ondertussen weer een actief kind; niet gecascadeerd");
+                    case AL_VERWIJDERD -> meldOvergeslagenPartij(id, resultaat.get(), "gelijktijdig-verwijderd");
+                    case NIET_GEVONDEN -> meldOvergeslagenPartij(id, resultaat.get(), "kandidaat-verdwenen");
+                    case GEEN_IDENTIFICATIE -> meldOvergeslagenPartij(id, resultaat.get(), "geen-identificatie");
                 }
             } catch (Exception e) {
                 LOG.error("Retentiescheduler: cascade-verwijdering van partij " + id + " mislukt", e);
@@ -349,13 +351,16 @@ public class RetentieScheduler {
         }
 
         // Elke getelde partij is op dit punt al gecommit (eigen transactie per partij hierboven),
-        // dus dit is net zo veilig als de "alleen tellen ná een normale return"-regel bij de andere
-        // twee fasen — hier is dat alleen geen aparte aanroeplaag omdat de commits al binnen deze
-        // methode plaatsvinden.
+        // dus deze teller kan geen verwijdering claimen die alsnog is teruggedraaid.
         meterRegistry.counter("retentie.verwijderd", "type", "partij").increment(gecascadeerd);
         LOG.info("Retentiescheduler: " + gecascadeerd + " partijen gecascadeerd");
 
         return alleGeslaagd;
+    }
+
+    private void meldOvergeslagenPartij(UUID id, PartijService.CascadeResultaat resultaat, String reden) {
+        LOG.warn("Retentiescheduler: partij " + id + " niet gecascadeerd (" + resultaat + "); overgeslagen");
+        meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", reden).increment();
     }
 
     // Kalenderjaren (Period), verankerd op UTC: een vaste Duration zou schrikkeljaren negeren, en

@@ -1,5 +1,6 @@
 package nl.rijksoverheid.moz.services;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.LockModeType;
@@ -39,41 +40,47 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.UUID;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 @ApplicationScoped
 public class PartijService {
 
     private static final Logger LOG = Logger.getLogger(PartijService.class);
 
-    private static final String ACTIEF = "verwijderdOp IS NULL";
-
     // Binnen deze drempel mag een leesactie (GET) geen schrijfactie veroorzaken: anders zou
     // elke aanroep lastUsedAt bijwerken. Zie touchIfStale.
     private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
 
-    // Placeholder: nog geen echte verwerkingsactiviteit-ID geregistreerd voor partij/identificatie-
-    // verwijdering (anders dan PS-630/631 in RetentieScheduler, voor voorkeur/contactgegeven).
+    // Placeholder: er is nog geen echte verwerkingsactiviteit-ID geregistreerd voor partij/
+    // identificatie-verwijdering. Bevestiging van de definitieve ID's loopt via
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
     private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
 
     private final PartijMapper partijMapper;
     private final EmailVerificatieService emailVerificatieService;
     private final DienstverlenerService dienstverlenerService;
     private final LogboekSpanEmitter logboekSpanEmitter;
+    private final MeterRegistry meterRegistry;
 
     public PartijService(
             PartijMapper partijMapper,
             EmailVerificatieService emailVerificatieService,
             DienstverlenerService dienstverlenerService,
-            LogboekSpanEmitter logboekSpanEmitter) {
+            LogboekSpanEmitter logboekSpanEmitter,
+            MeterRegistry meterRegistry) {
         this.partijMapper = partijMapper;
         this.emailVerificatieService = emailVerificatieService;
         this.dienstverlenerService = dienstverlenerService;
         this.logboekSpanEmitter = logboekSpanEmitter;
+        this.meterRegistry = meterRegistry;
     }
 
     public enum CascadeResultaat {
         GECASCADEERD,
         AL_VERWIJDERD,
-        HEEFT_ACTIEVE_KINDEREN
+        HEEFT_ACTIEVE_KINDEREN,
+        GEEN_IDENTIFICATIE,
+        NIET_GEVONDEN
     }
 
     @Transactional
@@ -366,7 +373,8 @@ public class PartijService {
     }
 
     // isDefault blijft ongemoeid: de rij behoudt haar staat op het moment van verwijderen.
-    // Waarom dat geen probleem is voor de partiële index: zie demoteCurrentDefault.
+    // contactgegeven_default_per_type (V4-migratie) is partieel op verwijderd_op IS NULL, dus een
+    // verwijderde default blokkeert geen nieuwe.
     // Zie verwijderVoorkeur voor waarom identificatieType/Nummer hier ook nodig zijn.
     @Transactional
     public Contactgegeven verwijderContactgegeven(IdentificatieType identificatieType, String identificatieNummer, UUID id) {
@@ -393,27 +401,30 @@ public class PartijService {
             return CascadeResultaat.AL_VERWIJDERD;
         }
 
-        boolean hasActiveContactgegevens = Contactgegeven.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
-        boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND verwijderdOp IS NULL", partij) > 0;
+        boolean hasActiveContactgegevens = Contactgegeven.count("partij = ?1 AND " + ACTIEF, partij) > 0;
+        boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND " + ACTIEF, partij) > 0;
 
         if (hasActiveContactgegevens || hasActiveVoorkeuren) {
             return CascadeResultaat.HEEFT_ACTIEVE_KINDEREN;
         }
 
-        partij.verwijder(nu);
         // Filter i.p.v. blind forEach: al verwijderde identificaties opnieuw verwijderen zou op
         // verwijder()'s guard stuklopen. Nodig zodat findOrCreatePartij later dezelfde
         // (type, nummer) weer kan invoegen (uk_identificatie, V4-migratie).
         List<Identificatie> nogActief = partij.getIdentificaties().stream().filter(i -> !i.isVerwijderd()).toList();
 
         if (nogActief.isEmpty()) {
-            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie of
-            // een misgelopen migratie, niet op een routinegeval — zie ook resolveerIdentiteitOfSlaOver.
-            LOG.error("PartijService: partij " + partij.id + " had geen actieve identificatie meer bij "
-                    + "verwijdering (invariant violation, zie findOrCreatePartij); geen audit-vermelding "
-                    + "voor deze verwijdering mogelijk");
+            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie of een
+            // misgelopen migratie. De partij blijft dan staan i.p.v. zonder audit-vermelding te
+            // verdwijnen — zelfde keuze als resolveerIdentiteitOfSlaOver.
+            LOG.error("PartijService: partij " + partij.id + " heeft geen actieve identificatie meer "
+                    + "(invariant violation, zie findOrCreatePartij); niet verwijderd, want een "
+                    + "audit-vermelding is dan onmogelijk");
+
+            return CascadeResultaat.GEEN_IDENTIFICATIE;
         }
 
+        partij.verwijder(nu);
         nogActief.forEach(i -> i.verwijder(nu));
         registreerPartijVerwijderingLogboek(nogActief.stream()
                 .map(i -> new GeauditeerdeIdentiteit(i.getIdentificatieNummer(), i.getIdentificatieType()))
@@ -423,11 +434,14 @@ public class PartijService {
     }
 
     // Eén span per erased identificatie, niet per partij — elk identificatienummer is zelf
-    // persoonsgegeven.
+    // persoonsgegeven. Dezelfde anomalieteller als de retentiescheduler, zodat diens
+    // anomalieCount("partij") ook een gemiste vermelding uit het API-pad ziet.
     private void registreerPartijVerwijderingLogboek(List<GeauditeerdeIdentiteit> identiteiten) {
-        logboekSpanEmitter.registreerNaCommit(identiteiten, "verwijderPartij", PARTIJ_PROCESSING_ACTIVITY_ID,
-                e -> LOG.error("PartijService: logboek-emissie voor partijverwijdering mislukt ná commit "
-                        + "(de identificatie is al verwijderd; dit is dus een gemist audit-spoor)", e));
+        logboekSpanEmitter.registreerNaCommit(identiteiten, "verwijderPartij", PARTIJ_PROCESSING_ACTIVITY_ID, e -> {
+            LOG.error("PartijService: logboek-emissie voor partijverwijdering mislukt ná commit "
+                    + "(de identificatie is al verwijderd; dit is dus een gemist audit-spoor)", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "logboek-fout").increment();
+        });
     }
 
     // Losse scalar-query i.p.v. partij.isVerwijderd(): een lock ververst het al-managed object niet,
@@ -454,7 +468,7 @@ public class PartijService {
                     List<Partij> found = Partij.list(
                             "SELECT p FROM Partij p JOIN p.identificaties i " +
                             "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2 "
-                            + "AND p.verwijderdOp IS NULL AND i.verwijderdOp IS NULL",
+                            + "AND p." + ACTIEF + " AND i." + ACTIEF,
                             entry.getKey(), entry.getValue());
 
                     return found.stream();
@@ -494,8 +508,9 @@ public class PartijService {
 
     // Retourneert false als déze aanroep ontdekt dat de rij inmiddels soft-deleted is — alleen
     // gecontroleerd voor rijen die stale genoeg zijn om een touch te triggeren; een niet-stale rij
-    // geeft altijd true terug zonder verwijderdOp te raadplegen.
-    boolean touchIfStale(Contactgegeven cg) {
+    // geeft altijd true terug zonder verwijderdOp te raadplegen. Bewust één UPDATE per rij en geen
+    // gebundelde WHERE id IN (...): juist de rowcount per rij betrapt die race.
+    private boolean touchIfStale(Contactgegeven cg) {
         if (!isStale(cg.getLastUsedAt())) {
             return true;
         }
@@ -509,7 +524,7 @@ public class PartijService {
         return geraakt > 0;
     }
 
-    boolean touchIfStale(Voorkeur voorkeur) {
+    private boolean touchIfStale(Voorkeur voorkeur) {
         if (!isStale(voorkeur.getLastUsedAt())) {
             return true;
         }
@@ -529,12 +544,9 @@ public class PartijService {
     }
 
     /**
-     * Geen {@code distinct} in de query: een rij met meerdere matchende scopes levert net zoveel
-     * join-rijen op, maar Hibernate ontdubbelt entity-resultaten sinds versie 6 zelf. Het
-     * trefwoord deed hier dus niets. Dat de response geen dubbele rijen bevat is gedrag waar
-     * aanroepers op leunen, dus het staat vastgelegd in
-     * {@code PartijServiceScopeFilterTest.rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug} —
-     * die test valt om zodra een Hibernate-upgrade dit weer verandert.
+     * Geen {@code distinct} in de query: Hibernate ontdubbelt entity-resultaten sinds versie 6 zelf,
+     * dus het trefwoord deed hier niets. Dat de response geen dubbele rijen bevat ligt vast in
+     * {@code PartijServiceScopeFilterTest.rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug}.
      */
     public List<Contactgegeven> findFilteredContactgegevens(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(

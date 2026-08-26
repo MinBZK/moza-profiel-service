@@ -14,6 +14,8 @@ import org.hibernate.envers.Audited;
 import java.util.List;
 import java.util.UUID;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 // uk_identificatie (identificatie_type, identificatie_nummer) en uk_identificatie_per_partij
 // (partij_id, identificatie_type) bestaan in de database (zie V4-migratie) als partiële unique
 // indexes (WHERE verwijderd_op IS NULL). JPA's @UniqueConstraint kan geen WHERE-clausule
@@ -68,6 +70,6 @@ public class Identificatie extends VerwijderbareEntiteit {
     }
 
     public static List<Identificatie> find(Partij partij) {
-        return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+        return find("partij = ?1 AND " + ACTIEF, partij).list();
     }
 }

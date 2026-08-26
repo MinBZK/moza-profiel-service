@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 @Entity
 @Audited
 public class Voorkeur extends VerwijderbareEntiteit {
@@ -119,11 +121,11 @@ public class Voorkeur extends VerwijderbareEntiteit {
 
     @Nullable
     public static Voorkeur find(Partij partij, UUID id) {
-        return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
+        return find("partij = ?1 AND id = ?2 AND " + ACTIEF, partij, id).firstResult();
     }
 
     public static List<Voorkeur> find(Partij partij) {
-        return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+        return find("partij = ?1 AND " + ACTIEF, partij).list();
     }
 
     // Alleen de scope-loze voorkeur voor dit (partij, type). firstResult(): uniciteit is
@@ -131,7 +133,7 @@ public class Voorkeur extends VerwijderbareEntiteit {
     @Nullable
     public static Voorkeur find(Partij partij, VoorkeurType voorkeurType) {
         return find(
-                "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND verwijderdOp IS NULL",
+                "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND " + ACTIEF,
                 partij, voorkeurType
         ).firstResult();
     }
@@ -143,15 +145,15 @@ public class Voorkeur extends VerwijderbareEntiteit {
         }
 
         return find(
-                "SELECT DISTINCT v FROM Voorkeur v JOIN v.scopes s "
-                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v.verwijderdOp IS NULL",
+                "SELECT v FROM Voorkeur v JOIN v.scopes s "
+                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v." + ACTIEF,
                 partij, voorkeurType, scope
         ).firstResult();
     }
 
-    // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-delete van
-    // dezelfde rij mag lastUsedAt niet meer bumpen.
+    // ACTIEF + rowcount: een GET die overlapt met een retentie-soft-delete van dezelfde rij mag
+    // lastUsedAt niet meer bumpen.
     public static long touch(UUID id, Instant nu) {
-        return update("lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id);
+        return update("lastUsedAt = ?1 WHERE id = ?2 AND " + ACTIEF, nu, id);
     }
 }

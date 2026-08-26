@@ -24,14 +24,9 @@ import java.util.List;
  * voorkeuren, en het bijwerken van lastUsedAt bij een stale read ("touch on read"), is aan de
  * aanroeper, zie {@code PartijService.touchIfStale}.
  *
- * <p>De {@code remove*Item}-doelen worden expliciet genegeerd. De generator zet bij elke
- * lijst-property een {@code addXItem} en een {@code removeXItem} neer die de klasse zelf
- * teruggeven; MapStruct leest zo'n methode als fluent setter en houdt er dus een
- * doel-property {@code removeXItem} aan over die nergens vandaan te vullen is. Bij
- * {@code addXItem} gebeurt dat niet, omdat de {@code add}-prefix hem als adder
- * classificeert en daarmee diskwalificeert als fluent setter — gebruikt wordt hij
- * evenmin, want de standaard {@code CollectionMappingStrategy} is {@code ACCESSOR_ONLY}
- * en vult de lijst via de gewone setter. Vandaar dat alleen de remove-kant overblijft.
+ * <p>De {@code remove*Item}-doelen worden expliciet genegeerd: MapStruct leest die
+ * generator-methodes als fluent setter en houdt er zo een doel-property aan over die nergens
+ * vandaan te vullen is.
  *
  * <p>{@code unmappedTargetPolicy} staat op {@code ERROR}: zonder die instelling zouden de
  * ignores alleen de waarschuwingen opruimen, en zou een échte niet-gemapte property nog
@@ -46,8 +41,8 @@ public abstract class PartijMapper {
     // submappings zijn package-private: die worden alleen door de MapStruct-gegenereerde impl in
     // dit package zelf aangeroepen.
     @Mapping(target = "partijId", source = "partij.id")
-    // Bron expliciet aan de parameter gebonden, niet aan partij.identificaties/contactgegevens/voorkeuren:
-    // die rauwe @OneToMany-collecties zijn ongefilterd (zie OngefilterdeFinderTest) en zouden een
+    // Bron expliciet aan de parameters gebonden: Partij heeft alleen nog identificaties als
+    // @OneToMany, en die rauwe collectie is ongefilterd (zie OngefilterdeFinderTest) — ze zou een
     // soft deleted rij laten herleven in de response.
     @Mapping(target = "identificaties", source = "identificaties")
     @Mapping(target = "contactgegevens", source = "contactgegevens")

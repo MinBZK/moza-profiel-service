@@ -24,15 +24,20 @@ public class LogboekSpanEmitter {
         this.txSyncRegistry = txSyncRegistry;
     }
 
-    // opFout: aanroeper bepaalt zelf hoe een gemiste span gemeld wordt (loggen, eventueel een
-    // eigen metriek) — deze klasse kent de telemetrie-behoefte van de aanroepers niet.
+    /**
+     * Vereist een lopende transactie: delegeert aan
+     * {@link TransactionSynchronizationRegistry#registerInterposedSynchronization}, die anders gooit.
+     * {@code opFout} laat de aanroeper zelf bepalen hoe een gemiste span gemeld wordt (loggen,
+     * eventueel een eigen metriek) — deze klasse kent de telemetrie-behoefte van de aanroepers niet.
+     */
     public void registreerNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String naam,
             String processingActivityId, Consumer<Exception> opFout) {
         if (identiteiten.isEmpty()) {
             return;
         }
 
-        txSyncRegistry.registerInterposedSynchronization(
-                new LogboekCommitSynchronization(hashHelper, processingHandler, identiteiten, naam, processingActivityId, opFout));
+        // Kopie: de lijst wordt pas ná commit gelezen, en aanroepers geven een muteerbare lijst mee.
+        txSyncRegistry.registerInterposedSynchronization(new LogboekCommitSynchronization(
+                hashHelper, processingHandler, List.copyOf(identiteiten), naam, processingActivityId, opFout));
     }
 }

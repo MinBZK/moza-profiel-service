@@ -23,11 +23,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-// uk_contactgegeven_dedup (partij_id, type, waarde) bestaat in de database (zie V1/V4-migraties),
-// maar is daar een partiële unique index (WHERE verwijderd_op IS NULL). JPA's @UniqueConstraint
-// kan geen WHERE-clausule uitdrukken, dus staat die hier bewust niet: een niet-partiële variant
-// via deze annotatie zou in de door Hibernate gegenereerde testschema's (H2, drop-and-create)
-// weer duplicaten tegen rijen met een soft delete blokkeren, terwijl productie dat toestaat.
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
+// Geen @UniqueConstraint voor uk_contactgegeven_dedup: die index is partieel (WHERE
+// verwijderd_op IS NULL, zie de V4-migratie) en JPA kan geen WHERE-clausule uitdrukken.
 @Entity
 @Audited
 public class Contactgegeven extends VerwijderbareEntiteit {
@@ -170,16 +169,16 @@ public class Contactgegeven extends VerwijderbareEntiteit {
 
     @Nullable
     public static Contactgegeven find(Partij partij, UUID id) {
-        return find("partij = ?1 AND id = ?2 AND verwijderdOp IS NULL", partij, id).firstResult();
+        return find("partij = ?1 AND id = ?2 AND " + ACTIEF, partij, id).firstResult();
     }
 
     @Nullable
     public static Contactgegeven find(Partij partij, ContactType type, String waarde) {
-        return find("partij = ?1 AND type = ?2 AND waarde = ?3 AND verwijderdOp IS NULL", partij, type, waarde).firstResult();
+        return find("partij = ?1 AND type = ?2 AND waarde = ?3 AND " + ACTIEF, partij, type, waarde).firstResult();
     }
 
     public static List<Contactgegeven> find(Partij partij) {
-        return find("partij = ?1 AND verwijderdOp IS NULL", partij).list();
+        return find("partij = ?1 AND " + ACTIEF, partij).list();
     }
 
     // Sluit exceptId uit zodat een update niet als duplicaat van zichzelf geldt. exceptId moet
@@ -187,7 +186,7 @@ public class Contactgegeven extends VerwijderbareEntiteit {
     // exists() geeft dan altijd stilzwijgend false terug.
     public static boolean exists(Partij partij, ContactType type, String waarde, UUID exceptId) {
         return find(
-                "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4 AND verwijderdOp IS NULL",
+                "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4 AND " + ACTIEF,
                 partij, type, waarde, exceptId
         ).firstResultOptional().isPresent();
     }
@@ -196,7 +195,7 @@ public class Contactgegeven extends VerwijderbareEntiteit {
     @Nullable
     public static Contactgegeven findEmail(Partij partij, String email) {
         return find(
-                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3) AND verwijderdOp IS NULL",
+                "partij = ?1 AND type = ?2 AND LOWER(waarde) = LOWER(?3) AND " + ACTIEF,
                 partij, ContactType.Email, email
         ).firstResult();
     }
@@ -205,13 +204,13 @@ public class Contactgegeven extends VerwijderbareEntiteit {
     // isDefault-rijen). lastUpdated expliciet meegebumped: bulk-update bypasst @PreUpdate.
     public static long demoteDefault(Partij partij, ContactType type, UUID exceptId, Instant nu) {
         return update(
-                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND verwijderdOp IS NULL AND id <> ?4",
+                "isDefault = false, lastUpdated = ?1 WHERE partij = ?2 AND type = ?3 AND isDefault = true AND " + ACTIEF + " AND id <> ?4",
                 nu, partij, type, exceptId);
     }
 
-    // AND verwijderdOp IS NULL + rowcount: een GET die overlapt met een retentie-soft-delete van
-    // dezelfde rij mag lastUsedAt niet meer bumpen.
+    // ACTIEF + rowcount: een GET die overlapt met een retentie-soft-delete van dezelfde rij mag
+    // lastUsedAt niet meer bumpen.
     public static long touch(UUID id, Instant nu) {
-        return update("lastUsedAt = ?1 WHERE id = ?2 AND verwijderdOp IS NULL", nu, id);
+        return update("lastUsedAt = ?1 WHERE id = ?2 AND " + ACTIEF, nu, id);
     }
 }

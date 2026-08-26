@@ -466,8 +466,8 @@ paths:
           $ref: "#/components/responses/ScopeUitRequestNietGevonden"
         "409":
           description: Voorkeur voor deze partij, scope en voorkeurType bestaat al. Gebruik
-            PUT om de bestaande voorkeur te wijzigen. Kan zeldzaam ook optreden bij een
-            gelijktijdige write die op dezelfde unique constraint botst.
+            PUT om de bestaande voorkeur te wijzigen. Kan zeldzaam ook optreden wanneer twee
+            gelijktijdige requests dezelfde nieuwe partij aanmaken en op uk_identificatie botsen.
           content:
             application/problem+json:
               schema:

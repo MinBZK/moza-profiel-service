@@ -32,9 +32,12 @@ import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @QuarkusTest
@@ -42,6 +45,7 @@ public class RetentieSchedulerTest {
 
     private static final String VOORKEUR_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630";
     private static final String CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631";
+    private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
 
     @Inject
     RetentieScheduler retentieScheduler;
@@ -620,6 +624,30 @@ public class RetentieSchedulerTest {
         return id.get();
     }
 
+    /**
+     * Een lege partij zonder identificatie kan niet geauditeerd verwijderd worden. De cascadefase
+     * slaat haar over, telt dat als anomalie en houdt de geslaagde-run-gauge tegen.
+     */
+    @Test
+    void partijZonderIdentificatie_WordtNietGecascadeerdEnTeltAlsAnomalie() {
+        double anomalieVoor = meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").count();
+        double geslaagdVoor = meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value();
+
+        UUID partijId = createPartijZonderIdentificatie();
+
+        retentieScheduler.verwijderInactieveRecords();
+
+        Assertions.assertEquals(anomalieVoor + 1,
+                meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").count());
+        Assertions.assertEquals(geslaagdVoor, meterRegistry.get("retentie.laatste_geslaagde_run_epoch_seconds").gauge().value(),
+                "een overgeslagen partij mag de geslaagde-run-gauge niet bijwerken");
+        Mockito.verify(processingHandler, Mockito.never()).startSpan(Mockito.anyString(), Mockito.any());
+
+        QuarkusTransaction.requiringNew().run(() ->
+                Assertions.assertNull(Partij.<Partij>findById(partijId).getVerwijderdOp(),
+                        "zonder identificatie mag de partij niet verwijderd worden"));
+    }
+
     @Test
     void voorkeur_lastUsedAtOud_VerhoogtVerwijderdCounterEnGeslaagdeRunGauge() {
         double verwijderdVoor = meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").count();
@@ -770,10 +798,10 @@ public class RetentieSchedulerTest {
     }
 
     /**
-     * Bewijst dat registreerLogboekNaCommit's per-identiteit try/catch werkt: één span die faalt
-     * (startSpan gooit voor de eerste kandidaat) mag de rest van de batch niet stilzwijgend
-     * overslaan. Zonder de try/catch in de afterCompletion-loop zou de tweede span nooit
-     * geëmitteerd worden en zou dit alleen aan de anomalie-teller te zien zijn geweest.
+     * Bewijst dat de per-identiteit try/catch in LogboekCommitSynchronization.afterCompletion werkt:
+     * één span die faalt (startSpan gooit voor de eerste kandidaat) mag de rest van de batch niet
+     * stilzwijgend overslaan. Zonder die try/catch zou de tweede span nooit geëmitteerd worden en
+     * zou dit alleen aan de anomalie-teller te zien zijn geweest.
      */
     @Test
     void voorkeur_EenLogboekSpanFaaltInBatch_OverigeWordtTochGeemitteerdEnAnomalieOpgehoogd() {
@@ -785,9 +813,11 @@ public class RetentieSchedulerTest {
         UUID partijId2 = createPartij("222222222");
         createVoorkeur(partijId2, ouderDanGrens(), null);
 
+        // Naamgescopeerd i.p.v. anyString(): anders hangt de stub eraan dat dit toevallig de eerste
+        // startSpan-aanroep van de hele run is, wat de cascadefase in dezelfde run doorbreekt.
         Mockito.doThrow(new RuntimeException("kapot"))
                 .doReturn(Mockito.mock(Span.class))
-                .when(processingHandler).startSpan(Mockito.anyString(), Mockito.any());
+                .when(processingHandler).startSpan(Mockito.eq("verwijderVoorkeurRetentie"), Mockito.any());
 
         retentieScheduler.verwijderInactieveRecords();
 
@@ -949,6 +979,23 @@ public class RetentieSchedulerTest {
         Assertions.assertEquals(verwijderdVoor + 1,
                 meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").count(),
                 "een partij met twee identificaties mag de voorkeur niet dubbel tellen");
+
+        // De cascadefase emitteert één span per identificatie, niet één per partij: elk
+        // identificatienummer is zelf persoonsgegeven.
+        Mockito.verify(processingHandler, Mockito.times(2)).startSpan(Mockito.eq("verwijderPartij"), Mockito.any());
+
+        ArgumentCaptor<LogboekContext> captor = ArgumentCaptor.forClass(LogboekContext.class);
+        Mockito.verify(processingHandler, Mockito.atLeastOnce()).addLogboekContextToSpan(Mockito.any(), captor.capture());
+        List<LogboekContext> partijContexten = captor.getAllValues().stream()
+                .filter(ctx -> PARTIJ_PROCESSING_ACTIVITY_ID.equals(ctx.getProcessingActivityId()))
+                .toList();
+
+        Assertions.assertEquals(
+                Set.of(hashHelper.hashIdentifier("333333333"), hashHelper.hashIdentifier("87654321")),
+                partijContexten.stream().map(LogboekContext::getDataSubjectId).collect(Collectors.toSet()),
+                "beide identificaties horen een eigen vermelding met hun eigen hash te krijgen");
+        Assertions.assertEquals(Set.of("BSN", "KVK"),
+                partijContexten.stream().map(LogboekContext::getDataSubjectType).collect(Collectors.toSet()));
 
         QuarkusTransaction.requiringNew().run(() -> {
             Assertions.assertNotNull(Voorkeur.<Voorkeur>findById(voorkeurId).getVerwijderdOp());

@@ -192,6 +192,8 @@ public class ProfielController {
     @Path("/contactgegeven/{contactgegevenId}")
     @Transactional
     @RequireBody
+    // PS-631 is hergebruikt van het verwijderde deleteContactgegeven-PATCH-endpoint; bevestiging van
+    // de definitieve ID loopt via https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
     @Logboek(name = "verwijderContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
     public Response verwijderContactgegeven(
             @PathParam("contactgegevenId") UUID contactgegevenId,
@@ -264,6 +266,8 @@ public class ProfielController {
     @Path("/voorkeur/{voorkeurId}")
     @Transactional
     @RequireBody
+    // PS-630 is hergebruikt van het verwijderde deleteVoorkeur-PATCH-endpoint; bevestiging van de
+    // definitieve ID loopt via https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
     @Logboek(name = "verwijderVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
     public Response verwijderVoorkeur(
             @PathParam("voorkeurId") UUID voorkeurId,
