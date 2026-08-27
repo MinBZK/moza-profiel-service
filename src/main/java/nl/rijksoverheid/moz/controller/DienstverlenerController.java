@@ -1,22 +1,15 @@
 package nl.rijksoverheid.moz.controller;
 
 import jakarta.transaction.Transactional;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
+import nl.rijksoverheid.moz.api.generated.api.DienstverlenerApi;
 import nl.rijksoverheid.moz.api.generated.model.DienstRequest;
 import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
 import nl.rijksoverheid.moz.api.generated.model.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
-import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.DienstMapper;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
@@ -25,13 +18,16 @@ import org.jboss.logging.Logger;
 import java.net.URI;
 
 /**
- * REST controller voor dienstverleners. Contract-first (#651): DTO's gegenereerd uit
- * META-INF/openapi.yaml. Concrete resource (Quarkus REST ondersteunt geen interface-resources).
+ * REST controller voor dienstverleners. Contract-first (#651, #751): implementeert de uit
+ * META-INF/openapi.yaml gegenereerde {@link DienstverlenerApi}, die de paden, HTTP-methodes,
+ * mediatypes en de validatie van de body-parameter draagt. Herhaal ze hier niet: één
+ * JAX-RS-annotatie op een implementatiemethode laat álle annotaties van de interface voor
+ * die methode vervallen (JAX-RS 3.1 §3.6), inclusief {@code @Path}. De gedocumenteerde route
+ * geeft dan een 404 die niet te onderscheiden is van "niet gevonden", en de methode herbindt
+ * zich stilzwijgend aan het pad op klasseniveau. Een parameterconstraint opnieuw declareren
+ * is een harde fout: dan start de applicatie niet meer (HV000151).
  */
-@Path("/api/profielservice/v1")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class DienstverlenerController {
+public class DienstverlenerController implements DienstverlenerApi {
 
     private static final Logger LOG = Logger.getLogger(DienstverlenerController.class);
 
@@ -43,9 +39,8 @@ public class DienstverlenerController {
         this.dienstMapper = dienstMapper;
     }
 
-    @GET
-    @Path("/dienstverlener/{naam}")
-    public Response getDienstenDienstverlener(@PathParam("naam") String naam) {
+    @Override
+    public Response getDienstverlener(String naam) {
         Dienstverlener dv = dienstverlenerService.getDienstverlener(naam);
 
         if (dv == null) {
@@ -55,42 +50,36 @@ public class DienstverlenerController {
 
         DienstverlenerResponse response = dienstMapper.toDienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
         LOG.info("Dienstverlener opgehaald");
-        return Response.ok(response).build();
+        return Response.ok(response).type(MediaType.APPLICATION_JSON).build();
     }
 
-    @POST
-    @Path("/dienstverlener/")
+    @Override
     @Transactional
-    @RequireBody
-    public Response addDienstverlener(
-            @Valid DienstverlenerRequest dienstverlenerRequest) {
+    public Response addDienstverlener(DienstverlenerRequest dienstverlenerRequest) {
         Dienstverlener created = dienstverlenerService.addDienstverlener(dienstverlenerRequest);
 
         LOG.info("Dienstverlener toegevoegd");
-        URI uri = UriBuilder.fromResource(DienstverlenerController.class)
-                .path("dienstverlener").path("{naam}")
+        // Het pad komt uit de gegenereerde interface, zodat de Location-header het contract volgt.
+        URI uri = UriBuilder.fromResource(DienstverlenerApi.class)
+                .path("{naam}")
                 .build(created.getNaam());
         // Niet List.of(): bestond de dienstverlener al, dan zou het antwoord beweren dat hij
         // geen diensten heeft terwijl GET op dezelfde resource ze wel teruggeeft.
         DienstverlenerResponse body = dienstMapper.toDienstverlenerResponse(
                 created, dienstverlenerService.getDienstenVoorDienstverlener(created));
-        return Response.created(uri).entity(body).build();
+        return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
     }
 
-    @POST
-    @Path("/dienstverlener/{dienstverlenerNaam}/diensten")
+    @Override
     @Transactional
-    @RequireBody
-    public Response addDienstToDienstverlener(
-            @PathParam("dienstverlenerNaam") String dienstverlenerNaam,
-            @Valid DienstRequest request
-    ) {
-        // Zie addDienstverlener: de lege body wordt door de interceptor afgevangen.
-        Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, request);
+    public Response addDienstToDienstverlener(String dienstverlenerNaam, DienstRequest dienstRequest) {
+        // Een lege body is al door RequireBodyReaderInterceptor afgewezen.
+        Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, dienstRequest);
         LOG.info("Dienst toegevoegd aan dienstverlener");
-        URI uri = UriBuilder.fromResource(DienstverlenerController.class)
-                .path("dienstverlener").path("{dienstverlenerNaam}").path("diensten").path("{id}")
+        URI uri = UriBuilder.fromResource(DienstverlenerApi.class)
+                .path("{dienstverlenerNaam}").path("diensten").path("{id}")
                 .build(dienstverlenerNaam, created.id);
-        return Response.created(uri).entity(dienstMapper.toDienstResponse(created)).build();
+        return Response.created(uri).entity(dienstMapper.toDienstResponse(created))
+                .type(MediaType.APPLICATION_JSON).build();
     }
 }

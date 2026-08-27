@@ -1,33 +1,29 @@
-
 package nl.rijksoverheid.moz.controller;
 
 import io.opentelemetry.api.trace.StatusCode;
 import io.quarkiverse.httpproblem.HttpProblem;
-import jakarta.validation.Valid;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
+import nl.rijksoverheid.moz.api.generated.api.EmailVerificatieApi;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
-import nl.rijksoverheid.moz.filter.RequireBody;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.jboss.logging.Logger;
 
 /**
- * REST controller voor e-mailverificatie. Contract-first (#651): DTO's gegenereerd uit
- * META-INF/openapi.yaml. Concrete resource (Quarkus REST ondersteunt geen interface-resources).
+ * REST controller voor e-mailverificatie. Contract-first (#651, #751): implementeert de uit
+ * META-INF/openapi.yaml gegenereerde {@link EmailVerificatieApi}, die de paden, HTTP-methodes,
+ * mediatypes en de validatie van de body-parameter draagt. Herhaal ze hier niet: één
+ * JAX-RS-annotatie op een implementatiemethode laat álle annotaties van de interface voor
+ * die methode vervallen (JAX-RS 3.1 §3.6), inclusief {@code @Path}. De gedocumenteerde route
+ * geeft dan een 404 die niet te onderscheiden is van "niet gevonden", en de methode herbindt
+ * zich stilzwijgend aan het pad op klasseniveau. Een parameterconstraint opnieuw declareren
+ * is een harde fout: dan start de applicatie niet meer (HV000151).
  */
-@Path("/api/profielservice/v1")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class EmailVerificatieController {
+public class EmailVerificatieController implements EmailVerificatieApi {
 
     private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
 
@@ -44,16 +40,14 @@ public class EmailVerificatieController {
         this.hashHelper = hashHelper;
     }
 
-    @POST
-    @Path("/emailverificatie/code")
-    @RequireBody
+    @Override
     @Logboek(name = "vraagEmailVerificatieCodeAan", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-400")
-    public Response vraagEmailVerificatieCodeAan(@Valid EmailVerificatieCodeAanvraagRequest aanvraag) {
+    public Response vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest emailVerificatieCodeAanvraagRequest) {
 
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(aanvraag.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(aanvraag.getIdentificatieType()));
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(emailVerificatieCodeAanvraagRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(emailVerificatieCodeAanvraagRequest.getIdentificatieType()));
 
-        int result = emailVerificatieService.vraagEmailVerificatieCodeAan(aanvraag);
+        int result = emailVerificatieService.vraagEmailVerificatieCodeAan(emailVerificatieCodeAanvraagRequest);
 
         if (result == Response.Status.OK.getStatusCode()) {
             logboekContext.setStatus(StatusCode.OK);
@@ -74,11 +68,9 @@ public class EmailVerificatieController {
         }
     }
 
-    @POST
-    @Path("/emailverificatie")
-    @RequireBody
+    @Override
     @Logboek(name = "verifieerEmail", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-410")
-    public Response verifieerEmail(@Valid EmailVerificatieRequest emailVerificatieRequest) {
+    public Response verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(emailVerificatieRequest.getIdentificatieNummer()));
         logboekContext.setDataSubjectType(String.valueOf(emailVerificatieRequest.getIdentificatieType()));
@@ -89,9 +81,9 @@ public class EmailVerificatieController {
             logboekContext.setStatus(StatusCode.OK);
             LOG.info("Email verificatie succesvol");
             return Response.ok().build();
-        } else {
-            LOG.warn("Email verificatie mislukt");
-            throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Email verificatie mislukt");
         }
+
+        LOG.warn("Email verificatie mislukt");
+        throw HttpProblem.valueOf(Response.Status.BAD_REQUEST, "Email verificatie mislukt");
     }
 }

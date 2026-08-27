@@ -1,9 +1,10 @@
 package nl.rijksoverheid.moz.services;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
-import nl.rijksoverheid.moz.exception.AuthorizationException;
 import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.exception.BusinessException.Kind;
 import nl.rijksoverheid.moz.common.ContactType;
@@ -13,12 +14,10 @@ import nl.rijksoverheid.moz.api.generated.model.ContactgegevenUpdateRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
 import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
-import nl.rijksoverheid.moz.api.generated.model.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
-import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
@@ -26,14 +25,14 @@ import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
 import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.logboek.GeauditeerdeIdentiteit;
+import nl.rijksoverheid.moz.logboek.LogboekSpanEmitter;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import org.jboss.logging.Logger;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.Period;
-import java.time.ZoneOffset;
 import java.util.HashMap;
-import java.util.function.Consumer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,30 +40,51 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.UUID;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 @ApplicationScoped
 public class PartijService {
 
     private static final Logger LOG = Logger.getLogger(PartijService.class);
 
+    // Binnen deze drempel mag een leesactie (GET) geen schrijfactie veroorzaken: anders zou
+    // elke aanroep lastUsedAt bijwerken. Zie touchIfStale.
+    private static final Duration LAST_USED_TOUCH_THRESHOLD = Duration.ofHours(24);
+
+    // Placeholder: er is nog geen echte verwerkingsactiviteit-ID geregistreerd voor partij/
+    // identificatie-verwijdering. Bevestiging van de definitieve ID's loopt via
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
+    private static final String PARTIJ_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-900";
+
     private final PartijMapper partijMapper;
     private final EmailVerificatieService emailVerificatieService;
     private final DienstverlenerService dienstverlenerService;
+    private final LogboekSpanEmitter logboekSpanEmitter;
+    private final MeterRegistry meterRegistry;
 
     public PartijService(
             PartijMapper partijMapper,
             EmailVerificatieService emailVerificatieService,
-            DienstverlenerService dienstverlenerService) {
+            DienstverlenerService dienstverlenerService,
+            LogboekSpanEmitter logboekSpanEmitter,
+            MeterRegistry meterRegistry) {
         this.partijMapper = partijMapper;
         this.emailVerificatieService = emailVerificatieService;
         this.dienstverlenerService = dienstverlenerService;
+        this.logboekSpanEmitter = logboekSpanEmitter;
+        this.meterRegistry = meterRegistry;
     }
 
-    public record AddContactgegevenResult(Contactgegeven contactgegeven, boolean wasCreated, boolean scopeAdded) {}
-
-    public record AddVoorkeurResult(Voorkeur voorkeur, boolean wasCreated, boolean scopeAdded) {}
+    public enum CascadeResultaat {
+        GECASCADEERD,
+        AL_VERWIJDERD,
+        HEEFT_ACTIEVE_KINDEREN,
+        GEEN_IDENTIFICATIE,
+        NIET_GEVONDEN
+    }
 
     @Transactional
-    public AddContactgegevenResult addContactgegeven(
+    public Contactgegeven addContactgegeven(
             IdentificatieType eigenaarType,
             String eigenaarNummer,
             ContactgegevenRequest request) {
@@ -76,26 +96,11 @@ public class PartijService {
                 ? request.getWaarde().toLowerCase(Locale.ROOT)
                 : request.getWaarde();
 
-        Contactgegeven existing = Contactgegeven.find(
-                "partij = ?1 AND type = ?2 AND waarde = ?3",
-                partij, request.getType(), normalisedWaarde
-        ).firstResult();
-        
+        Contactgegeven existing = Contactgegeven.find(partij, request.getType(), normalisedWaarde);
+
         if (existing != null) {
-            LOG.info("Contactgegeven al geregistreerd voor deze partij en scope");
-
-            applyTeVerwijderenOp(request.getTeVerwijderenOp(), existing.getLastUsedAt(), existing.getCreatedAt(), existing::setTeVerwijderenOp);
-
-            if (existing.getType() == ContactType.Email && existing.getGeverifieerdAt() == null) {
-                requestAndApplyVerificatieCode(existing);
-                LOG.info("Contactgegeven al geregistreerd maar nog niet geverifieerd, nieuwe verificatiecode verzonden");
-            }
-
-            if (link == null || hasContactgegevenScopeFor(existing.getScopes(), link)) {
-                return new AddContactgegevenResult(existing, false, false);
-            }
-            existing.addScope(new ScopeContactgegeven(existing, link));
-            return new AddContactgegevenResult(existing, false, true);
+            throw new BusinessException(Kind.CONFLICT,
+                    "Contactgegeven met dit type en deze waarde bestaat al voor deze partij");
         }
 
         Contactgegeven contactgegeven = new Contactgegeven();
@@ -103,23 +108,23 @@ public class PartijService {
         contactgegeven.setType(request.getType());
         contactgegeven.setWaarde(normalisedWaarde);
         contactgegeven.setGeverifieerdAt(null);
+        contactgegeven.setLastUsedAt(Instant.now());
 
         if (request.getType() == ContactType.Email) {
             requestAndApplyVerificatieCode(contactgegeven);
         }
-
-        applyTeVerwijderenOp(request.getTeVerwijderenOp(), null, Instant.now(), contactgegeven::setTeVerwijderenOp);
 
         if (link != null) {
             contactgegeven.addScope(new ScopeContactgegeven(contactgegeven, link));
         }
 
         contactgegeven.persist();
-        return new AddContactgegevenResult(contactgegeven, true, false);
+
+        return contactgegeven;
     }
 
     @Transactional
-    public AddVoorkeurResult addVoorkeur(
+    public Voorkeur addVoorkeur(
             IdentificatieType eigenaarType,
             String eigenaarNummer,
             VoorkeurRequest request) {
@@ -127,76 +132,36 @@ public class PartijService {
         Partij partij = findOrCreatePartij(eigenaarType, eigenaarNummer);
         DienstverlenerDienst link = resolveDienstverlenerDienst(request.getScope());
 
-        // Voorkeur-invariant per 08-data.md: één rij per (partij, voorkeurType, scope).
-        // POST is daarmee upsert: zelfde sleutel + nieuwe waarde overschrijft, geen tweede rij.
-        Voorkeur existing = findExistingVoorkeur(partij, request.getVoorkeurType(), link);
+        // Maximaal één actieve rij per (partij, voorkeurType, scope), alleen in applicatiecode
+        // afgedwongen — geen unieke DB-index. Twee gelijktijdige POSTs kunnen dus beide een
+        // actieve rij invoegen. Een soft deleted rij op dezelfde sleutel blokkeert niets en
+        // wordt niet hersteld.
+        Voorkeur existing = Voorkeur.find(partij, request.getVoorkeurType(), link);
 
         if (existing != null) {
-            if (!Objects.equals(existing.getWaarde(), request.getWaarde())) {
-                existing.setWaarde(request.getWaarde());
-            }
-
-            applyTeVerwijderenOp(request.getTeVerwijderenOp(), existing.getLastUsedAt(), existing.getCreatedAt(), existing::setTeVerwijderenOp);
-
-            return new AddVoorkeurResult(existing, false, false);
+            throw new BusinessException(Kind.CONFLICT,
+                    "Voorkeur voor deze partij, scope en voorkeurType bestaat al");
         }
 
         Voorkeur voorkeur = new Voorkeur();
         voorkeur.setPartij(partij);
         voorkeur.setVoorkeurType(request.getVoorkeurType());
         voorkeur.setWaarde(request.getWaarde());
-
-        applyTeVerwijderenOp(request.getTeVerwijderenOp(), null, Instant.now(), voorkeur::setTeVerwijderenOp);
+        voorkeur.setLastUsedAt(Instant.now());
 
         if (link != null) {
             voorkeur.addScope(new ScopeVoorkeur(voorkeur, link));
         }
 
         voorkeur.persist();
-        return new AddVoorkeurResult(voorkeur, true, false);
-    }
 
-    private Voorkeur findExistingVoorkeur(Partij partij, nl.rijksoverheid.moz.common.VoorkeurType voorkeurType, DienstverlenerDienst link) {
-        if (link == null) {
-            // Scope-loze voorkeur: maximaal één rij per (partij, voorkeurType) zonder ScopeVoorkeur.
-            return Voorkeur.find(
-                    "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0",
-                    partij, voorkeurType
-            ).firstResult();
-        }
-        // Scoped voorkeur: maximaal één rij per (partij, voorkeurType, dienstverlenerDienst).
-        return Voorkeur.find(
-                "select distinct v from Voorkeur v join v.scopes s "
-                        + "where v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3",
-                partij, voorkeurType, link
-        ).firstResult();
-    }
-
-    private boolean hasContactgegevenScopeFor(List<ScopeContactgegeven> existing, DienstverlenerDienst link) {
-        return existing.stream().anyMatch(s -> Objects.equals(s.getDienstverlenerDienst().id, link.id));
+        return voorkeur;
     }
 
     private void requestAndApplyVerificatieCode(Contactgegeven contact) {
         String referenceId = emailVerificatieService.requestEmailVerificationCode(contact.getWaarde());
         contact.setVerificatieReferentieId(referenceId);
         contact.setIsGeverifieerd(false);
-    }
-
-    private void applyTeVerwijderenOp(Instant requested, Instant lastUsedAt, Instant createdAt, Consumer<Instant> setter) {
-        if (requested == null) return;
-
-        if (!requested.isAfter(Instant.now())) {
-            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp moet in de toekomst liggen");
-        }
-
-        Instant referenceDate = lastUsedAt != null ? lastUsedAt : createdAt;
-        Instant maxDate = referenceDate.atZone(ZoneOffset.UTC).plus(Period.ofYears(7)).toInstant();
-
-        if (requested.isAfter(maxDate)) {
-            throw new BusinessException(Kind.BAD_REQUEST, "teVerwijderenOp mag niet meer dan 7 jaar na de referentiedatum liggen");
-        }
-
-        setter.accept(requested);
     }
 
     private DienstverlenerDienst resolveDienstverlenerDienst(ScopeRequest scope) {
@@ -235,15 +200,29 @@ public class PartijService {
         return link;
     }
 
+    // Geen resurrection: een eerder soft-deleted partij wordt niet hersteld, er komt een nieuwe
+    // Partij + Identificatie. Kan zonder DB-conflict: uk_identificatie (V4) is partieel, en de
+    // oude identificatie is mee-gecascadet toen haar partij leegraakte (zie deleteLegePartij),
+    // dus die rij zit al buiten de index.
     private Partij findOrCreatePartij(IdentificatieType type, String nummer) {
         Partij partij = Partij.findByIdentificatie(type, nummer);
-        if (partij == null) {
-            LOG.info("Nieuwe partij aanmaken");
-            partij = new Partij();
-            partij.addIdentificatie(new Identificatie(type, nummer));
-            partij.persist();
+
+        if (partij != null) {
+            // Lock + lees actuele stand: zie deleteLegePartij/lockEnLeesVerwijderdOp voor de race
+            // die dit afdekt. Blijkt de partij ondertussen (net) leeggeraakt en soft-deleted te
+            // zijn, dan wordt hij hier behandeld als niet gevonden — er komt een nieuwe partij,
+            // net als wanneer findByIdentificatie hem al niet had gevonden.
+            if (lockEnLeesVerwijderdOp(partij) == null) {
+                return partij;
+            }
         }
-        return partij;
+
+        LOG.info("Nieuwe partij aanmaken");
+        Partij nieuwePartij = new Partij();
+        nieuwePartij.addIdentificatie(new Identificatie(type, nummer));
+        nieuwePartij.persist();
+
+        return nieuwePartij;
     }
 
     public Partij getPartij(IdentificatieType identificatieType, String identificatieNummer) {
@@ -255,10 +234,7 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(request.getId()))
-                .findFirst()
-                .orElse(null);
+        Contactgegeven contact = Contactgegeven.find(partij, request.getId());
 
         if (contact == null) {
             return false;
@@ -277,21 +253,19 @@ public class PartijService {
         boolean valueChanged = !Objects.equals(oldType, request.getType())
                 || !Objects.equals(oldWaarde, newWaarde);
 
-        if (valueChanged && newWaarde != null && existingDuplicateExists(partij, request.getType(), newWaarde, contact.id)) {
+        if (valueChanged && newWaarde != null && duplicateExists(partij, request.getType(), newWaarde, contact.id)) {
             throw new BusinessException(Kind.CONFLICT,
                     "Combinatie (type, waarde) bestaat al voor deze partij");
         }
 
-        // Demote BEFORE mutating contact. Hibernate flushes dirty entities before bulk JPQL
-        // updates touching the same table; mutating first would trip the partial unique index
-        // before the demote could clear the slot.
+        // Demote vóór contact.setType (zie demoteCurrentDefault).
         if (targetDefault) {
             demoteCurrentDefault(partij, request.getType(), contact.id);
         }
 
         contact.setType(request.getType());
         contact.setWaarde(newWaarde);
-        replaceScopesContactgegeven(contact, resolveDienstverlenerDienst(request.getScope()));
+        addContactgegevenScopeIfMissing(contact, resolveDienstverlenerDienst(request.getScope()));
 
         // Email verification: re-issue only when the email value actually changes (or the type
         // changes into Email from something else). Re-verifying on every PUT would force a
@@ -314,30 +288,20 @@ public class PartijService {
         }
 
         contact.setIsDefault(targetDefault);
-        applyTeVerwijderenOp(request.getTeVerwijderenOp(), contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
 
         return true;
     }
 
-    private boolean existingDuplicateExists(Partij partij, ContactType type, String waarde, UUID exceptId) {
-        return Contactgegeven.find(
-                "partij = ?1 AND type = ?2 AND waarde = ?3 AND id <> ?4",
-                partij, type, waarde, exceptId
-        ).firstResultOptional().isPresent();
+    private boolean duplicateExists(Partij partij, ContactType type, String waarde, UUID exceptId) {
+        // Alleen actieve rows tellen mee: uk_contactgegeven_dedup is partieel,
+        // dus een PUT die botst met een soft deleted row is geen conflict
+        return Contactgegeven.exists(partij, type, waarde, exceptId);
     }
 
     private void demoteCurrentDefault(Partij partij, ContactType type, UUID exceptId) {
-        // Bulk JPQL update bypasst @PreUpdate, dus lastUpdated wordt expliciet meegebumped
-        // zodat de gedemoveerde rij dezelfde audit-stempel krijgt als een entity-update.
-        // Persistence context is op deze plek nog niet gewarmd voor andere defaults van
-        // dezelfde (partij, type), dus stale-state risico is hier in de praktijk afwezig.
-        // Afhankelijkheid: Hibernate FlushModeType.AUTO (default), waarmee dirty entities
-        // worden geflusht voordat een JPQL bulk-update tegen dezelfde tabel uitvoert.
-        // Met flushmode=COMMIT zou deze demote-vóór-mutatie volgorde niet meer beschermen
-        // tegen de partial unique index op (partij_id, type) WHERE is_default = true.
-        Contactgegeven.update(
-                "isDefault = false, lastUpdated = ?1 where partij = ?2 and type = ?3 and isDefault = true and id <> ?4",
-                java.time.Instant.now(), partij, type, exceptId);
+        // Moet vóór contact.setType/setIsDefault draaien: op dat moment is contact nog clean,
+        // dus deze bulk-update demote de andere rij vóórdat contacts eigen wijziging ooit flusht.
+        Contactgegeven.demoteDefault(partij, type, exceptId, Instant.now());
     }
 
     @Transactional
@@ -345,17 +309,15 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return false;
 
-        Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(request.getId()))
-                .findFirst()
-                .orElse(null);
+        Voorkeur voorkeur = Voorkeur.find(partij, request.getId());
 
         if (voorkeur == null) {
             return false;
         }
 
         DienstverlenerDienst targetLink = resolveDienstverlenerDienst(request.getScope());
-        Voorkeur collision = findExistingVoorkeur(partij, request.getVoorkeurType(), targetLink);
+        Voorkeur collision = Voorkeur.find(partij, request.getVoorkeurType(), targetLink);
+
         if (collision != null && !collision.id.equals(voorkeur.id)) {
             throw new BusinessException(Kind.CONFLICT,
                     "Andere voorkeur bestaat al voor deze partij + type + scope");
@@ -364,112 +326,142 @@ public class PartijService {
         voorkeur.setVoorkeurType(request.getVoorkeurType());
         voorkeur.setWaarde(request.getWaarde());
         replaceScopesVoorkeur(voorkeur, targetLink);
-        applyTeVerwijderenOp(request.getTeVerwijderenOp(), voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
 
         return true;
     }
 
-    private void replaceScopesContactgegeven(Contactgegeven owner, DienstverlenerDienst link) {
-        owner.clearScopes();
-        if (link != null) {
+    // In tegenstelling tot Voorkeur (waar scope onderdeel is van de identiteit, zie
+    // replaceScopesVoorkeur) kan een Contactgegeven meerdere scopes hebben. Een PUT vervangt de
+    // scopes daarom niet, maar voegt de meegestuurde scope toe als die er nog niet is — zo gaan
+    // eerder toegevoegde scopes niet verloren bij een volgende PUT.
+    private void addContactgegevenScopeIfMissing(Contactgegeven owner, DienstverlenerDienst link) {
+        if (link != null && !hasContactgegevenScopeFor(owner.getScopes(), link)) {
             owner.addScope(new ScopeContactgegeven(owner, link));
         }
     }
 
+    private boolean hasContactgegevenScopeFor(List<ScopeContactgegeven> existing, DienstverlenerDienst link) {
+        return existing.stream().anyMatch(s -> Objects.equals(s.getDienstverlenerDienst().id, link.id));
+    }
+
     private void replaceScopesVoorkeur(Voorkeur owner, DienstverlenerDienst link) {
         owner.clearScopes();
+
         if (link != null) {
             owner.addScope(new ScopeVoorkeur(owner, link));
         }
     }
 
+    // Partij eerst resolven zodat Voorkeur.find(partij, id) hieronder garandeert dat id ook echt
+    // bij deze identiteit hoort en niet al verwijderd is. Onbekende partij of id: beide
+    // ononderscheidbaar van "niet gevonden", net als bij updateVoorkeur.
     @Transactional
-    public boolean deleteContactgegeven(IdentificatieType identificatieType, String identificatieNummer, UUID contactgegevenId) {
+    public Voorkeur verwijderVoorkeur(IdentificatieType identificatieType, String identificatieNummer, UUID id) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
-        if (partij == null) return false;
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(contactgegevenId))
-                .findFirst()
-                .orElse(null);
+        if (partij == null) return null;
 
-        if (contact == null) {
-            return false;
+        Voorkeur voorkeur = Voorkeur.find(partij, id);
+
+        if (voorkeur != null) {
+            Instant nu = Instant.now();
+            voorkeur.verwijder(nu);
+            meldGeenIdentificatie(deleteLegePartij(partij, nu));
         }
 
-        partij.removeContactgegeven(contact);
-        contact.delete();
-        return true;
+        return voorkeur;
     }
 
+    // isDefault blijft ongemoeid: de rij behoudt haar staat op het moment van verwijderen.
+    // contactgegeven_default_per_type (V4-migratie) is partieel op verwijderd_op IS NULL, dus een
+    // verwijderde default blokkeert geen nieuwe.
+    // Zie verwijderVoorkeur voor waarom identificatieType/Nummer hier ook nodig zijn.
     @Transactional
-    public boolean deleteVoorkeur(IdentificatieType identificatieType, String identificatieNummer, UUID voorkeurId) {
+    public Contactgegeven verwijderContactgegeven(IdentificatieType identificatieType, String identificatieNummer, UUID id) {
         Partij partij = getPartij(identificatieType, identificatieNummer);
-        if (partij == null) return false;
 
-        Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(voorkeurId))
-                .findFirst()
-                .orElse(null);
+        if (partij == null) return null;
 
-        if (voorkeur == null) {
-            return false;
+        Contactgegeven contact = Contactgegeven.find(partij, id);
+
+        if (contact != null) {
+            Instant nu = Instant.now();
+            contact.verwijder(nu);
+            meldGeenIdentificatie(deleteLegePartij(partij, nu));
         }
 
-        partij.removeVoorkeur(voorkeur);
-        voorkeur.delete();
-        return true;
+        return contact;
     }
 
-    @Transactional
-    public boolean updateVoorkeurTeVerwijderenOpByDienstverlener(TeVerwijderenOpRequest request) {
-        Partij partij = getPartij(request.getIdentificatieType(), request.getIdentificatieNummer());
-        if (partij == null) return false;
-
-        Voorkeur voorkeur = partij.getVoorkeuren().stream()
-                .filter(v -> v.id.equals(request.getId()))
-                .findFirst()
-                .orElse(null);
-        if (voorkeur == null) return false;
-
-        requireDienstverlenerAuthorized(voorkeur.getScopes().stream()
-                .map(ScopeVoorkeur::getDienstverlenerDienst)
-                .toList(), request, "Dienstverlener is niet bevoegd voor deze voorkeur");
-
-        applyTeVerwijderenOp(request.getTeVerwijderenOp(), voorkeur.getLastUsedAt(), voorkeur.getCreatedAt(), voorkeur::setTeVerwijderenOp);
-        return true;
+    // Zonder dit ziet alleen de nachtelijke reconciliatie deze anomalie (tot 24u vertraging); de
+    // scheduler telt dezelfde uitkomst onder dezelfde tag, dus één gedeelde teller volstaat.
+    private void meldGeenIdentificatie(CascadeResultaat resultaat) {
+        if (resultaat == CascadeResultaat.GEEN_IDENTIFICATIE) {
+            meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "geen-identificatie").increment();
+        }
     }
 
-    @Transactional
-    public boolean updateContactgegevenTeVerwijderenOpByDienstverlener(TeVerwijderenOpRequest request) {
-        Partij partij = getPartij(request.getIdentificatieType(), request.getIdentificatieNummer());
-        if (partij == null) return false;
+    // Publiek: ook aangeroepen door RetentieScheduler. MANDATORY zodat de mutatie op een detached
+    // entity niet stilzwijgend verloren gaat bij een toekomstige, niet-transactionele aanroeper.
+    @Transactional(Transactional.TxType.MANDATORY)
+    public CascadeResultaat deleteLegePartij(Partij partij, Instant nu) {
+        if (lockEnLeesVerwijderdOp(partij) != null) {
+            return CascadeResultaat.AL_VERWIJDERD;
+        }
 
-        Contactgegeven contact = partij.getContactgegevens().stream()
-                .filter(c -> c.id.equals(request.getId()))
-                .findFirst()
-                .orElse(null);
-        if (contact == null) return false;
+        boolean hasActiveContactgegevens = Contactgegeven.count("partij = ?1 AND " + ACTIEF, partij) > 0;
+        boolean hasActiveVoorkeuren = Voorkeur.count("partij = ?1 AND " + ACTIEF, partij) > 0;
 
-        requireDienstverlenerAuthorized(contact.getScopes().stream()
-                .map(ScopeContactgegeven::getDienstverlenerDienst)
-                .toList(), request, "Dienstverlener is niet bevoegd voor dit contactgegeven");
+        if (hasActiveContactgegevens || hasActiveVoorkeuren) {
+            return CascadeResultaat.HEEFT_ACTIEVE_KINDEREN;
+        }
 
-        applyTeVerwijderenOp(request.getTeVerwijderenOp(), contact.getLastUsedAt(), contact.getCreatedAt(), contact::setTeVerwijderenOp);
-        return true;
+        // Filter i.p.v. blind forEach: al verwijderde identificaties opnieuw verwijderen zou op
+        // verwijder()'s guard stuklopen. Nodig zodat findOrCreatePartij later dezelfde
+        // (type, nummer) weer kan invoegen (uk_identificatie, V4-migratie).
+        List<Identificatie> nogActief = partij.getIdentificaties().stream().filter(i -> !i.isVerwijderd()).toList();
+
+        if (nogActief.isEmpty()) {
+            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie of een
+            // misgelopen migratie. De partij blijft dan staan i.p.v. zonder audit-vermelding te
+            // verdwijnen — zelfde keuze als resolveerIdentiteitOfSlaOver.
+            LOG.error("PartijService: partij " + partij.id + " heeft geen actieve identificatie meer "
+                    + "(invariant violation, zie findOrCreatePartij); niet verwijderd, want een "
+                    + "audit-vermelding is dan onmogelijk");
+
+            return CascadeResultaat.GEEN_IDENTIFICATIE;
+        }
+
+        partij.verwijder(nu);
+        nogActief.forEach(i -> i.verwijder(nu));
+        registreerPartijVerwijderingLogboek(nogActief.stream()
+                .map(i -> new GeauditeerdeIdentiteit(i.getIdentificatieNummer(), i.getIdentificatieType()))
+                .toList());
+
+        return CascadeResultaat.GECASCADEERD;
     }
 
-    private void requireDienstverlenerAuthorized(List<DienstverlenerDienst> links, TeVerwijderenOpRequest request, String message) {
-        boolean authorized = links.stream().anyMatch(dd -> {
-            if (!dd.getDienstverlener().getNaam().equalsIgnoreCase(request.getDienstverlenerNaam())) return false;
-            if (request.getDienstNaam() == null) return true;
-            Dienst dienst = dd.getDienst();
-            return dienst == null || dienst.getNaam().equalsIgnoreCase(request.getDienstNaam());
+    // Eén span per erased identificatie, niet per partij — elk identificatienummer is zelf
+    // persoonsgegeven. Dezelfde anomalieteller als de retentiescheduler, zodat diens
+    // anomalieCount("partij") ook een gemiste vermelding uit het API-pad ziet.
+    private void registreerPartijVerwijderingLogboek(List<GeauditeerdeIdentiteit> identiteiten) {
+        logboekSpanEmitter.registreerNaCommit(identiteiten, "verwijderPartij", PARTIJ_PROCESSING_ACTIVITY_ID, e -> {
+            LOG.error("PartijService: logboek-emissie voor partijverwijdering mislukt ná commit "
+                    + "(de identificatie is al verwijderd; dit is dus een gemist audit-spoor)", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "logboek-fout").increment();
         });
+    }
 
-        if (!authorized) {
-            throw new AuthorizationException(message);
-        }
+    // Losse scalar-query i.p.v. partij.isVerwijderd(): een lock ververst het al-managed object niet,
+    // dus alleen de query ziet de zojuist gecommitte stand. De lock zelf serialiseert gelijktijdige
+    // aanroepen (deze methode of findOrCreatePartij) op dezelfde partij-rij.
+    private Instant lockEnLeesVerwijderdOp(Partij partij) {
+        Partij.getEntityManager().lock(partij, LockModeType.PESSIMISTIC_WRITE);
+
+        return Partij.getEntityManager()
+                .createQuery("SELECT p.verwijderdOp FROM Partij p WHERE p.id = :id", Instant.class)
+                .setParameter("id", partij.id)
+                .getSingleResult();
     }
 
     @Transactional
@@ -483,11 +475,20 @@ public class PartijService {
                 .flatMap(entry -> {
                     List<Partij> found = Partij.list(
                             "SELECT p FROM Partij p JOIN p.identificaties i " +
-                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2",
+                            "WHERE i.identificatieType = ?1 AND i.identificatieNummer IN ?2 "
+                            + "AND p." + ACTIEF + " AND i." + ACTIEF,
                             entry.getKey(), entry.getValue());
+
                     return found.stream();
                 })
-                .map(partijMapper::toResponse)
+                .map(partij -> {
+                    List<Contactgegeven> contactgegevens = Contactgegeven.find(partij).stream()
+                            .filter(this::touchIfStale).toList();
+                    List<Voorkeur> voorkeuren = Voorkeur.find(partij).stream()
+                            .filter(this::touchIfStale).toList();
+
+                    return partijMapper.toResponse(partij, Identificatie.find(partij), contactgegevens, voorkeuren);
+                })
                 .toList();
     }
 
@@ -496,31 +497,73 @@ public class PartijService {
         Partij partij = getPartij(identificatieType, identificatieNummer);
         if (partij == null) return null;
 
+        List<Contactgegeven> contactgegevens;
+        List<Voorkeur> voorkeuren;
+
         if (partijRequest.getDienstverlener() == null && partijRequest.getDienstNaam() == null) {
-            return partijMapper.toResponse(partij);
+            contactgegevens = Contactgegeven.find(partij);
+            voorkeuren = Voorkeur.find(partij);
+        } else {
+            contactgegevens = findFilteredContactgegevens(partij, partijRequest);
+            voorkeuren = findFilteredVoorkeuren(partij, partijRequest);
         }
 
-        List<Contactgegeven> filteredContacts = findFilteredContactgegevens(partij, partijRequest);
-        List<Voorkeur> filteredVoorkeuren = findFilteredVoorkeuren(partij, partijRequest);
-        return partijMapper.toResponse(partij, filteredContacts, filteredVoorkeuren);
+        contactgegevens = contactgegevens.stream().filter(this::touchIfStale).toList();
+        voorkeuren = voorkeuren.stream().filter(this::touchIfStale).toList();
+
+        return partijMapper.toResponse(partij, Identificatie.find(partij), contactgegevens, voorkeuren);
+    }
+
+    // Retourneert false als déze aanroep ontdekt dat de rij inmiddels soft-deleted is — alleen
+    // gecontroleerd voor rijen die stale genoeg zijn om een touch te triggeren; een niet-stale rij
+    // geeft altijd true terug zonder verwijderdOp te raadplegen. Bewust één UPDATE per rij en geen
+    // gebundelde WHERE id IN (...): juist de rowcount per rij betrapt die race.
+    private boolean touchIfStale(Contactgegeven cg) {
+        if (!isStale(cg.getLastUsedAt())) {
+            return true;
+        }
+
+        long geraakt = Contactgegeven.touch(cg.id, Instant.now());
+
+        if (geraakt == 0) {
+            LOG.warn("touchIfStale: contactgegeven " + cg.id + " was inmiddels soft-deleted, uit response gefilterd");
+        }
+
+        return geraakt > 0;
+    }
+
+    private boolean touchIfStale(Voorkeur voorkeur) {
+        if (!isStale(voorkeur.getLastUsedAt())) {
+            return true;
+        }
+
+        long geraakt = Voorkeur.touch(voorkeur.id, Instant.now());
+
+        if (geraakt == 0) {
+            LOG.warn("touchIfStale: voorkeur " + voorkeur.id + " was inmiddels soft-deleted, uit response gefilterd");
+        }
+
+        return geraakt > 0;
+    }
+
+    private static boolean isStale(Instant lastUsedAt) {
+        return lastUsedAt == null
+                || lastUsedAt.plus(LAST_USED_TOUCH_THRESHOLD).isBefore(Instant.now());
     }
 
     /**
-     * Geen {@code distinct} in de query: een rij met meerdere matchende scopes levert net zoveel
-     * join-rijen op, maar Hibernate ontdubbelt entity-resultaten sinds versie 6 zelf. Het
-     * trefwoord deed hier dus niets. Dat de response geen dubbele rijen bevat is gedrag waar
-     * aanroepers op leunen, dus het staat vastgelegd in
-     * {@code PartijServiceScopeFilterTest.rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug} —
-     * die test valt om zodra een Hibernate-upgrade dit weer verandert.
+     * Geen {@code distinct} in de query: Hibernate ontdubbelt entity-resultaten sinds versie 6 zelf,
+     * dus het trefwoord deed hier niets. Dat de response geen dubbele rijen bevat ligt vast in
+     * {@code PartijServiceScopeFilterTest.rijMetTweeMatchendeScopes_KomtSlechtsEenmaalTerug}.
      */
     public List<Contactgegeven> findFilteredContactgegevens(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(
-                "select c from Contactgegeven c " +
-                "left join c.scopes s " +
-                "left join s.dienstverlenerDienst dd " +
-                "left join dd.dienst d " +
-                "left join dd.dienstverlener dv " +
-                "where c.partij = :partij"
+                "SELECT c FROM Contactgegeven c " +
+                "LEFT JOIN c.scopes s " +
+                "LEFT JOIN s.dienstverlenerDienst dd " +
+                "LEFT JOIN dd.dienst d " +
+                "LEFT JOIN dd.dienstverlener dv " +
+                "WHERE c.partij = :partij AND c." + ACTIEF
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);
@@ -538,18 +581,19 @@ public class PartijService {
         }
 
         PanacheQuery<Contactgegeven> panacheQuery = Contactgegeven.find(query.toString(), params);
+
         return panacheQuery.list();
     }
 
     /** Zonder {@code distinct}, om dezelfde reden als {@link #findFilteredContactgegevens}. */
     public List<Voorkeur> findFilteredVoorkeuren(Partij partij, PartijRequest request) {
         StringBuilder query = new StringBuilder(
-                "select v from Voorkeur v "
-                        + "left join v.scopes s "
-                        + "left join s.dienstverlenerDienst dd "
-                        + "left join dd.dienst d "
-                        + "left join dd.dienstverlener dv "
-                        + "where v.partij = :partij"
+                "SELECT v FROM Voorkeur v "
+                        + "LEFT JOIN v.scopes s "
+                        + "LEFT JOIN s.dienstverlenerDienst dd "
+                        + "LEFT JOIN dd.dienst d "
+                        + "LEFT JOIN dd.dienstverlener dv "
+                        + "WHERE v.partij = :partij AND v." + ACTIEF
         );
         Map<String, Object> params = new HashMap<>();
         params.put("partij", partij);

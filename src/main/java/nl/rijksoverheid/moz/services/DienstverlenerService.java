@@ -26,7 +26,7 @@ public class DienstverlenerService {
 
     @Transactional
     public Dienstverlener getDienstverlener(String naam) {
-        return Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
+        return Dienstverlener.find("LOWER(naam) = LOWER(?1)", naam).firstResult();
     }
 
     @Transactional

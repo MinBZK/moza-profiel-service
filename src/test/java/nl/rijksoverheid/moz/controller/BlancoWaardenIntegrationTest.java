@@ -19,15 +19,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static io.restassured.RestAssured.given;
 import static nl.rijksoverheid.moz.common.IdentificatieType.BSN;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.BAD_REQUEST;
@@ -119,6 +116,24 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .body("violations.field", hasItem("naam"));
     }
 
+    /**
+     * De enige andere test op dit endpoint stuurt géén body en wordt daardoor al door
+     * {@code RequireBodyReaderInterceptor} beantwoord, vóórdat de bean-validatie draait.
+     * Zonder deze test raakt niets over HTTP de {@code @Valid} op de {@code DienstRequest}-
+     * parameter, noch de pattern op {@code naam}.
+     */
+    @Test
+    void dienstMetBlancoNaamWordtAfgewezen() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"   \",\"beschrijving\":\"Beschrijving\"}")
+                .when().post("/api/profielservice/v1/dienstverlener/BestaatNiet/diensten")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json")
+                .body("violations.field", hasItem("naam"));
+    }
+
     @Test
     void voorkeurMetBlancoWaardeWordtAfgewezen() {
         given()
@@ -180,59 +195,6 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
     }
 
     /**
-     * Zelfde klasse fout op TeVerwijderenOpRequest: een blanco dienstNaam haalde de
-     * dienstnaam-vergelijking in requireDienstverlenerAuthorized niet en leverde bij een
-     * dienst-specifieke scope een 403 op, terwijl er niets mis was met de bevoegdheid. Een
-     * DV-brede scope kortte die vergelijking af en had het probleem niet.
-     *
-     * <p>De fixture is er voor de diagnose, niet voor het onderscheid: met een willekeurige id in
-     * plaats van de fixture faalt deze test óók als de pattern wegvalt, maar dan op een 404 die
-     * niets zegt over de bevoegdheidscontrole. Met fixture komt het antwoord uit op de 403 die de
-     * bug beschrijft.
-     */
-    @Test
-    void teVerwijderenOpMetBlancoDienstNaamWordtAfgewezen() {
-        AtomicReference<UUID> contactId = new AtomicReference<>();
-        QuarkusTransaction.requiringNew().run(() -> {
-            Dienstverlener dv = new Dienstverlener();
-            dv.setNaam("Gemeente Amsterdam");
-            dv.persist();
-            Dienst dienst = new Dienst();
-            dienst.setNaam("Parkeervergunning");
-            dienst.persist();
-            DienstverlenerDienst link = new DienstverlenerDienst(dv, dienst);
-            link.persist();
-
-            Partij p = new Partij();
-            p.addIdentificatie(new Identificatie(BSN, "111111104"));
-            p.persist();
-
-            Contactgegeven c = new Contactgegeven();
-            c.setType(ContactType.Telefoonnummer);
-            c.setWaarde("0612345678");
-            c.setPartij(p);
-            c.persist();
-            contactId.set(c.id);
-
-            new ScopeContactgegeven(c, link).persist();
-        });
-
-        given()
-                .contentType(ContentType.JSON)
-                .body("""
-                        {"id":"%s",
-                         "identificatieType":"BSN","identificatieNummer":"111111104",
-                         "dienstverlenerNaam":"Gemeente Amsterdam","dienstNaam":"   ",
-                         "teVerwijderenOp":"2099-01-01T00:00:00Z"}
-                        """.formatted(contactId.get()))
-                .when().patch("/api/profielservice/v1/contactgegeven/te-verwijderen-op")
-                .then()
-                .statusCode(BAD_REQUEST)
-                .contentType("application/problem+json")
-                .body("violations.field", hasItem("dienstNaam"));
-    }
-
-    /**
      * De bulk-lijst had op {@code main} een {@code @NotEmpty} en staat nu als {@code required} met
      * {@code minItems: 1} in het contract, waar de generator {@code @NotNull} plus
      * {@code @Size(min=1)} van maakt. Dat is de enige constraint in deze overstap die van
@@ -248,7 +210,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificaties")));
+                .body("violations.field", hasItem("identificaties"));
     }
 
     /**
@@ -270,7 +232,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificaties")));
+                .body("violations.field", hasItem("identificaties"));
     }
 
     /**
@@ -294,7 +256,7 @@ class BlancoWaardenIntegrationTest extends OpenApiValidationTest {
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
-                .body("violations.field", hasItem(containsString("identificatieNummer")));
+                .body("violations.field", hasItem("identificaties[0].identificatieNummer"));
     }
 
     /**

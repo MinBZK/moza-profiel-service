@@ -1,7 +1,6 @@
 package nl.rijksoverheid.moz.controller;
 
 import jakarta.ws.rs.core.Response;
-import nl.rijksoverheid.moz.exception.AuthorizationException;
 import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.exception.TechnicalException;
 import nl.rijksoverheid.moz.helper.Problems;
@@ -29,13 +28,6 @@ public class DomainExceptionMapper {
         LOG.error("TechnicalException: " + e.getMessage(), e);
 
         return Problems.problemResponse(Response.Status.INTERNAL_SERVER_ERROR, e.getTitle(), e.getMessage());
-    }
-
-    @ServerExceptionMapper
-    public Response mapAuthorizationException(AuthorizationException e) {
-        LOG.warn("AuthorizationException: " + e.getMessage());
-
-        return Problems.problemResponse(Response.Status.FORBIDDEN, e.getTitle(), e.getMessage());
     }
 
     @ServerExceptionMapper
