@@ -30,7 +30,6 @@ import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
-import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.DatabaseCleanup;

@@ -6,7 +6,6 @@ import jakarta.inject.Inject;
 import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.api.generated.model.DienstRequest;
 import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
-import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;

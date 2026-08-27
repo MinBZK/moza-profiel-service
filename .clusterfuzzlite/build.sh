@@ -7,14 +7,12 @@
   -Dlogboekdataverwerking.enabled=false \
   -B
 
-# Copy all dependencies to $OUT/lib. The Windows/macOS/Alpine PostgreSQL bundles
-# can never run in this container; excluding them keeps them off the uploaded
-# artifact and the jazzer classpath. linux-amd64 stays: the server is unpacked
-# from it below. Scope cannot be narrowed here, as the fuzzers and jazzer are
-# themselves test-scoped.
+# Copy all dependencies to $OUT/lib. The PostgreSQL bundles for the other
+# platforms can never run in this container; linux-amd64 stays, because the
+# server is unpacked from it below.
 mkdir -p $OUT/lib
 ./mvnw dependency:copy-dependencies -DoutputDirectory=$OUT/lib -B \
-  -DexcludeArtifactIds=embedded-postgres-binaries-windows-amd64,embedded-postgres-binaries-darwin-amd64,embedded-postgres-binaries-darwin-arm64v8,embedded-postgres-binaries-linux-amd64-alpine
+  -DexcludeArtifactIds=embedded-postgres-binaries-windows-amd64,embedded-postgres-binaries-darwin-amd64,embedded-postgres-binaries-darwin-arm64v8,embedded-postgres-binaries-linux-arm64v8,embedded-postgres-binaries-linux-amd64-alpine
 
 # Copy compiled application and test classes
 cp -r target/classes $OUT/classes
@@ -95,12 +93,29 @@ stop_postgres() {
   as_postgres "$PGDIR/bin/pg_ctl" -D "$PGDATA" -m immediate stop >/dev/null 2>&1 || true
 }
 
-# A run killed by a timeout never reaches the EXIT trap, leaving a postgres that
-# still holds PGPORT and this data directory. Wiping the directory underneath it
-# would make every later run fail on a port that is already in use.
+# Quarkus is only running once QUARKUS_PID is set, so guard the expansion under set -u.
+cleanup() {
+  if [ -n "${QUARKUS_PID:-}" ]; then
+    kill "$QUARKUS_PID" 2>/dev/null || true
+  fi
+
+  stop_postgres
+}
+
+# A run killed before the traps below were armed leaves a postgres that still
+# holds PGPORT and this data directory; wiping it underneath that process would
+# make every later run fail on a port that is already in use.
 if [ -s "$PGDATA/postmaster.pid" ]; then
   echo "EndpointFuzzer: stopping PostgreSQL left behind by an earlier run" >&2
   stop_postgres
+
+  # pg_ctl status, not kill -0 on the pidfile: after a SIGKILL that PID can have
+  # been recycled by an unrelated process, and a bare liveness check would then
+  # refuse to wipe $PGDATA on every later run.
+  if as_postgres "$PGDIR/bin/pg_ctl" -D "$PGDATA" status >/dev/null 2>&1; then
+    echo "EndpointFuzzer: leftover PostgreSQL still running after stop; refusing to wipe $PGDATA" >&2
+    exit 1
+  fi
 fi
 
 rm -rf "$PGDATA"
@@ -124,8 +139,10 @@ as_postgres "$PGDIR/bin/pg_ctl" -D "$PGDATA" -o "-p $PGPORT -k /tmp" -l "$PGDATA
   exit 1
 }
 # Armed here, not after Quarkus starts: everything below can still exit non-zero,
-# and postgres is already running.
-trap stop_postgres EXIT
+# and postgres is already running. INT/TERM as well as EXIT, because bash skips an
+# EXIT trap when the harness kills the run at its timeout.
+trap cleanup EXIT
+trap 'cleanup; exit 143' INT TERM
 
 # Start Quarkus as a background process against that PostgreSQL.
 JAVA_HOME="$this_dir/open-jdk-25" \
@@ -144,7 +161,6 @@ LD_LIBRARY_PATH="$this_dir/open-jdk-25/lib/server" \
   -Dnotifynl.emailverificatie.reference=fuzz \
   -jar "$this_dir/quarkus-app/quarkus-run.jar" &
 QUARKUS_PID=$!
-trap 'kill $QUARKUS_PID 2>/dev/null || true; stop_postgres' EXIT
 
 # Wait for Quarkus to accept connections (up to 60 seconds; Flyway migrates first).
 # Fail loudly rather than let jazzer fuzz an application that never came up.

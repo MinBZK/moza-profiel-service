@@ -207,10 +207,16 @@
             <scope>test</scope>
         </dependency>
         <!-- embedded-postgres brengt alleen amd64-binaries mee; zonder deze faalt de testsuite
-             op een Apple Silicon JDK bij het starten van de embedded PostgreSQL. -->
+             op een arm64-JDK (Apple Silicon, arm64-CI-runners) bij het starten van de embedded
+             PostgreSQL. -->
         <dependency>
             <groupId>io.zonky.test.postgres</groupId>
             <artifactId>embedded-postgres-binaries-darwin-arm64v8</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-linux-arm64v8</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

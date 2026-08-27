@@ -72,7 +72,7 @@ class DatabaseInvariantsTest {
 
     private static ConstraintViolationException expectConstraintViolation(Runnable insert) {
         RuntimeException failure = assertThrows(RuntimeException.class,
-                () -> QuarkusTransaction.requiringNew().run(insert::run));
+                () -> QuarkusTransaction.requiringNew().run(insert));
 
         Throwable cause = failure;
 
