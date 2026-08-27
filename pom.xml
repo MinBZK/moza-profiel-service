@@ -217,6 +217,14 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-flyway</artifactId>
         </dependency>
+        <!-- quarkus-flyway brings in only flyway-core; the Postgres dialect module lives in the
+             separate quarkus-flyway-postgresql extension, which we don't use. MigrationValidationTest
+             drives Flyway itself and needs it explicitly for that. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-kubernetes</artifactId>

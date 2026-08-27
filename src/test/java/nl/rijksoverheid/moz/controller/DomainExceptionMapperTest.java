@@ -1,7 +1,6 @@
 package nl.rijksoverheid.moz.controller;
 
 import jakarta.ws.rs.core.Response;
-import nl.rijksoverheid.moz.exception.AuthorizationException;
 import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.exception.TechnicalException;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,16 +57,6 @@ class DomainExceptionMapperTest {
 
         assertEquals(500, response.getStatus());
         assertProblemBody(response, "Internal Server Error", "Interne fout bij verwerken");
-    }
-
-    @Test
-    void mapAuthorizationException_Returns403() {
-        AuthorizationException exception = new AuthorizationException("Geen toegang tot deze Partij");
-
-        Response response = mapper.mapAuthorizationException(exception);
-
-        assertEquals(403, response.getStatus());
-        assertProblemBody(response, "Forbidden", "Geen toegang tot deze Partij");
     }
 
     @Test

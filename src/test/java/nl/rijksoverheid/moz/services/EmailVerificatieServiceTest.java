@@ -110,7 +110,7 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = Contactgegeven.find(partij).stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElse(null);
@@ -172,7 +172,7 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "123456789");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = Contactgegeven.find(partij).stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();
@@ -322,6 +322,27 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
+    void verifieerEmail_ContactVerwijderd_ReturnsFalse() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111107"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.setVerificatieReferentieId("ref");
+            contact.verwijder(Instant.now());
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        boolean result = service.verifieerEmail(makeVerifyRequest("111111107"));
+
+        Assertions.assertFalse(result);
+        Mockito.verify(emailVerificatieApi, Mockito.never()).verifyPost(Mockito.any());
+    }
+
+    @Test
     void verifieerEmail_ApiResponseNull() {
         seedPartijWithUnverifiedContact("111111101");
         Mockito.doReturn(null).when(emailVerificatieApi).verifyPost(Mockito.any());
@@ -380,6 +401,31 @@ public class EmailVerificatieServiceTest {
     }
 
     @Test
+    void vraagEmailVerificatieCodeAan_ContactVerwijderd_ReturnsNotFound() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Partij partij = new Partij();
+            partij.addIdentificatie(new Identificatie(IdentificatieType.BSN, "111111108"));
+            partij.persist();
+            Contactgegeven contact = new Contactgegeven();
+            contact.setType(ContactType.Email);
+            contact.setWaarde("test@test.com");
+            contact.verwijder(Instant.now());
+            contact.setPartij(partij);
+            contact.persist();
+        });
+
+        EmailVerificatieCodeAanvraagRequest request = new EmailVerificatieCodeAanvraagRequest();
+        request.setIdentificatieType(IdentificatieType.BSN);
+        request.setIdentificatieNummer("111111108");
+        request.setEmail("test@test.com");
+
+        int result = service.vraagEmailVerificatieCodeAan(request);
+
+        Assertions.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), result);
+        Mockito.verify(emailVerificatieApi, Mockito.never()).requestPost(Mockito.any());
+    }
+
+    @Test
     void vraagEmailVerificatieCodeAan_AlreadyVerifiedResetsState() {
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -406,7 +452,7 @@ public class EmailVerificatieServiceTest {
 
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = Partij.findByIdentificatie(IdentificatieType.BSN, "111111106");
-            Contactgegeven contact = partij.getContactgegevens().stream()
+            Contactgegeven contact = Contactgegeven.find(partij).stream()
                     .filter(c -> c.getWaarde().equals("test@test.com"))
                     .findFirst()
                     .orElseThrow();

@@ -19,16 +19,15 @@ import nl.rijksoverheid.moz.api.generated.model.PartijBulkRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijIdentificatieRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijRequest;
 import nl.rijksoverheid.moz.api.generated.model.PartijResponse;
-import nl.rijksoverheid.moz.api.generated.model.TeVerwijderenOpRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurResponse;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
+import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.PartijMapper;
 import nl.rijksoverheid.moz.services.PartijService;
-import nl.rijksoverheid.moz.services.PartijService.AddContactgegevenResult;
-import nl.rijksoverheid.moz.services.PartijService.AddVoorkeurResult;
 import org.jboss.logging.Logger;
 
 import java.net.URI;
@@ -137,20 +136,16 @@ public class ProfielController implements ProfielApi {
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(contactgegevenRequest.getIdentificatieNummer()));
         logboekContext.setDataSubjectType(String.valueOf(contactgegevenRequest.getIdentificatieType()));
 
-        AddContactgegevenResult result = partijService.addContactgegeven(contactgegevenRequest.getIdentificatieType(), contactgegevenRequest.getIdentificatieNummer(), contactgegevenRequest);
-        ContactgegevenResponse body = partijMapper.toContactgegevensResponse(result.contactgegeven());
+        Contactgegeven contactgegeven = partijService.addContactgegeven(contactgegevenRequest.getIdentificatieType(), contactgegevenRequest.getIdentificatieNummer(), contactgegevenRequest);
+        ContactgegevenResponse body = partijMapper.mapContactgegeven(contactgegeven);
 
         URI uri = UriBuilder.fromResource(ProfielApi.class)
                 .path("contactgegeven").path("{id}")
-                .build(result.contactgegeven().id);
+                .build(contactgegeven.id);
         logboekContext.setStatus(StatusCode.OK);
+        LOG.info("Contactgegeven toegevoegd");
 
-        if (result.wasCreated()) {
-            LOG.info("Contactgegeven toegevoegd");
-            return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
-        }
-
-        return Response.ok(body).location(uri).type(MediaType.APPLICATION_JSON).build();
+        return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -171,22 +166,27 @@ public class ProfielController implements ProfielApi {
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Contactgegeven bijgewerkt");
+
         return Response.ok().build();
     }
 
     @Override
     @Transactional
-    @Logboek(name = "deleteContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-591")
-    public Response deleteContactgegeven(
+    // PS-631 komt van het verwijderde updateContactgegevenTeVerwijderenOp-PATCH-endpoint (niet van
+    // de PS-591 die dit DELETE-endpoint zelf had) en wordt ook door RetentieScheduler gebruikt voor
+    // de retentietaak. Welke ID('s) hier definitief horen is nog open, zie
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
+    @Logboek(name = "verwijderContactgegeven", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
+    public Response verwijderContactgegeven(
             UUID contactgegevenId,
             PartijIdentificatieRequest partijIdentificatieRequest) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(partijIdentificatieRequest.getIdentificatieNummer()));
         logboekContext.setDataSubjectType(String.valueOf(partijIdentificatieRequest.getIdentificatieType()));
 
-        boolean deleted = partijService.deleteContactgegeven(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), contactgegevenId);
+        Contactgegeven contactgegeven = partijService.verwijderContactgegeven(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), contactgegevenId);
 
-        if (!deleted) {
+        if (contactgegeven == null) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor verwijdering");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
@@ -194,6 +194,7 @@ public class ProfielController implements ProfielApi {
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Contactgegeven verwijderd");
+
         return Response.noContent().build();
     }
 
@@ -205,25 +206,16 @@ public class ProfielController implements ProfielApi {
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(voorkeurRequest.getIdentificatieNummer()));
         logboekContext.setDataSubjectType(String.valueOf(voorkeurRequest.getIdentificatieType()));
 
-        AddVoorkeurResult result = partijService.addVoorkeur(voorkeurRequest.getIdentificatieType(), voorkeurRequest.getIdentificatieNummer(), voorkeurRequest);
-        VoorkeurResponse body = partijMapper.toVoorkeurResponse(result.voorkeur());
+        Voorkeur voorkeur = partijService.addVoorkeur(voorkeurRequest.getIdentificatieType(), voorkeurRequest.getIdentificatieNummer(), voorkeurRequest);
+        VoorkeurResponse body = partijMapper.mapVoorkeur(voorkeur);
 
         logboekContext.setStatus(StatusCode.OK);
         URI uri = UriBuilder.fromResource(ProfielApi.class)
                 .path("voorkeur").path("{id}")
-                .build(result.voorkeur().id);
+                .build(voorkeur.id);
+        LOG.info("Voorkeur toegevoegd");
 
-        if (result.wasCreated()) {
-            LOG.info("Voorkeur toegevoegd");
-            return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
-        }
-
-        if (result.scopeAdded()) {
-            LOG.info("Scope toegevoegd aan bestaande voorkeur");
-        } else {
-            LOG.info("Voorkeur al geregistreerd voor deze partij en scope");
-        }
-        return Response.ok(body).location(uri).type(MediaType.APPLICATION_JSON).build();
+        return Response.created(uri).entity(body).type(MediaType.APPLICATION_JSON).build();
     }
 
     @Override
@@ -244,22 +236,27 @@ public class ProfielController implements ProfielApi {
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur bijgewerkt");
+
         return Response.ok().build();
     }
 
     @Override
     @Transactional
-    @Logboek(name = "deleteVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-478")
-    public Response deleteVoorkeur(
+    // PS-630 komt van het verwijderde updateVoorkeurTeVerwijderenOp-PATCH-endpoint (niet van de
+    // PS-478 die dit DELETE-endpoint zelf had) en wordt ook door RetentieScheduler gebruikt voor
+    // de retentietaak. Welke ID('s) hier definitief horen is nog open, zie
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
+    @Logboek(name = "verwijderVoorkeur", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
+    public Response verwijderVoorkeur(
             UUID voorkeurId,
             PartijIdentificatieRequest partijIdentificatieRequest) {
 
         logboekContext.setDataSubjectId(hashHelper.hashIdentifier(partijIdentificatieRequest.getIdentificatieNummer()));
         logboekContext.setDataSubjectType(String.valueOf(partijIdentificatieRequest.getIdentificatieType()));
 
-        boolean deleted = partijService.deleteVoorkeur(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), voorkeurId);
+        Voorkeur voorkeur = partijService.verwijderVoorkeur(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), voorkeurId);
 
-        if (!deleted) {
+        if (voorkeur == null) {
             logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
@@ -267,47 +264,7 @@ public class ProfielController implements ProfielApi {
 
         logboekContext.setStatus(StatusCode.OK);
         LOG.info("Voorkeur verwijderd");
+
         return Response.noContent().build();
-    }
-
-    @Override
-    @Transactional
-    @Logboek(name = "updateVoorkeurTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630")
-    public Response updateVoorkeurTeVerwijderenOp(TeVerwijderenOpRequest teVerwijderenOpRequest) {
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(teVerwijderenOpRequest.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(teVerwijderenOpRequest.getIdentificatieType()));
-
-        boolean updated = partijService.updateVoorkeurTeVerwijderenOpByDienstverlener(teVerwijderenOpRequest);
-
-        if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Voorkeur of partij niet gevonden voor te-verwijderen-op update");
-            throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
-        }
-
-        logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Te-verwijderen-op bijgewerkt voor voorkeur");
-        return Response.ok().build();
-    }
-
-    @Override
-    @Transactional
-    @Logboek(name = "updateContactgegevenTeVerwijderenOp", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631")
-    public Response updateContactgegevenTeVerwijderenOp(TeVerwijderenOpRequest teVerwijderenOpRequest) {
-
-        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(teVerwijderenOpRequest.getIdentificatieNummer()));
-        logboekContext.setDataSubjectType(String.valueOf(teVerwijderenOpRequest.getIdentificatieType()));
-
-        boolean updated = partijService.updateContactgegevenTeVerwijderenOpByDienstverlener(teVerwijderenOpRequest);
-
-        if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
-            LOG.warn("Contactgegeven of partij niet gevonden voor te-verwijderen-op update");
-            throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
-        }
-
-        logboekContext.setStatus(StatusCode.OK);
-        LOG.info("Te-verwijderen-op bijgewerkt voor contactgegeven");
-        return Response.ok().build();
     }
 }
