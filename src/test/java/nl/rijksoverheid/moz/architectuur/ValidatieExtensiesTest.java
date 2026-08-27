@@ -24,12 +24,12 @@ import java.util.regex.Pattern;
  *       aanroeper krijgt dus een kale 500 zonder problem-body, waar een 400 hoort. Het gebeurt
  *       lazy, bij de eerste validatie van dat type, dus build en deploy blijven groen.</li>
  *   <li>Alleen {@code x-implements} en niet de annotatie: er wordt stilzwijgend niets
- *       gevalideerd, precies het gat dat MinBZK/MijnOverheidZakelijk#923 beschrijft.</li>
+ *       gevalideerd.</li>
  * </ul>
  *
  * <p>De test pint vast wélk schema de elfproef draagt, niet alleen hoevéél er zijn: verhuizen naar
  * een ander schema is ook een gedragswijziging. Uitbreiden hoort een bewuste bewerking van
- * {@link #DRAGERS} te zijn; zie MinBZK/MijnOverheidZakelijk#923.
+ * {@link #DRAGERS} te zijn.
  *
  * <p>De sweep kijkt alleen naar top-level {@code components/schemas}; inline sub-schema's vallen
  * buiten beeld. Hij leest het contract zelf en niet het gepubliceerde document, omdat het contract
@@ -100,8 +100,7 @@ class ValidatieExtensiesTest {
 
         Assertions.assertEquals(verwacht, dragers,
                 "De elfproef hoort precies op " + DRAGERS + " te staan. Verhuist of verdwijnt hij,"
-                        + " dan is dat een gedragswijziging aan de buitenkant; zie"
-                        + " MinBZK/MijnOverheidZakelijk#923");
+                        + " dan is dat een gedragswijziging aan de buitenkant.");
     }
 
     /**

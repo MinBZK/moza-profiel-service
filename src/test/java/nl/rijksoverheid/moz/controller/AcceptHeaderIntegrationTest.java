@@ -41,7 +41,7 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.NOT_ACCEPTABLE
 /**
  * Legt vast welke {@code Accept}-headers de API bedient, en waarom dat per operatie verschilt.
  * <p>
- * Sinds de resources via gegenereerde interfaces lopen (#751) komt {@code @Produces} per operatie
+ * Doordat de resources via gegenereerde interfaces lopen, komt {@code @Produces} per operatie
  * uit de mediatypes van de responses in het contract, en niet meer uit één {@code @Produces} op de
  * controllerklasse. JAX-RS onderhandelt op wat er gedeclareerd is, vóórdat de resource-methode
  * draait. Een operatie waarvan geen enkele succesrespons {@code application/json} declareert houdt

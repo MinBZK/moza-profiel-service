@@ -34,7 +34,7 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
  * Verplichte tekstvelden moeten één regel zijn en mogen niet uit alleen witruimte bestaan.
  * Het contract legt dat vast met {@code pattern: "^[^\r\n]*\S[^\r\n]*$"} op de betreffende
  * velden, waaruit de generator een {@code @Pattern} op de DTO maakt. Zonder pattern liet
- * {@code @NotNull} een lege string ongehinderd door (MinBZK/MijnOverheidZakelijk#766).
+ * {@code @NotNull} een lege string ongehinderd door.
  *
  * <p>De expressie is bewust geankerd. JSON Schema {@code pattern} zoekt een deelstring,
  * terwijl Jakarta {@code @Pattern} een full-match doet; zonder {@code ^} en {@code $} keurt

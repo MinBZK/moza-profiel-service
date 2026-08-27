@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Bewaakt de metadata van het contract dat op /openapi.json wordt gepubliceerd.
- * Sinds #651 is dat het statische bestand META-INF/openapi.yaml: annotatie-scanning
+ * Dat is het statische bestand META-INF/openapi.yaml: annotatie-scanning
  * staat uit, dus niets in de code corrigeert deze velden nog.
  */
 @QuarkusTest
