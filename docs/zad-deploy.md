@@ -18,9 +18,9 @@ vaakst tegenkomt.
 > hierbuiten ongewijzigd — zie `Docs/structurizr/profielservicedocs/10-deployment.md`
 > in de **MijnOverheidZakelijk**-repo (niet in deze repo).
 
-Referentie: analoge workflow voor de NMC, zie
-[`moza-notificatiemanagementcomponent#749`](https://github.com/MinBZK/moza-notificatiemanagementcomponent/issues/749)
-en diens `docs/zad-deploy.md`.
+Referentie: de analoge workflow voor de NMC staat in
+[`moza-notificatiemanagementcomponent`](https://github.com/MinBZK/moza-notificatiemanagementcomponent),
+zie diens `docs/zad-deploy.md`.
 
 ## Hoe ZAD hier werkt
 
@@ -185,7 +185,7 @@ Benodigde env-vars op de `feature`-deployment (en analoog op `stable`):
 | `QUARKUS_DATASOURCE_JDBC_URL` | `jdbc:postgresql://$APP_DATABASE_SERVER_HOST:$APP_DATABASE_PORT/$APP_DATABASE_DB` | Volledige url (bekende valkuil: alleen de hostname werkt niet) |
 | `QUARKUS_DATASOURCE_USERNAME` | `$APP_DATABASE_USER` | `%prod`-waarde is leeg |
 | `QUARKUS_DATASOURCE_PASSWORD` | `$APP_DATABASE_PASSWORD` | `%prod`-waarde is leeg |
-| `QUARKUS_REST_CLIENT_VERIFICATIE_SERVICE_URL` | `https://wiremock-dev-mozam-chu.rig.prd1.gn2.quattro.rijksapps.nl` | Default is `https://verificatie.example.invalid`. De POC wijst naar een in-cluster Service (`verificatie-service.logius-moz-poc.svc.cluster.local`) die niet vanaf ZAD bereikbaar is; dit is de gedeelde ZAD WireMock-mock uit [#800](https://github.com/MinBZK/moza-profiel-service/issues/800). Al gestubd voor `POST /request` (200, tekst-referentie-id) en `POST /verify` (200 succes; `code: "000000"` simuleert bewust een foutieve-code-response) — geen extra stub-setup nodig |
+| `QUARKUS_REST_CLIENT_VERIFICATIE_SERVICE_URL` | `https://wiremock-dev-mozam-chu.rig.prd1.gn2.quattro.rijksapps.nl` | Default is `https://verificatie.example.invalid`. De POC wijst naar een in-cluster Service (`verificatie-service.logius-moz-poc.svc.cluster.local`) die niet vanaf ZAD bereikbaar is; dit is de gedeelde ZAD WireMock-mock. Al gestubd voor `POST /request` (200, tekst-referentie-id) en `POST /verify` (200 succes; `code: "000000"` simuleert bewust een foutieve-code-response) — geen extra stub-setup nodig |
 | `QUARKUS_SCHEDULER_ENABLED` | `false` | Zie "Gedeelde database + Quartz" hierboven — alleen nodig op `feature` (previews), niet per se op `stable` |
 | `NOTIFYNL_EMAILVERIFICATIE_API_KEY` | Elke niet-lege placeholder, bv. `zad-preview-key` | Verplicht, zie hieronder ("`%prod`-lege waarden" valkuil). Profiel-service belt niet rechtstreeks NotifyNL; `EmailVerificatieService` stuurt deze waarde mee als veld in de request-body naar de verificatie-service (`POST /request`). Op ZAD wijst die URL naar de gedeelde WireMock-mock (zie boven), die de body niet valideert — elke waarde werkt, als hij maar niet leeg is |
 | `NOTIFYNL_EMAILVERIFICATIE_TEMPLATE_ID` | Elke niet-lege placeholder, bv. `zad-preview-template` | Idem |
@@ -281,10 +281,11 @@ tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 - **LDV-snapshot-dependency**: de build trekt
   `nl.mijnoverheidzakelijk.ldv:logboekdataverwerking-wrapper:1.4.0-SNAPSHOT` uit
   central-portal-snapshots. Snapshots zijn niet reproduceerbaar en kunnen
-  verdwijnen; zie
-  [#613](https://github.com/MinBZK/moza-profiel-service/issues/613). Als de
-  deploy-build hierop faalt, is dit de eerste plek om te kijken.
-- Overgeërfde open ZAD-issues die ook hier gelden: deploy-verificatie (#882),
-  reaper voor verweesde `pr-<n>`-deployments (#884), vaste GitHub-environment
-  (#885), verweesde GHCR-versies (#888), cleanup die fail-open faalt (#891), bewijs
-  dat image/pod echt draait (#892).
+  verdwijnen. Als de deploy-build hierop faalt, is dit de eerste plek om te
+  kijken.
+- Overgeërfde open ZAD-issues die ook hier gelden, alle in de
+  MijnOverheidZakelijk-tracker: [deploy-verificatie](https://github.com/MinBZK/MijnOverheidZakelijk/issues/882),
+  [reaper voor verweesde `pr-<n>`-deployments](https://github.com/MinBZK/MijnOverheidZakelijk/issues/884),
+  [vaste GitHub-environment](https://github.com/MinBZK/MijnOverheidZakelijk/issues/885), [verweesde GHCR-versies](https://github.com/MinBZK/MijnOverheidZakelijk/issues/888),
+  [cleanup die fail-open faalt](https://github.com/MinBZK/MijnOverheidZakelijk/issues/891) en
+  [bewijs dat image/pod echt draait](https://github.com/MinBZK/MijnOverheidZakelijk/issues/892).
