@@ -247,10 +247,14 @@
             <artifactId>logboekdataverwerking-wrapper</artifactId>
             <version>1.4.0-SNAPSHOT</version>
         </dependency>
+        <!-- provided en niet compile: de extensie draait als devservice en hoort niet in het
+             productie-artefact. Ook niet test: dev-mode leest het testclasspath niet, dus met
+             test-scope verdwijnt de WireMock-devservice uit quarkus:dev. -->
         <dependency>
             <groupId>io.quarkiverse.wiremock</groupId>
             <artifactId>quarkus-wiremock</artifactId>
             <version>1.6.3</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Contract testing -->
@@ -298,7 +302,7 @@
                                  Bewust relatief. Met ${project.basedir} maakt Maven op Windows er
                                  C:\... van, en de swagger-parser in generator 7.10.0 leest die
                                  driveletter als URI-scheme — een illegale URI, dus een build-fout.
-                                 Vanaf 7.24.0 is dat opgelost; zie MinBZK/MijnOverheidZakelijk#951. -->
+                                 Vanaf 7.24.0 is dat opgelost. -->
                             <inputSpec>src/main/resources/META-INF/openapi.yaml</inputSpec>
                             <generatorName>jaxrs-spec</generatorName>
                             <output>${project.build.directory}/generated-sources/server</output>

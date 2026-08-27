@@ -34,6 +34,7 @@ public class DienstverlenerService {
         Dienstverlener dienstverlener = findOrCreateDienstverlener(dienstverlenerNaam, null);
 
         Dienst dienst = Dienst.findByNaam(request.getNaam());
+
         if (dienst == null) {
             dienst = new Dienst();
             dienst.setNaam(request.getNaam());
@@ -94,6 +95,7 @@ public class DienstverlenerService {
         // een duplicate rij omdat de lookup nooit hit gaf en de UNIQUE(dv_id, dienst_id)
         // constraint geen NULLs dedupliceert.
         DienstverlenerDienst link;
+
         if (dienst == null) {
             link = DienstverlenerDienst.find(
                     "dienstverlener = ?1 AND dienst IS NULL",

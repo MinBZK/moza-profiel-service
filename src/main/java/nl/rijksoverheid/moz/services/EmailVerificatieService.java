@@ -106,6 +106,7 @@ public class EmailVerificatieService {
         }
 
         String referenceId = requestEmailVerificationCode(aanvraag.getEmail());
+
         if (referenceId == null) {
             return Response.Status.SERVICE_UNAVAILABLE.getStatusCode();
         }
@@ -124,9 +125,11 @@ public class EmailVerificatieService {
 
         try {
             String referenceId = verificatieServiceGuard.get().call(() -> emailVerificatieApi.requestPost(verificationApplicationRequest), String.class);
+
             if (referenceId != null) {
                 return referenceId;
             }
+
             LOG.error("Email verificatie verzoek mislukt");
             return null;
         } catch (CircuitBreakerOpenException e) {

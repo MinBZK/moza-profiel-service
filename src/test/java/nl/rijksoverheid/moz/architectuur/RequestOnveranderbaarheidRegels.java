@@ -19,7 +19,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  * productiecode kan draaien en {@link RegelDekkingTest} tegen fixtures die elke bekende
  * ontsnappingsvorm belichamen. Zonder die tweede toepassing is de dekking van een regel een
  * bewering in commentaar in plaats van een gemeten eigenschap — en dat is bij het opzetten van
- * deze regels (#651) al drie keer misgegaan; {@link RegelDekkingTest} beschrijft welke drie.
+ * deze regels al drie keer misgegaan; {@link RegelDekkingTest} beschrijft welke drie.
  */
 final class RequestOnveranderbaarheidRegels {
 
