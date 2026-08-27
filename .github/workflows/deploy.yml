@@ -32,7 +32,7 @@
 # Standaard Platform), is dit veilig
 # voor zowel de pr-<n>- als de stable-deploy.
 #
-# TODO(#10): Deze env-vars worden nu handmatig op de 'feature'- en 'stable'-deployment
+# TODO: Deze env-vars worden nu handmatig op de 'feature'- en 'stable'-deployment
 # gezet. ZAD heeft een Operations Manager API — dit zou via een script geautomatiseerd
 # kunnen worden (idempotent env-vars zetten i.p.v. handmatige eenmalige setup).
 

@@ -20,8 +20,8 @@ tags:
 - name: Profiel
   description: Endpoints voor het beheren van partijen
 # De responses staan per operatie op volgorde: eerst de succescode, daarna de
-# foutcodes oplopend. Voor OpenAPI zelf is die volgorde betekenisloos, maar zodra
-# server-interfaces gegenereerd worden (#751) leidt de generator er @Produces uit
+# foutcodes oplopend. Voor OpenAPI zelf is die volgorde betekenisloos, maar omdat er
+# server-interfaces gegenereerd worden, leidt de generator er @Produces uit
 # af, en kiest JAX-RS de eerste vermelde media type als standaard. Staat een
 # foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
 #
@@ -576,7 +576,7 @@ components:
   schemas:
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
-    # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
+    # alleen-witruimte waarden af, en meteen ook CR/LF. Hij is met opzet zo
     # geschreven en niet als ".*\S.*": Jakarta @Pattern doet een full match waarbij "."
     # geen newline matcht, en de inline-vlag "(?s)" die dat repareert bestaat niet in
     # ECMA 262 — daarmee wordt het contract ongeldig en valt de contractvalidatie op elk
@@ -735,7 +735,7 @@ components:
       # identificatieNummer evenmin, dus een profiel kan onder een nummer bestaan dat
       # de elfproef niet doorstaat. Zou dit endpoint de controle wel doen, dan kon zo'n
       # gebruiker nooit meer een vervangende code aanvragen. De controle overal
-      # gelijktrekken staat als MinBZK/MijnOverheidZakelijk#923.
+      # gelijktrekken staat nog open.
       type: object
       required:
       - email
