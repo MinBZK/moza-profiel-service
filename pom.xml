@@ -52,7 +52,7 @@
             <dependency>
                 <groupId>io.swagger.parser.v3</groupId>
                 <artifactId>swagger-parser</artifactId>
-                <version>2.1.46</version>
+                <version>2.1.47</version>
             </dependency>
             <!-- Security-override: de quarkus-bom beheert httpclient5 op 5.6.1, dat bij een
                  onbekende Content-Encoding in de response de connectie niet teruggeeft aan de
