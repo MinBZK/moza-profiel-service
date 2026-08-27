@@ -55,9 +55,9 @@ uit (`mp.openapi.scan.disable=true`), dus datzelfde bestand wordt statisch op
 Pas het contract aan en draai de build opnieuw. De DTO's landen in
 `nl.rijksoverheid.moz.api.generated.model`.
 
-De controllers implementeren sinds `MinBZK/MijnOverheidZakelijk#751` de
-gegenereerde interfaces uit `nl.rijksoverheid.moz.api.generated.api`
-(`generateApis=true`, `interfaceOnly=true`, `returnResponse=true`). De interface
+De controllers implementeren de gegenereerde interfaces uit
+`nl.rijksoverheid.moz.api.generated.api` (`generateApis=true`,
+`interfaceOnly=true`, `returnResponse=true`). De interface
 draagt pad, HTTP-methode, mediatypes en de validatie van de body; de controller
 draagt alleen de implementatie. `RouteDekkingTest` bewaakt dat contract en
 routes elkaar blijven dekken.
@@ -109,7 +109,7 @@ geen bevindingen bíj. De bekende afwijkingen staan in `CONTRIBUTING.md`; de
 
 ### Grens van de contractvalidatie
 
-Sinds validator 3.0.0 (#151) wordt `type` op dit 3.1-document wél gehandhaafd.
+Sinds validator 3.0.0 wordt `type` op dit 3.1-document wél gehandhaafd.
 Uit de tijd daarvóór stamt de regel dat een `anyOf` met een null-tak de validatie
 voor dat veld uitschakelde — die tak matchte toen alles, omdat `type: "null"`
 zelf niet werd gecontroleerd. Dat geldt niet meer: gemeten wijzen de `type`-vorm
@@ -296,6 +296,12 @@ bouwt erop voort. Weet je het niet zeker, laat het weg of noteer het als aanname
 
 Verwijs in commentaar niet naar CLAUDE.md-secties. Beschrijf de regel zelf, zodat
 het commentaar zonder dit bestand leesbaar blijft.
+
+**Noem geen issuenummers in javadoc of commentaar.** Beschrijf het probleem zelf.
+Een nummer verwijst naar een discussie die de lezer niet voor zich heeft, en zodra
+het issue gesloten is voegt het niets meer toe aan wat de code doet. In dít bestand
+mag een verwijzing wel, maar alleen naar werk dat nog loopt; een gesloten issue is
+geschiedenis, geen feit over de code.
 
 ## Codestijl
 
