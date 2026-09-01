@@ -86,7 +86,7 @@ public class RetentieSchedulerTest {
     }
 
     // Expliciete BSN i.p.v. altijd dezelfde hardcoded waarde: een test die twee gelijktijdig
-    // actieve partijen nodig heeft, moet ze een eigen BSN geven — anders botsen twee actieve
+    // actieve partijen nodig heeft, moet ze een eigen BSN geven; anders botsen twee actieve
     // Identificatie-rijen met hetzelfde (type, nummer) op uk_identificatie.
     private UUID createPartij(String bsn) {
         AtomicReference<UUID> id = new AtomicReference<>();
