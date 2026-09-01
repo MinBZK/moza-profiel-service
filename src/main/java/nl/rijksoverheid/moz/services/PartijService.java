@@ -174,10 +174,12 @@ public class PartijService {
                 throw new BusinessException(Kind.BAD_REQUEST,
                         "dienstNaam zonder dienstverlenerNaam is ongeldig");
             }
+
             return null;
         }
 
         Dienstverlener dienstverlener = dienstverlenerService.getDienstverlener(scope.getDienstverlenerNaam());
+
         if (dienstverlener == null) {
             throw new BusinessException(Kind.NOT_FOUND,
                     "Dienstverlener bestaat niet");

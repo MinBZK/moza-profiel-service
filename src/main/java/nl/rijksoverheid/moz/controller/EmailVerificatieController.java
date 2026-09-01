@@ -14,7 +14,7 @@ import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.jboss.logging.Logger;
 
 /**
- * REST controller voor e-mailverificatie. Contract-first (#651, #751): implementeert de uit
+ * REST controller voor e-mailverificatie. Contract-first: implementeert de uit
  * META-INF/openapi.yaml gegenereerde {@link EmailVerificatieApi}, die de paden, HTTP-methodes,
  * mediatypes en de validatie van de body-parameter draagt. Herhaal ze hier niet: één
  * JAX-RS-annotatie op een implementatiemethode laat álle annotaties van de interface voor
