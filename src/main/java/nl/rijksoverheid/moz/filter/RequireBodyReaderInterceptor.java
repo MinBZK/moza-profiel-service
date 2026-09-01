@@ -20,8 +20,8 @@ import java.io.IOException;
  * transport-headers (Content-Length): dat dekt zowel een ontbrekende body als een
  * letterlijke {@code null} body.
  *
- * <p>Bewust zonder name binding. Sinds de resources via gegenereerde interfaces zijn
- * gedeclareerd (#751) leest JAX-RS de name binding van de interface, niet van de
+ * <p>Bewust zonder name binding. Doordat de resources via gegenereerde interfaces zijn
+ * gedeclareerd, leest JAX-RS de name binding van de interface en niet van de
  * implementatie, waardoor een {@code @RequireBody} op de controller niets meer deed. Een
  * binding is hier ook niet nodig: op een endpoint zónder body-parameter draait er geen
  * {@code MessageBodyReader} en dus ook deze interceptor niet, en elke request body die wél

@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * De controllers implementeren sinds #751 de uit het contract gegenereerde interfaces, die de
+ * De controllers implementeren de uit het contract gegenereerde interfaces, die de
  * paden, HTTP-methodes, mediatypes en de validatie van de body-parameter dragen. Deze test
  * bewaakt dat ze die annotaties niet alsnog zelf gaan dragen.
  *

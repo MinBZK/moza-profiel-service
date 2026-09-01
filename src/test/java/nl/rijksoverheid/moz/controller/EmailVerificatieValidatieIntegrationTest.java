@@ -36,7 +36,7 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
  *
  * <p>De elfproef geldt bewust alleen op {@code /emailverificatie} en niet op
  * {@code /emailverificatie/code}; zie de toelichting bij {@code EmailVerificatieCodeAanvraagRequest}
- * in het contract en MinBZK/MijnOverheidZakelijk#923.
+ * in het contract.
  *
  * <p>{@code validationFilter} hangt alleen aan de requests die contractgeldig zijn. De filter
  * valideert namelijk ook het request en doet dat client-side, dus een body die het schema
@@ -131,7 +131,7 @@ class EmailVerificatieValidatieIntegrationTest extends OpenApiValidationTest {
     }
 
     /**
-     * Legt de asymmetrie vast die MinBZK/MijnOverheidZakelijk#923 beschrijft. De schrijfpaden
+     * Legt de asymmetrie vast tussen de schrijf- en leespaden. De schrijfpaden
      * controleren het identificatienummer niet, dus er kan een profiel bestaan onder een nummer
      * dat de elfproef niet doorstaat — "111111111" is zo'n nummer (som 43). Zou dit endpoint de
      * controle wél doen, dan kon die gebruiker nooit meer een vervangende code aanvragen. Het

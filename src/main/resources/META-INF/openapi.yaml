@@ -20,8 +20,8 @@ tags:
 - name: Profiel
   description: Endpoints voor het beheren van partijen
 # De responses staan per operatie op volgorde: eerst de succescode, daarna de
-# foutcodes oplopend. Voor OpenAPI zelf is die volgorde betekenisloos, maar zodra
-# server-interfaces gegenereerd worden (#751) leidt de generator er @Produces uit
+# foutcodes oplopend. Voor OpenAPI zelf is die volgorde betekenisloos, maar omdat er
+# server-interfaces gegenereerd worden, leidt de generator er @Produces uit
 # af, en kiest JAX-RS de eerste vermelde media type als standaard. Staat een
 # foutrespons vooraan, dan krijgt elk succesantwoord application/problem+json.
 #
@@ -576,7 +576,7 @@ components:
   schemas:
     # De pattern "^[^\r\n]*\S[^\r\n]*$" op de tekstvelden die een betekenisvolle waarde
     # moeten dragen — verplicht én optioneel, zoals de scope-velden — wijst lege en
-    # alleen-witruimte waarden af (#766), en meteen ook CR/LF. Hij is met opzet zo
+    # alleen-witruimte waarden af, en meteen ook CR/LF. Hij is met opzet zo
     # geschreven en niet als ".*\S.*": Jakarta @Pattern doet een full match waarbij "."
     # geen newline matcht, en de inline-vlag "(?s)" die dat repareert bestaat niet in
     # ECMA 262 — daarmee wordt het contract ongeldig en valt de contractvalidatie op elk
@@ -588,7 +588,28 @@ components:
       - Telefoonnummer
       - ApplicatieId
     ContactgegevenRequest:
-      description: "Request object voor het toevoegen van een contactgegeven aan een partij. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven."
+      description: "Request object voor het toevoegen van een contactgegeven aan een partij. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven. Bij type Email moet waarde een geldig e-mailadres zijn; bij de overige types is de inhoud vormvrij."
+      # waarde is polymorf: een format op het veld zelf zou telefoonnummers gaan weigeren. De
+      # if/then hieronder wordt door de contractvalidatie geëvalueerd, maar de generator maakt er
+      # geen Jakarta-constraint van; de server dwingt de regel af met de class-level constraint.
+      # Die twee vendor-extensies horen bij elkaar; zie ValidatieExtensiesTest.
+      #
+      # Let op dat format: email strenger is dan Jakarta @Email: het contract wijst een
+      # bare-IPv4-domein en een TLD van één teken af die de server accepteert. De divergentie
+      # loopt één kant op en ligt vast in EmailFormaatIntegrationTest.
+      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidEmailWaarde"
+      x-implements:
+      - nl.rijksoverheid.moz.validation.HeeftContactWaarde
+      if:
+        properties:
+          type:
+            const: Email
+        required:
+        - type
+      then:
+        properties:
+          waarde:
+            format: email
       type: object
       required:
       - identificatieType
@@ -649,7 +670,22 @@ components:
           items:
             $ref: "#/components/schemas/ScopeResponse"
     ContactgegevenUpdateRequest:
-      description: "Request object voor het bijwerken van een contactgegeven. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven."
+      description: "Request object voor het bijwerken van een contactgegeven. scope mag worden weggelaten of expliciet op null gezet; beide betekenen dat het veld niet is opgegeven. Bij type Email moet waarde een geldig e-mailadres zijn; bij de overige types is de inhoud vormvrij."
+      # Zie ContactgegevenRequest voor waarom de e-mailregel als if/then plus class-level
+      # constraint staat en niet als format op waarde.
+      x-class-extra-annotation: "@nl.rijksoverheid.moz.validation.ValidEmailWaarde"
+      x-implements:
+      - nl.rijksoverheid.moz.validation.HeeftContactWaarde
+      if:
+        properties:
+          type:
+            const: Email
+        required:
+        - type
+      then:
+        properties:
+          waarde:
+            format: email
       type: object
       required:
       - identificatieType
@@ -735,7 +771,7 @@ components:
       # identificatieNummer evenmin, dus een profiel kan onder een nummer bestaan dat
       # de elfproef niet doorstaat. Zou dit endpoint de controle wel doen, dan kon zo'n
       # gebruiker nooit meer een vervangende code aanvragen. De controle overal
-      # gelijktrekken staat als MinBZK/MijnOverheidZakelijk#923.
+      # gelijktrekken staat nog open.
       type: object
       required:
       - email
@@ -745,6 +781,11 @@ components:
         email:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+          # Anders dan ContactgegevenRequest.waarde draagt dit veld altijd een e-mailadres, dus
+          # kan format hier gewoon op het veld. De generator vertaalt format niet, vandaar de
+          # extensie ernaast.
+          format: email
+          x-field-extra-annotation: "@jakarta.validation.constraints.Email"
         identificatieNummer:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
@@ -771,6 +812,9 @@ components:
         email:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+          # Zie EmailVerificatieCodeAanvraagRequest.email.
+          format: email
+          x-field-extra-annotation: "@jakarta.validation.constraints.Email"
         identificatieNummer:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"

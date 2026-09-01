@@ -4,10 +4,17 @@ Bedankt voor je interesse in deze repository. Bekijk eerst de overkoepelende ric
 
 ## Lokale conventies voor deze repo
 
-- **Branching**: feature branches off `main`, PR voor merge. Tijdens initiële buildout van een greenfield repo kan ook direct op `main` worden gewerkt.
+- **Branching**: feature branches off `main`, PR voor merge. Nooit direct op `main` werken.
 - **Commits**: korte, beschrijvende messages in het Nederlands of Engels.
-- **Tests**: `./mvnw verify` moet groen draaien. Unit + integratie (`@QuarkusTest`) + contract (Pact en OpenAPI-schemavalidatie) + fuzz (jazzer). JaCoCo-drempel is 85% line en 80% branch.
-- **API Design Rules**: nieuwe of gewijzigde endpoints moeten door de Spectral lint heen tegen de NLGov ADR ruleset (`https://static.developer.overheid.nl/adr/ruleset.yaml`).
+- **Tests**: `./mvnw verify` moet groen draaien. Unit + integratie (`@QuarkusTest`) + architectuur (ArchUnit) + fuzz (jazzer) + contract (Pact en OpenAPI-schemavalidatie). JaCoCo-drempel is 85% line en 80% branch.
+- **API Design Rules**: controleer een contractwijziging tegen de NLGov ADR-ruleset. Geen CI dwingt dit af, dus draai hem zelf:
+
+  ```bash
+  npx @stoplight/spectral-cli lint src/main/resources/META-INF/openapi.yaml \
+    --ruleset https://static.developer.overheid.nl/adr/ruleset.yaml
+  ```
+
+  Het contract haalt dit vandaag niet schoon (3 errors + 1 warning, gemeten 2026-08-20). Vergelijk daarom vóór en ná je wijziging en zorg dat je er geen bevindingen bíj maakt. De bekende afwijkingen: geen `servers`-array (bewust, `OpenApiMetadataTest.contractAdverteertGeenServers` legt dat vast — nodig voor de ZAD-previews), OpenAPI 3.1 waar de ruleset 3.0 verwacht, `/openapi.json` niet in het contract gedeclareerd, en `UUID` als schemanaam (die volgt uit `schemaMappings` en is dus geen vrije keuze).
 - **Schema-changes**: voeg een nieuwe Flyway migratie toe in `src/main/resources/db/migration/`. Tests draaien de migraties tegen een embedded PostgreSQL, dus een fout in een migratie of drift met de entities (`validate`) breekt `./mvnw verify`.
 - **Secrets**: nooit committen. Lokale dev-config in `src/main/resources/application-dev.properties` (gitignored). Productie-secrets via de deployment-repo `moz/profiel-service/config/`.
 
