@@ -10,18 +10,13 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
-import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.common.VoorkeurType;
-import nl.rijksoverheid.moz.entity.Contactgegeven;
-import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
-import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
-import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
+import nl.rijksoverheid.moz.DatabaseCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -49,22 +44,16 @@ public class PactProviderVerificationTest {
 
     @BeforeEach
     void setupTarget(PactVerificationContext context) {
+        // Runs before the @State method, so every interaction starts from an empty database
+        // whatever ran before it. Without this the "Geen ..." states depend on test order.
+        DatabaseCleanup.wipe();
         context.setTarget(new HttpTestTarget("localhost", RestAssured.port));
         Mockito.doReturn("test-ref-id").when(emailVerificatieService).requestEmailVerificationCode(Mockito.anyString());
     }
 
     @AfterEach
-    @Transactional
     void tearDown() {
-        ScopeContactgegeven.deleteAll();
-        ScopeVoorkeur.deleteAll();
-        Contactgegeven.deleteAll();
-        Voorkeur.deleteAll();
-        DienstverlenerDienst.deleteAll();
-        Dienst.deleteAll();
-        Identificatie.deleteAll();
-        Partij.deleteAll();
-        Dienstverlener.deleteAll();
+        DatabaseCleanup.wipe();
     }
 
     @TestTemplate
@@ -84,12 +73,12 @@ public class PactProviderVerificationTest {
 
     @State("Geen Partij voor BSN 999999999")
     void geenPartijVoorBsn999999999() {
-        // Geen setup nodig; database is leeg na tearDown van de vorige interactie.
+        // No setup needed; the database is emptied in setupTarget.
     }
 
     @State("Geen Partij voor BSN 111111111")
     void geenPartijVoorBsn111111111() {
-        // Geen setup nodig; database is leeg na tearDown van de vorige interactie.
+        // No setup needed; the database is emptied in setupTarget.
     }
 
     @State("Partij met WebsiteTaal voorkeur voor BSN 111111111")
@@ -108,7 +97,7 @@ public class PactProviderVerificationTest {
 
     @State("Geen Partij voor BSN 222222222")
     void geenPartijVoorBsn222222222() {
-        // Geen setup nodig; database is leeg na tearDown van de vorige interactie.
+        // No setup needed; the database is emptied in setupTarget.
     }
 
     @State("Partij bestaat voor BSN 111111111 maar niet voor BSN 999999999")
@@ -131,6 +120,6 @@ public class PactProviderVerificationTest {
 
     @State("Geen Dienstverlener bestaat")
     void geenDienstverlenerBestaat() {
-        // Geen setup nodig; database is leeg na tearDown van de vorige interactie.
+        // No setup needed; the database is emptied in setupTarget.
     }
 }

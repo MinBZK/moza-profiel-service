@@ -31,7 +31,7 @@ Praktisch betekent dat: **schrijf geen DTO met de hand en bewerk niets onder `ta
 Vereisten:
 - Java 25
 - Maven (of de meegeleverde wrapper `./mvnw`)
-- PostgreSQL (of gebruik H2 via het `test` profile)
+- PostgreSQL voor `quarkus:dev` (zie `docker-compose.yml`); de tests starten hun eigen embedded PostgreSQL
 
 ```bash
 # Database opstarten (zie docker-compose.yml)
@@ -40,7 +40,7 @@ docker compose up -d
 # Dev-modus (live reload, http://localhost:8080)
 ./mvnw quarkus:dev
 
-# Tests (gebruikt H2)
+# Tests (starten zelf een embedded PostgreSQL, geen Docker nodig)
 ./mvnw verify
 ```
 

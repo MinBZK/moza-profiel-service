@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import nl.rijksoverheid.moz.DatabaseCleanup;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 
 @QuarkusTest
@@ -17,6 +19,13 @@ public class EndpointFuzzTest {
     @BeforeAll
     public static void setup() {
         // You can configure RestAssured here if needed
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Fuzzed POSTs that happen to be valid persist rows; without this they leak
+        // into whatever class runs next.
+        DatabaseCleanup.wipe();
     }
 
     @FuzzTest

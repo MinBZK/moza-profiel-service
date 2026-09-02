@@ -28,7 +28,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - name: Build with Maven
-        run: mvn -B package --file pom.xml
+        run: ./mvnw -B verify
 
   # Eigen job zodat contents: write niet voor de hele build geldt, ook niet op PR's.
   # Alleen op main: de Dependabot-alerts die dit voedt gaan over de default branch.
