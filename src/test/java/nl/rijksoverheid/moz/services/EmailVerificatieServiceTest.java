@@ -4,7 +4,6 @@ import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.exception.TechnicalException;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -13,18 +12,13 @@ import nl.rijksoverheid.moz.common.IdentificatieType;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
-import nl.rijksoverheid.moz.entity.Dienst;
-import nl.rijksoverheid.moz.entity.Dienstverlener;
-import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
-import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
-import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.api.VerificationControllerApi;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationApplicationRequest;
 import nl.rijksoverheid.moz.external.clients.verificatie_service.model.VerificationResponse;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import nl.rijksoverheid.moz.DatabaseCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,17 +47,8 @@ public class EmailVerificatieServiceTest {
     }
 
     @AfterEach
-    @Transactional
     void tearDown() {
-        ScopeContactgegeven.deleteAll();
-        ScopeVoorkeur.deleteAll();
-        Contactgegeven.deleteAll();
-        Voorkeur.deleteAll();
-        DienstverlenerDienst.deleteAll();
-        Dienst.deleteAll();
-        Identificatie.deleteAll();
-        Partij.deleteAll();
-        Dienstverlener.deleteAll();
+        DatabaseCleanup.wipe();
     }
 
     @Test

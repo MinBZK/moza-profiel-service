@@ -30,9 +30,9 @@ import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
-import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.helper.HashHelper;
+import nl.rijksoverheid.moz.DatabaseCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,17 +86,8 @@ public class PartijServiceTest {
     }
 
     @AfterEach
-    @Transactional
     void tearDown() {
-        ScopeContactgegeven.deleteAll();
-        ScopeVoorkeur.deleteAll();
-        Contactgegeven.deleteAll();
-        Voorkeur.deleteAll();
-        DienstverlenerDienst.deleteAll();
-        Dienst.deleteAll();
-        Identificatie.deleteAll();
-        Partij.deleteAll();
-        Dienstverlener.deleteAll();
+        DatabaseCleanup.wipe();
     }
 
     private String createTestDienstverlenerWithDienst() {
@@ -327,8 +318,8 @@ public class PartijServiceTest {
     @Test
     void getPartijResponse_ContactgegevenIsStale_WerktLastUsedAtBij() {
         AtomicReference<UUID> cgId = new AtomicReference<>();
-        // Getruncate naar microseconden: H2 rondt Instant-kolommen daarop af, dus zonder dit zou de
-        // exacte-gelijkheid-assertie hieronder op sub-microseconde ruis kunnen stuklopen.
+        // Getruncate naar microseconden: timestamp-kolommen zijn microseconde-precies, dus zonder
+        // dit zou de exacte-gelijkheid-assertie hieronder op sub-microseconde ruis kunnen stuklopen.
         Instant ouder = Instant.now().minus(Duration.ofHours(48)).truncatedTo(ChronoUnit.MICROS);
         QuarkusTransaction.requiringNew().run(() -> {
             Partij partij = new Partij();
@@ -345,9 +336,9 @@ public class PartijServiceTest {
         });
 
         // 50 ms speling: voorLezen en de opgeslagen timestamp komen elk uit een eigen Instant.now()-
-        // aanroep. H2's microseconde-afronding (geverifieerd) is op zichzelf te klein om dit te
-        // verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd strikt
-        // geordend zijn.
+        // aanroep. De microseconde-afronding van de timestamp-kolom is op zichzelf te klein om dit
+        // te verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd
+        // strikt geordend zijn.
         Instant voorLezen = Instant.now().minusMillis(50);
         partijService.getPartijResponse(IdentificatieType.BSN, "123456789", new PartijRequest());
 
@@ -1055,9 +1046,9 @@ public class PartijServiceTest {
         });
 
         // 50 ms speling: voor en de opgeslagen timestamp komen elk uit een eigen Instant.now()-
-        // aanroep. H2's microseconde-afronding (geverifieerd) is op zichzelf te klein om dit te
-        // verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd strikt
-        // geordend zijn.
+        // aanroep. De microseconde-afronding van de timestamp-kolom is op zichzelf te klein om dit
+        // te verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd
+        // strikt geordend zijn.
         Instant voor = Instant.now().minusMillis(50);
         Voorkeur result = partijService.verwijderVoorkeur(IdentificatieType.BSN, "123456789", voorkeurId.get());
 
@@ -1435,9 +1426,9 @@ public class PartijServiceTest {
         });
 
         // 50 ms speling: voor en de opgeslagen timestamp komen elk uit een eigen Instant.now()-
-        // aanroep. H2's microseconde-afronding (geverifieerd) is op zichzelf te klein om dit te
-        // verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd strikt
-        // geordend zijn.
+        // aanroep. De microseconde-afronding van de timestamp-kolom is op zichzelf te klein om dit
+        // te verklaren; de marge vangt af dat die twee losse klokaflezingen niet gegarandeerd
+        // strikt geordend zijn.
         Instant voor = Instant.now().minusMillis(50);
         Contactgegeven result = partijService.verwijderContactgegeven(IdentificatieType.BSN, "123456789", contactId.get());
 
@@ -1822,9 +1813,8 @@ public class PartijServiceTest {
      * al meerdere soft deleted rijen met dezelfde waarde bestaan.
      * <p>
      * Dit toetst de servicelaag, niet de partiële unique index zelf (uk_contactgegeven_dedup,
-     * WHERE verwijderd_op IS NULL): Contactgegeven heeft bewust geen {@code @UniqueConstraint}
-     * (zie de klasse-comment daar), dus H2's testschema kent die index niet. Dat de index in
-     * productie ook echt partieel is, verifieert MigrationValidationTest tegen echte Postgres.
+     * WHERE verwijderd_op IS NULL); dat die index echt partieel is, verifieert
+     * MigrationValidationTest op JDBC-niveau.
      */
     @Test
     void addContactgegeven_MeerdereCyclusVanToevoegenEnVerwijderen_LaatMeerdereVerwijderdeRijenToe() {

@@ -1,21 +1,13 @@
 package nl.rijksoverheid.moz.migration;
 
-import jakarta.persistence.Entity;
+import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import org.flywaydb.core.Flyway;
-import org.hibernate.SessionFactory;
-import org.hibernate.boot.MetadataSources;
-import org.hibernate.boot.registry.StandardServiceRegistry;
-import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.PostgreSQLContainer;
 
-import java.io.File;
-import java.net.URL;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -26,100 +18,51 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Draait de Flyway-migraties in db/migration tegen een echte Postgres en laat Hibernate ze
- * daarna valideren ({@code hbm2ddl.auto=validate}) — anders dan de rest van de testsuite, die op
- * H2 drop-and-create draait. Bewust geen {@code @QuarkusTest}: quarkus.datasource.db-kind is
- * build-time-vast, dus een Postgres-gerichte @QuarkusTest kan niet in dezelfde Surefire-fork
- * draaien als de H2-suite; deze test gebruikt Flyway en Hibernate rechtstreeks, buiten Quarkus om.
- * <p>
- * Vereist een draaiende Docker-daemon. Lokaal wordt de test overgeslagen als die ontbreekt (zie
- * {@code assumeTrue} in {@code startPostgres()}); in CI ({@code CI=true}) niet — dit is de enige
- * test die de migraties daadwerkelijk tegen het schema valideert, dus daar moet ontbrekende
- * Docker de build hard laten falen in plaats van die dekking stil te laten wegvallen.
+ * Toetst op JDBC-niveau de partiële (unieke) indexen uit V4 tegen een eigen embedded Postgres
+ * (zelfde Zonky-aanpak als {@link nl.rijksoverheid.moz.EmbeddedPostgresTestResource}, geen Docker):
+ * die WHERE-clausules vallen buiten Hibernate's validate, die de @QuarkusTest-suite al op elke boot
+ * tegen het gemigreerde schema draait. Bewust geen {@code @QuarkusTest}: de inserts hieronder zetten
+ * rechtstreeks rijen neer die de servicelaag nooit zo zou aanmaken.
  */
 class MigrationValidationTest {
 
-    private static final String ENTITY_PACKAGE = "nl.rijksoverheid.moz.entity";
+    private static final String DB_USER = "postgres";
+    private static final String DB_PASSWORD = "postgres";
 
-    private static PostgreSQLContainer<?> postgres;
+    private static EmbeddedPostgres postgres;
+    private static String jdbcUrl;
 
     @BeforeAll
-    static void startPostgres() {
-        // GitHub Actions zet CI=true: daar mag ontbrekende Docker niet leiden tot een stille
-        // skip, maar moet de build hard falen. Lokaal slaan we de test wel over.
-        boolean ci = System.getenv("CI") != null;
-        Assumptions.assumeTrue(ci || DockerClientFactory.instance().isDockerAvailable(),
-                "Docker niet beschikbaar; migratievalidatie overgeslagen");
-
-        postgres = new PostgreSQLContainer<>("postgres:17-alpine");
-        postgres.start();
+    static void startPostgres() throws IOException {
+        postgres = EmbeddedPostgres.start();
+        jdbcUrl = "jdbc:postgresql://localhost:" + postgres.getPort() + "/postgres";
 
         Flyway.configure()
-                .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
+                .dataSource(jdbcUrl, DB_USER, DB_PASSWORD)
                 .locations("classpath:db/migration")
                 .load()
                 .migrate();
     }
 
     @AfterAll
-    static void stopPostgres() {
+    static void stopPostgres() throws IOException {
         if (postgres != null) {
-            postgres.stop();
-        }
-    }
-
-    @Test
-    void hibernateValideertSchemaTegenMigraties() throws Exception {
-        List<Class<?>> entityClasses = discoverEntityClasses();
-        // Canary: als dit ooit 0 oplevert, is de scan zelf stuk (bv. classpath-layout gewijzigd),
-        // niet dat het domeinmodel leeg is — laat dat duidelijk falen in plaats van een lege,
-        // altijd-groene validatie.
-        Assertions.assertFalse(entityClasses.isEmpty(), "geen @Entity-klassen gevonden in " + ENTITY_PACKAGE);
-
-        StandardServiceRegistry registry = new StandardServiceRegistryBuilder()
-                .applySetting("hibernate.connection.url", postgres.getJdbcUrl())
-                .applySetting("hibernate.connection.username", postgres.getUsername())
-                .applySetting("hibernate.connection.password", postgres.getPassword())
-                .applySetting("hibernate.hbm2ddl.auto", "validate")
-                .applySetting("hibernate.physical_naming_strategy",
-                        "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy")
-                // Zelfde als quarkus.hibernate-envers.active=false (zie application.properties):
-                // de migraties kennen geen _aud-tabellen, dus Envers moet ook hier uit staan.
-                .applySetting("hibernate.integration.envers.enabled", "false")
-                .build();
-
-        try {
-            MetadataSources sources = new MetadataSources(registry);
-            entityClasses.forEach(sources::addAnnotatedClass);
-
-            // Een ontbrekende of verkeerd getypeerde kolom laat buildSessionFactory() falen met
-            // een SchemaManagementException. Indexen en constraints vallen buiten validate; zie
-            // partieleIndexesZijnDaadwerkelijkPartieel.
-            try (SessionFactory sessionFactory = sources.buildMetadata().buildSessionFactory()) {
-                Assertions.assertNotNull(sessionFactory);
-            }
-        } finally {
-            StandardServiceRegistryBuilder.destroy(registry);
+            postgres.close();
         }
     }
 
     @Test
     void partieleIndexesZijnDaadwerkelijkPartieel() throws SQLException {
-        // Hibernate's validate-mode controleert tabellen/kolommen/types, geen indexen of
-        // constraints — dus die partiële WHERE-clausules uit V4 worden hierboven niet geraakt.
         // Filtert bewust op indisunique = true: de niet-unieke FK-indexen (idx_identificatie_partij,
         // idx_voorkeur_partij) zouden anders deze check onterecht laten falen.
         Map<String, String> definities = new HashMap<>();
-        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, DB_USER, DB_PASSWORD);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(
                      "SELECT ic.relname AS indexname, pg_get_indexdef(i.indexrelid) AS indexdef "
@@ -144,7 +87,7 @@ class MigrationValidationTest {
     // retentiescheduler's kandidaatquery ook al soft deleted rijen — vandaar apart bij naam.
     @Test
     void retentieIndexenZijnPartieel() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, DB_USER, DB_PASSWORD);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(
                      "SELECT indexname, indexdef FROM pg_indexes "
@@ -163,7 +106,7 @@ class MigrationValidationTest {
 
     @Test
     void ukContactgegevenDedupIsPartieel() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, DB_USER, DB_PASSWORD)) {
             conn.setAutoCommit(false);
             UUID partijId = insertPartij(conn);
 
@@ -195,7 +138,7 @@ class MigrationValidationTest {
 
     @Test
     void ukIdentificatieIsPartieel() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, DB_USER, DB_PASSWORD)) {
             conn.setAutoCommit(false);
 
             // Twee actieve identificaties met dezelfde (type, nummer) op verschillende partijen: botst.
@@ -229,7 +172,7 @@ class MigrationValidationTest {
 
     @Test
     void ukIdentificatiePerPartijIsPartieel() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, DB_USER, DB_PASSWORD)) {
             conn.setAutoCommit(false);
 
             // Twee actieve identificaties van hetzelfde type op dezelfde partij (verschillend
@@ -254,7 +197,7 @@ class MigrationValidationTest {
 
     @Test
     void contactgegevenDefaultPerTypeIsPartieel() throws SQLException {
-        try (Connection conn = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, DB_USER, DB_PASSWORD)) {
             conn.setAutoCommit(false);
             UUID partijId = insertPartij(conn);
 
@@ -320,30 +263,4 @@ class MigrationValidationTest {
         }
     }
 
-    private static List<Class<?>> discoverEntityClasses() throws Exception {
-        List<Class<?>> result = new ArrayList<>();
-        String packagePath = ENTITY_PACKAGE.replace('.', '/');
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Enumeration<URL> resources = classLoader.getResources(packagePath);
-
-        while (resources.hasMoreElements()) {
-            File directory = new File(resources.nextElement().getFile());
-            if (!directory.isDirectory()) {
-                continue;
-            }
-            File[] classFiles = directory.listFiles((dir, name) -> name.endsWith(".class"));
-            if (classFiles == null) {
-                continue;
-            }
-            for (File classFile : classFiles) {
-                String simpleName = classFile.getName().substring(0, classFile.getName().length() - ".class".length());
-                Class<?> candidate = Class.forName(ENTITY_PACKAGE + "." + simpleName);
-                if (candidate.isAnnotationPresent(Entity.class)) {
-                    result.add(candidate);
-                }
-            }
-        }
-
-        return result;
-    }
 }

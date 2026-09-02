@@ -16,15 +16,11 @@ import nl.rijksoverheid.moz.api.generated.model.ScopeRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurRequest;
 import nl.rijksoverheid.moz.api.generated.model.VoorkeurUpdateRequest;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
-import nl.rijksoverheid.moz.entity.Dienst;
-import nl.rijksoverheid.moz.entity.Dienstverlener;
-import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
-import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
+import nl.rijksoverheid.moz.DatabaseCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,17 +58,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
     }
 
     @AfterEach
-    @Transactional
     void tearDown() {
-        ScopeContactgegeven.deleteAll();
-        ScopeVoorkeur.deleteAll();
-        Contactgegeven.deleteAll();
-        Voorkeur.deleteAll();
-        DienstverlenerDienst.deleteAll();
-        Dienst.deleteAll();
-        Identificatie.deleteAll();
-        Partij.deleteAll();
-        Dienstverlener.deleteAll();
+        DatabaseCleanup.wipe();
     }
 
     private void assertSecondPostReturnsConflict(String path, Object body) {

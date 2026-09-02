@@ -7,7 +7,6 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectSpy;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.common.ContactType;
@@ -16,11 +15,10 @@ import nl.rijksoverheid.moz.common.VoorkeurType;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
 import nl.rijksoverheid.moz.entity.Identificatie;
 import nl.rijksoverheid.moz.entity.Partij;
-import nl.rijksoverheid.moz.entity.ScopeContactgegeven;
-import nl.rijksoverheid.moz.entity.ScopeVoorkeur;
 import nl.rijksoverheid.moz.entity.Voorkeur;
 import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.services.PartijService;
+import nl.rijksoverheid.moz.DatabaseCleanup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,14 +77,8 @@ public class RetentieSchedulerTest {
     }
 
     @AfterEach
-    @Transactional
     void tearDown() {
-        ScopeContactgegeven.deleteAll();
-        ScopeVoorkeur.deleteAll();
-        Contactgegeven.deleteAll();
-        Voorkeur.deleteAll();
-        Identificatie.deleteAll();
-        Partij.deleteAll();
+        DatabaseCleanup.wipe();
     }
 
     private UUID createPartij() {
@@ -94,9 +86,8 @@ public class RetentieSchedulerTest {
     }
 
     // Expliciete BSN i.p.v. altijd dezelfde hardcoded waarde: een test die twee gelijktijdig
-    // actieve partijen nodig heeft, moet ze een eigen BSN geven — anders staan er twee actieve
-    // Identificatie-rijen met hetzelfde (type, nummer), wat alleen "werkt" omdat het H2-testschema
-    // uk_identificatie niet afdwingt (die is er wél in productie, zie MigrationValidationTest).
+    // actieve partijen nodig heeft, moet ze een eigen BSN geven; anders botsen twee actieve
+    // Identificatie-rijen met hetzelfde (type, nummer) op uk_identificatie.
     private UUID createPartij(String bsn) {
         AtomicReference<UUID> id = new AtomicReference<>();
         QuarkusTransaction.requiringNew().run(() -> {
