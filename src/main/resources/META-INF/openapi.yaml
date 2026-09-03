@@ -200,8 +200,7 @@ paths:
         required: true
         schema:
           # Dezelfde pattern als DienstverlenerRequest.naam. Deze operatie maakt de
-          # dienstverlener aan als hij nog niet bestaat, dus zonder de constraint ontstaat via
-          # het pad een naam die de bodyroute zou hebben geweigerd (#967).
+          # dienstverlener aan als hij nog niet bestaat.
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
       requestBody:
@@ -243,9 +242,6 @@ paths:
         in: path
         required: true
         schema:
-          # Zie de gelijknamige parameter op POST .../diensten. Een leesactie kan geen data
-          # bederven, maar zonder de constraint hangt het van de route af of dezelfde naam
-          # geldig heet te zijn.
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
       responses:
