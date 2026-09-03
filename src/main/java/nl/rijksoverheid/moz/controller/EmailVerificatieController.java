@@ -1,10 +1,14 @@
 package nl.rijksoverheid.moz.controller;
 
+import io.opentelemetry.api.trace.StatusCode;
 import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
+import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
 import nl.rijksoverheid.moz.api.generated.api.EmailVerificatieApi;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieCodeAanvraagRequest;
 import nl.rijksoverheid.moz.api.generated.model.EmailVerificatieRequest;
+import nl.rijksoverheid.moz.helper.HashHelper;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.services.EmailVerificatieService;
 import org.jboss.logging.Logger;
@@ -24,16 +28,29 @@ public class EmailVerificatieController implements EmailVerificatieApi {
     private static final Logger LOG = Logger.getLogger(EmailVerificatieController.class);
 
     private final EmailVerificatieService emailVerificatieService;
+    private final LogboekContext logboekContext;
+    private final HashHelper hashHelper;
 
-    public EmailVerificatieController(EmailVerificatieService emailVerificatieService) {
+    public EmailVerificatieController(
+            EmailVerificatieService emailVerificatieService,
+            LogboekContext logboekContext,
+            HashHelper hashHelper) {
         this.emailVerificatieService = emailVerificatieService;
+        this.logboekContext = logboekContext;
+        this.hashHelper = hashHelper;
     }
 
     @Override
+    @Logboek(name = "vraagEmailVerificatieCodeAan", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-400")
     public Response vraagEmailVerificatieCodeAan(EmailVerificatieCodeAanvraagRequest emailVerificatieCodeAanvraagRequest) {
+
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(emailVerificatieCodeAanvraagRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(emailVerificatieCodeAanvraagRequest.getIdentificatieType()));
+
         int result = emailVerificatieService.vraagEmailVerificatieCodeAan(emailVerificatieCodeAanvraagRequest);
 
         if (result == Response.Status.OK.getStatusCode()) {
+            logboekContext.setStatus(StatusCode.OK);
             LOG.info("Email verificatie code aanvraag succesvol");
             return Response.ok().build();
         } else if (result == Response.Status.NOT_FOUND.getStatusCode()) {
@@ -52,10 +69,16 @@ public class EmailVerificatieController implements EmailVerificatieApi {
     }
 
     @Override
+    @Logboek(name = "verifieerEmail", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-410")
     public Response verifieerEmail(EmailVerificatieRequest emailVerificatieRequest) {
+
+        logboekContext.setDataSubjectId(hashHelper.hashIdentifier(emailVerificatieRequest.getIdentificatieNummer()));
+        logboekContext.setDataSubjectType(String.valueOf(emailVerificatieRequest.getIdentificatieType()));
+
         boolean succes = emailVerificatieService.verifieerEmail(emailVerificatieRequest);
 
         if (succes) {
+            logboekContext.setStatus(StatusCode.OK);
             LOG.info("Email verificatie succesvol");
             return Response.ok().build();
         }

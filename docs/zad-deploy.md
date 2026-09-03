@@ -278,11 +278,6 @@ tegen de preview zelf, zonder iets handmatig te hoeven omzetten.
 
 ## Bekend, niet opgelost in deze workflow
 
-- **LDV-snapshot-dependency**: de build trekt
-  `nl.mijnoverheidzakelijk.ldv:logboekdataverwerking-wrapper:1.4.0-SNAPSHOT` uit
-  central-portal-snapshots. Snapshots zijn niet reproduceerbaar en kunnen
-  verdwijnen. Als de deploy-build hierop faalt, is dit de eerste plek om te
-  kijken.
 - Overgeërfde open ZAD-issues die ook hier gelden, alle in de
   MijnOverheidZakelijk-tracker: [deploy-verificatie](https://github.com/MinBZK/MijnOverheidZakelijk/issues/882),
   [reaper voor verweesde `pr-<n>`-deployments](https://github.com/MinBZK/MijnOverheidZakelijk/issues/884),

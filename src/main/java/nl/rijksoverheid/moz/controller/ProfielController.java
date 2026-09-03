@@ -1,16 +1,13 @@
 
 package nl.rijksoverheid.moz.controller;
 
-import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.context.Context;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriBuilder;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.Logboek;
 import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.LogboekContext;
-import nl.mijnoverheidzakelijk.ldv.logboekdataverwerking.ProcessingHandler;
 import nl.rijksoverheid.moz.api.generated.api.ProfielApi;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenRequest;
 import nl.rijksoverheid.moz.api.generated.model.ContactgegevenResponse;
@@ -32,9 +29,7 @@ import org.jboss.logging.Logger;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * REST controller voor partijen. Contract-first: implementeert de uit
@@ -54,19 +49,16 @@ public class ProfielController implements ProfielApi {
     private final PartijMapper partijMapper;
     private final LogboekContext logboekContext;
     private final HashHelper hashHelper;
-    private final ProcessingHandler processingHandler;
 
     public ProfielController(
             PartijService partijService,
             PartijMapper partijMapper,
             LogboekContext logboekContext,
-            HashHelper hashHelper,
-            ProcessingHandler processingHandler) {
+            HashHelper hashHelper) {
         this.partijService = partijService;
         this.partijMapper = partijMapper;
         this.logboekContext = logboekContext;
         this.hashHelper = hashHelper;
-        this.processingHandler = processingHandler;
     }
 
     @Override
@@ -80,7 +72,6 @@ public class ProfielController implements ProfielApi {
         PartijResponse result = partijService.getPartijResponse(partijRequest.getIdentificatieType(), partijRequest.getIdentificatieNummer(), partijRequest);
 
         if (result == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Partij niet gevonden");
             throw Problems.notFound("Partij niet gevonden", "Geen partij gevonden voor het opgegeven identificatienummer.");
         }
@@ -92,31 +83,25 @@ public class ProfielController implements ProfielApi {
 
     @Override
     @Transactional
+    @Logboek(name = "getPartijBulk", processingActivityId = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028")
     public Response getPartijBulk(PartijBulkRequest partijBulkRequest) {
 
-        List<PartijResponse> results = partijService.getPartijResponseBulk(partijBulkRequest.getIdentificaties());
-
-        Set<String> foundKeys = results.stream()
-                .flatMap(r -> r.getIdentificaties().stream())
-                .map(id -> id.getIdentificatieType() + ":" + id.getIdentificatieNummer())
-                .collect(Collectors.toSet());
-
+        // Subjects before the lookup, so a partij that is not found is logged as
+        // looked up too.
         for (var identificatie : partijBulkRequest.getIdentificaties()) {
-            boolean found = foundKeys.contains(identificatie.getIdentificatieType() + ":" + identificatie.getIdentificatieNummer());
-            LogboekContext ctx = new LogboekContext();
-            ctx.setProcessingActivityId("https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-028");
-            ctx.setDataSubjectId(hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()));
-            ctx.setDataSubjectType(String.valueOf(identificatie.getIdentificatieType()));
-            ctx.setStatus(found ? StatusCode.OK : StatusCode.UNSET);
-            Span span = processingHandler.startSpan("getPartijBulk", Context.current());
-            processingHandler.addLogboekContextToSpan(span, ctx);
-            span.end();
+            logboekContext.addSubject(
+                    hashHelper.hashIdentifier(identificatie.getIdentificatieNummer()),
+                    String.valueOf(identificatie.getIdentificatieType()));
         }
+
+        List<PartijResponse> results = partijService.getPartijResponseBulk(partijBulkRequest.getIdentificaties());
 
         if (results.isEmpty()) {
             LOG.warn("Geen partijen gevonden in bulk request");
             throw Problems.notFound("Partijen niet gevonden", "Geen van de opgegeven partijen is gevonden.");
         }
+
+        logboekContext.setStatus(StatusCode.OK);
 
         if (results.size() < partijBulkRequest.getIdentificaties().size()) {
             LOG.info("Bulk partijen gedeeltelijk opgehaald");
@@ -159,7 +144,6 @@ public class ProfielController implements ProfielApi {
         boolean updated = partijService.updateContactgegeven(contactgegevenUpdateRequest.getIdentificatieType(), contactgegevenUpdateRequest.getIdentificatieNummer(), contactgegevenUpdateRequest);
 
         if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor update");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
@@ -187,7 +171,6 @@ public class ProfielController implements ProfielApi {
         Contactgegeven contactgegeven = partijService.verwijderContactgegeven(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), contactgegevenId);
 
         if (contactgegeven == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Contactgegeven niet gevonden voor verwijdering");
             throw Problems.notFound("Contactgegeven niet gevonden", "Contactgegeven of partij niet gevonden.");
         }
@@ -229,7 +212,6 @@ public class ProfielController implements ProfielApi {
         boolean updated = partijService.updateVoorkeur(voorkeurUpdateRequest.getIdentificatieType(), voorkeurUpdateRequest.getIdentificatieNummer(), voorkeurUpdateRequest);
 
         if (!updated) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor update");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
@@ -257,7 +239,6 @@ public class ProfielController implements ProfielApi {
         Voorkeur voorkeur = partijService.verwijderVoorkeur(partijIdentificatieRequest.getIdentificatieType(), partijIdentificatieRequest.getIdentificatieNummer(), voorkeurId);
 
         if (voorkeur == null) {
-            logboekContext.setStatus(StatusCode.ERROR);
             LOG.warn("Voorkeur niet gevonden voor verwijdering");
             throw Problems.notFound("Voorkeur niet gevonden", "Voorkeur of partij niet gevonden.");
         }
