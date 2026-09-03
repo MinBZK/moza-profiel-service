@@ -199,7 +199,10 @@ paths:
         in: path
         required: true
         schema:
+          # Dezelfde pattern als DienstverlenerRequest.naam. Deze operatie maakt de
+          # dienstverlener aan als hij nog niet bestaat.
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
       requestBody:
         content:
           application/json:
@@ -217,7 +220,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DienstResponse"
         "400":
-          $ref: "#/components/responses/OngeldigeRequestBody"
+          $ref: "#/components/responses/OngeldigePadparameterOfRequestBody"
         "409":
           description: Dienst bestaat al met een andere beschrijving
           content:
@@ -240,6 +243,7 @@ paths:
         required: true
         schema:
           type: string
+          pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
       responses:
         "200":
           headers:
@@ -250,6 +254,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DienstverlenerResponse"
+        "400":
+          $ref: "#/components/responses/OngeldigePadparameter"
         "404":
           description: Dienstverlener niet gevonden
           content:
@@ -537,6 +543,20 @@ components:
             $ref: "#/components/schemas/HttpProblem"
     OngeldigeRequestBody:
       description: Request body ontbreekt of is ongeldig
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpValidationProblem"
+    OngeldigePadparameter:
+      description: Padparameter is ongeldig
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpValidationProblem"
+    # Niet de gedeelde OngeldigeRequestBody: op deze operatie kan ook de padparameter
+    # de 400 geven, en die beschrijving spreekt alleen over de body.
+    OngeldigePadparameterOfRequestBody:
+      description: "Padparameter of request body is ongeldig, of de request body ontbreekt"
       content:
         application/problem+json:
           schema:
