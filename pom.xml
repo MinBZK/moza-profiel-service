@@ -311,7 +311,7 @@
             <plugin>
                 <groupId>org.openapitools</groupId>
                 <artifactId>openapi-generator-maven-plugin</artifactId>
-                <version>7.10.0</version>
+                <version>7.25.0</version>
                 <executions>
                     <execution>
                         <id>profiel-service-server</id>
@@ -321,7 +321,7 @@
                         <configuration>
                             <!-- Eén bron: dit contract wordt door smallrye-openapi ook statisch geserveerd op /openapi.json.
                                  Bewust relatief. Met ${project.basedir} maakt Maven op Windows er
-                                 C:\... van, en de swagger-parser in generator 7.10.0 leest die
+                                 C:\... van, en de swagger-parser in generator 7.25.0 leest die
                                  driveletter als URI-scheme — een illegale URI, dus een build-fout.
                                  Vanaf 7.24.0 is dat opgelost. -->
                             <inputSpec>src/main/resources/META-INF/openapi.yaml</inputSpec>
