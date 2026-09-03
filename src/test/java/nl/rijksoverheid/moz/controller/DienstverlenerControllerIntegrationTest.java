@@ -10,6 +10,7 @@ import nl.rijksoverheid.moz.entity.Dienstverlener;
 import nl.rijksoverheid.moz.entity.DienstverlenerDienst;
 import nl.rijksoverheid.moz.DatabaseCleanup;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import static io.restassured.RestAssured.given;
@@ -151,8 +152,7 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
     /**
      * Tegenhanger van de test hierboven: dezelfde beschrijving, en een weggelaten beschrijving,
      * horen géén conflict op te leveren. Zonder deze test zou een controle die élke tweede POST
-     * afwijst er net zo groen uitzien — en {@code addDienstToDienstverlener} maakt de
-     * dienstverlener aan met {@code beschrijving == null}, dus die route zou erdoor breken.
+     * afwijst er net zo groen uitzien.
      */
     @Test
     void addDienstverlener_ExistingWithSameBeschrijving_Returns201() {
@@ -243,6 +243,35 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .then()
                 .statusCode(CREATED)
                 .header("Location", containsString("/dienstverlener/Test/diensten/"));
+    }
+
+    /**
+     * De tellingen horen erbij: zonder die controle zou een implementatie die de dienstverlener
+     * aanmaakt en dáárna alsnog een 404 geeft er groen uitzien.
+     */
+    @Test
+    void addDienstToDienstverlener_OnbekendeDienstverlener_Returns404() {
+        DienstRequest request = new DienstRequest();
+        request.setNaam("TestDienst");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener/BestaatNiet/diensten")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                // Zelfde titel als de GET op dezelfde resource, en de gevraagde naam in het
+                // detail: de lookup is case-insensitief, dus zonder de naam is een afwijking in
+                // witruimte of codering onzichtbaar.
+                .body("title", equalTo("Dienstverlener niet gevonden"))
+                .body("detail", containsString("'BestaatNiet'"));
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(0, Dienstverlener.count());
+            Assertions.assertEquals(0, Dienst.count());
+        });
     }
 
     @Test
