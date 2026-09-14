@@ -70,13 +70,10 @@
                 <artifactId>httpclient5-fluent</artifactId>
                 <version>5.6.4</version>
             </dependency>
-            <!-- Security-pins voor test-scope transitives (via Pact) die niet door de quarkus-bom
-                 beheerd worden en die Dependabot niet zelf kan updaten. -->
-            <dependency>
-                <groupId>org.apache.tika</groupId>
-                <artifactId>tika-core</artifactId>
-                <version>3.3.2</version>
-            </dependency>
+            <!-- Security-pins voor transitives die niet door de quarkus-bom beheerd worden:
+                 commons-configuration2 komt via logboekdataverwerking-wrapper, rhino via de
+                 Atlassian swagger-validator. Geen pin voor tika-core: die komt via Pact, dat
+                 zijn eigen Tika-versie meebrengt en niet met elke major overweg kan. -->
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-configuration2</artifactId>
