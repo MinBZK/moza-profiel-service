@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  *
  * <p>{@link RequestDtoOnveranderbaarheidTest} draait ze tegen code die ze niet overtreedt, dus
  * daar zijn ze groen ook als ze niets zouden vangen. Dat is bij het opzetten van deze regels
- * (#651) drie keer misgegaan.
+ * drie keer misgegaan.
  *
  * <p>Per ontsnappingsvorm ligt vast wélke regel hem pakt, niet alleen dát er één op afgaat: elke
  * vorm in {@link RequestMutaties} heeft een mutator met parameters, dus met een {@code anyMatch}

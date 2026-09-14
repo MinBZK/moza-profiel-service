@@ -31,7 +31,7 @@ Praktisch betekent dat: **schrijf geen DTO met de hand en bewerk niets onder `ta
 Vereisten:
 - Java 25
 - Maven (of de meegeleverde wrapper `./mvnw`)
-- PostgreSQL (of gebruik H2 via het `test` profile)
+- PostgreSQL voor `quarkus:dev` (zie `docker-compose.yml`); de tests starten hun eigen embedded PostgreSQL
 
 ```bash
 # Database opstarten (zie docker-compose.yml)
@@ -40,7 +40,7 @@ docker compose up -d
 # Dev-modus (live reload, http://localhost:8080)
 ./mvnw quarkus:dev
 
-# Tests (gebruikt H2)
+# Tests (starten zelf een embedded PostgreSQL, geen Docker nodig)
 ./mvnw verify
 ```
 
@@ -52,6 +52,22 @@ Lokale ontwikkel-secrets horen in een gitignored `src/main/resources/application
 - `quarkus.datasource.*` — alleen nodig als je geen `docker compose` gebruikt.
 
 Productie-configuratie staat in de deployment-repo.
+
+### `hash.pepper`
+
+`HashHelper` pseudonimiseert identificatienummers (BSN/KVK/RSIN) tot het subject-id in
+het Logboek Dataverwerkingen met een keyed HMAC-SHA-256. De sleutel komt uit
+`hash.pepper`; zonder die sleutel is een hash over een BSN triviaal terug te rekenen.
+
+`application.properties` bevat een dev/test-placeholder. Prod en acc krijgen een eigen
+geheime waarde uit het secret; de lege `%prod`/`%acc`-override staat in de
+deployment-repo, dus daar start de applicatie niet op zonder waarde. Deze repo zet die
+override niet, dus een ZAD-preview zonder `HASH_PEPPER` valt terug op de placeholder
+hierboven in plaats van te falen. Zie `docs/zad-deploy.md`.
+
+Het pseudoniem is stabiel zolang de pepper gelijk blijft. Bij het roteren van de pepper
+krijgen alle subjecten een nieuw pseudoniem en correleren oude logboekregels niet meer
+met nieuwe.
 
 ## Quarkus
 

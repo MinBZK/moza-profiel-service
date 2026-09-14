@@ -14,7 +14,7 @@ import static io.restassured.RestAssured.given;
 
 /**
  * Bewaakt dat het contract in META-INF/openapi.yaml ook werkelijk is wat de applicatie
- * op /openapi.json publiceert. Sinds #651 is het contract de bron: annotatie-scanning
+ * op /openapi.json publiceert. Het contract is de bron: annotatie-scanning
  * staat uit en het bestand wordt statisch geserveerd. Zou iemand die schakelaar omzetten
  * of het bestand verplaatsen, dan gaan contract en gepubliceerd document stilzwijgend
  * uiteenlopen.

@@ -13,8 +13,8 @@ import java.time.Duration;
 /**
  * Standalone fuzz target for ClusterFuzzLite.
  * Expects Quarkus to be running as a separate process (started by the wrapper
- * script) with H2 in-memory database on port 8081. This fuzzer sends
- * coverage-guided HTTP requests to test all REST endpoints.
+ * script) on port 8081, backed by the PostgreSQL the same script starts. This
+ * fuzzer sends coverage-guided HTTP requests to test all REST endpoints.
  */
 public class EndpointFuzzer {
 

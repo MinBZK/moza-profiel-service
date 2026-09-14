@@ -17,7 +17,7 @@ We have implemented **two types** of fuzz tests:
 These are lightweight, standalone classes that implement the `fuzzerTestOneInput` method expected by Jazzer's native driver. They run in ClusterFuzzLite's continuous fuzzing pipeline:
 
 -   **EndpointFuzzer.java**: Coverage-guided fuzzing of all REST endpoints by starting Quarkus as a subprocess and sending HTTP requests.
--   **HashHelperFuzzer.java**: Tests the SHA-256 hashing functionality with arbitrary string inputs to verify determinism and detect edge cases.
+-   **HashHelperFuzzer.java**: Tests the keyed HMAC-SHA-256 hashing functionality with arbitrary string inputs to verify determinism and detect edge cases.
 -   **JsonDeserializationFuzzer.java**: Fuzzes JSON deserialization of all request DTOs (ContactgegevenRequest, VoorkeurRequest, DienstverlenerRequest, etc.) to find parsing vulnerabilities.
 
 **Key Difference**: The JUnit tests run Quarkus in-process with `@QuarkusTest`, while the ClusterFuzzLite targets are optimized for long-running, coverage-guided fuzzing in CI/CD pipelines.

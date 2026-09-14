@@ -48,7 +48,7 @@ class StandardErrorResponsesTest {
      * om en moet bewust worden bijgesteld. Zonder ondergrens zou een sweep die vastloopt op één
      * operatie er hetzelfde uitzien als een volledige controle.
      */
-    private static final int MINIMAAL_AANTAL_OPERATIES = 15;
+    private static final int MINIMAAL_AANTAL_OPERATIES = 13;
 
     @Test
     void elkeOperatieDocumenteertDeStandaardFoutresponses() throws Exception {

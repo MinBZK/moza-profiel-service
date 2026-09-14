@@ -1,15 +1,12 @@
 package nl.rijksoverheid.moz.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.annotation.Nullable;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -26,13 +23,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 @Entity
 @Audited
-public class Voorkeur extends PanacheEntityBase {
-
-    @Id
-    @GeneratedValue
-    public UUID id;
+public class Voorkeur extends VerwijderbareEntiteit {
 
     @NotNull
     @Enumerated(EnumType.STRING)
@@ -57,11 +52,6 @@ public class Voorkeur extends PanacheEntityBase {
 
     @Nullable
     private Instant lastUsedAt;
-
-    @Nullable
-    private Instant teVerwijderenOp;
-
-    private boolean teVerwijderenOpAutomatisch = false;
 
     @PrePersist
     private void onCreate() {
@@ -130,19 +120,40 @@ public class Voorkeur extends PanacheEntityBase {
     }
 
     @Nullable
-    public Instant getTeVerwijderenOp() {
-        return teVerwijderenOp;
+    public static Voorkeur find(Partij partij, UUID id) {
+        return find("partij = ?1 AND id = ?2 AND " + ACTIEF, partij, id).firstResult();
     }
 
-    public void setTeVerwijderenOp(@Nullable Instant teVerwijderenOp) {
-        this.teVerwijderenOp = teVerwijderenOp;
+    public static List<Voorkeur> find(Partij partij) {
+        return find("partij = ?1 AND " + ACTIEF, partij).list();
     }
 
-    public boolean isTeVerwijderenOpAutomatisch() {
-        return teVerwijderenOpAutomatisch;
+    // Alleen de scope-loze voorkeur voor dit (partij, type). firstResult(): uniciteit is
+    // applicatielogica, geen DB-constraint (zie PartijService.addVoorkeur).
+    @Nullable
+    public static Voorkeur find(Partij partij, VoorkeurType voorkeurType) {
+        return find(
+                "partij = ?1 AND voorkeurType = ?2 AND size(scopes) = 0 AND " + ACTIEF,
+                partij, voorkeurType
+        ).firstResult();
     }
 
-    public void setTeVerwijderenOpAutomatisch(boolean teVerwijderenOpAutomatisch) {
-        this.teVerwijderenOpAutomatisch = teVerwijderenOpAutomatisch;
+    @Nullable
+    public static Voorkeur find(Partij partij, VoorkeurType voorkeurType, @Nullable DienstverlenerDienst scope) {
+        if (scope == null) {
+            return find(partij, voorkeurType);
+        }
+
+        return find(
+                "SELECT v FROM Voorkeur v JOIN v.scopes s "
+                        + "WHERE v.partij = ?1 AND v.voorkeurType = ?2 AND s.dienstverlenerDienst = ?3 AND v." + ACTIEF,
+                partij, voorkeurType, scope
+        ).firstResult();
+    }
+
+    // ACTIEF + rowcount: een GET die overlapt met een retentie-soft-delete van dezelfde rij mag
+    // lastUsedAt niet meer bumpen.
+    public static long touch(UUID id, Instant nu) {
+        return update("lastUsedAt = ?1 WHERE id = ?2 AND " + ACTIEF, nu, id);
     }
 }

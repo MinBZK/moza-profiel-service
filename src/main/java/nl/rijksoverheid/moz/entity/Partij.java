@@ -2,51 +2,32 @@ package nl.rijksoverheid.moz.entity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import nl.rijksoverheid.moz.common.IdentificatieType;
 import org.hibernate.envers.Audited;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
 @Entity
 @Audited
-public class Partij extends PanacheEntityBase {
+public class Partij extends VerwijderbareEntiteit {
 
-    @Id
-    @GeneratedValue
-    public UUID id;
-
+    // Contactgegeven/Voorkeur zijn bewust unidirectioneel (geen @OneToMany hier): ze worden altijd
+    // rechtstreeks aangemaakt en gepersisteerd (setPartij + persist()), nooit via cascade vanaf
+    // Partij — anders dan Identificatie hieronder, die findOrCreatePartij juist wél via
+    // nieuwePartij.persist() cascadet.
     @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Identificatie> identificaties = new ArrayList<>();
 
-    @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Contactgegeven> contactgegevens = new ArrayList<>();
-
-    @OneToMany(mappedBy = "partij", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Voorkeur> voorkeuren = new ArrayList<>();
-
-    public List<Voorkeur> getVoorkeuren() {
-        return Collections.unmodifiableList(voorkeuren);
-    }
-
-    public void setVoorkeuren(List<Voorkeur> voorkeuren) {
-        this.voorkeuren.clear();
-        this.voorkeuren.addAll(voorkeuren);
-    }
-
     public static Partij findByIdentificatie(IdentificatieType type, String nummer) {
-        return find("""
-        SELECT p FROM Partij p
-        JOIN p.identificaties i
-        WHERE i.identificatieType = ?1
-          AND i.identificatieNummer = ?2
-    """, type, nummer).firstResult();
+        return find("SELECT p FROM Partij p JOIN p.identificaties i "
+                + "WHERE i.identificatieType = ?1 AND i.identificatieNummer = ?2 "
+                + "AND p." + ACTIEF + " AND i." + ACTIEF, type, nummer).firstResult();
     }
 
     public void addIdentificatie(Identificatie identificatie) {
@@ -54,34 +35,19 @@ public class Partij extends PanacheEntityBase {
         identificatie.setPartij(this);
     }
 
-    public void addVoorkeur(Voorkeur voorkeur) {
-        voorkeuren.add(voorkeur);
-        voorkeur.setPartij(this);
-    }
-
-    public void removeVoorkeur(Voorkeur voorkeur) {
-        voorkeuren.remove(voorkeur);
-    }
-
     public List<Identificatie> getIdentificaties() {
         return Collections.unmodifiableList(identificaties);
     }
 
-    public void setIdentificaties(List<Identificatie> identificaties) {
-        this.identificaties.clear();
-        this.identificaties.addAll(identificaties);
-    }
-
-    public List<Contactgegeven> getContactgegevens() {
-        return Collections.unmodifiableList(contactgegevens);
-    }
-
-    public void setContactgegevens(List<Contactgegeven> contactgegevens) {
-        this.contactgegevens.clear();
-        this.contactgegevens.addAll(contactgegevens);
-    }
-
-    public void removeContactgegeven(Contactgegeven contact) {
-        contactgegevens.remove(contact);
+    /**
+     * Deterministische keuze uit de actieve identificaties: filtert soft deletes weg en volgt
+     * IdentificatieType's declaratievolgorde (BSN > KVK > RSIN) als prioriteit.
+     */
+    public Identificatie primaireIdentificatie() {
+        return identificaties.stream()
+                .filter(i -> i.getVerwijderdOp() == null)
+                .min(Comparator.comparing((Identificatie i) -> i.getIdentificatieType().ordinal())
+                        .thenComparing(Identificatie::getIdentificatieNummer))
+                .orElse(null);
     }
 }

@@ -1,45 +1,434 @@
 package nl.rijksoverheid.moz.job;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.scheduler.Scheduled;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import nl.rijksoverheid.moz.entity.Contactgegeven;
+import nl.rijksoverheid.moz.entity.Identificatie;
+import nl.rijksoverheid.moz.entity.Partij;
 import nl.rijksoverheid.moz.entity.Voorkeur;
+import nl.rijksoverheid.moz.logboek.GeauditeerdeIdentiteit;
+import nl.rijksoverheid.moz.logboek.LogboekSpanEmitter;
+import nl.rijksoverheid.moz.services.PartijService;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
 import java.time.Instant;
 import java.time.Period;
 import java.time.ZoneOffset;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static nl.rijksoverheid.moz.entity.SoftDeleteFilters.ACTIEF;
+
+/**
+ * Verwijdert (soft-delete) Voorkeur/Contactgegeven-records die lang niet zijn gebruikt.
+ * <p>
+ * Laadt bewust de kandidaat-entiteiten i.p.v. een blinde bulk-update: retentieverwijdering is
+ * zelf een AVG-verwerkingsactiviteit en heeft dus een logboek-vermelding per subject nodig, net
+ * zo fijnmazig als de vermelding die de API-endpoints per request schrijven.
+ */
 @ApplicationScoped
 public class RetentieScheduler {
 
     private static final Logger LOG = Logger.getLogger(RetentieScheduler.class);
 
-    // 6,5 jaar = 78 maanden
-    private static final Period RETENTIE_GRENS = Period.ofMonths(78);
-    private static final Period RETENTIE_VENSTER = Period.ofMonths(6);
+    // Bewaartermijn met een juridische grondslag (welke precies is hier niet geverifieerd),
+    // geen tuning-parameter. Wijzigen is een besluit voor wie die grondslag beheert.
+    private static final Period RETENTIE_GRENS = Period.ofYears(7);
 
-    @Scheduled(cron = "{retentie.scheduler.cron}")
-    @Transactional
-    public void stelTeVerwijderenOpIn() {
+    // Hergebruikt van de verwijderde PATCH-endpoints, terwijl de retentiejob een materieel andere
+    // verwerkingsactiviteit is; bevestiging loopt via
+    // https://github.com/MinBZK/MijnOverheidZakelijk/issues/754.
+    private static final String VOORKEUR_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-630";
+    private static final String CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID = "https://mijnoverheidzakelijk.nl/verwerkingsactiviteiten/PS-631";
+
+    // Bovengrens tegen een klok- of configuratiefout die in één klap te veel rijen zou soft-
+    // deleten. Dynamisch opgezocht (niet via @ConfigProperty-veldinjectie) zodat een test hem via
+    // een system property kan overschrijven.
+    private static final String MAX_PER_RUN_PROPERTY = "retentie.scheduler.max-per-run";
+    // Fallback als de property niet gezet is; application.properties zet hem vandaag expliciet op
+    // 10.000, dus deze default is daar momenteel niet de werkzame waarde.
+    private static final int MAX_PER_RUN_DEFAULT = 10_000;
+    // Bewuste, expliciete opt-in om ondanks een overschrijding van de grens toch te verwerken —
+    // standaard uit. Zie bepaalVerwerkingslimiet.
+    private static final String MAX_PER_RUN_OVERRIDE_PROPERTY = "retentie.scheduler.max-per-run.override";
+
+    // Query is bewust breed: elke actieve partij zonder actieve children, ongeacht ouderdom. Geen
+    // index op partij.verwijderdOp, dus dit is een scan over alle actieve partijen; voor nu
+    // acceptabel (nog geen productiedata).
+    private static final String LEGE_PARTIJ_WHERE = "p." + ACTIEF
+            + " AND NOT EXISTS (SELECT 1 FROM Voorkeur v WHERE v.partij = p AND v." + ACTIEF + ") "
+            + "AND NOT EXISTS (SELECT 1 FROM Contactgegeven c WHERE c.partij = p AND c." + ACTIEF + ")";
+
+    private final MeterRegistry meterRegistry;
+    private final PartijService partijService;
+    private final LogboekSpanEmitter logboekSpanEmitter;
+
+    private final AtomicLong laatsteRunEpochSeconds = new AtomicLong(0);
+    private final AtomicLong laatsteGeslaagdeRunEpochSeconds = new AtomicLong(0);
+
+    public RetentieScheduler(MeterRegistry meterRegistry, PartijService partijService, LogboekSpanEmitter logboekSpanEmitter) {
+        this.meterRegistry = meterRegistry;
+        this.partijService = partijService;
+        this.logboekSpanEmitter = logboekSpanEmitter;
+    }
+
+    @PostConstruct
+    void registerGauge() {
+        // Per instance (quarkus.quartz.clustered=true, maar deze AtomicLongs leven alleen in het
+        // geheugen van de pod die vuurde): een replica die de job nooit uitvoert blijft op 0 staan.
+        // Een alert hierop moet dus over de cluster aggregeren met max(), niet per instance kijken.
+        Gauge.builder("retentie.laatste_run_epoch_seconds", laatsteRunEpochSeconds, AtomicLong::get)
+                .description("Tijdstip (epoch seconds) van de laatst uitgevoerde retentiescheduler-run op déze "
+                        + "instance, ongeacht succes. Quartz is clustered: aggregeer met max() over de cluster.")
+                .register(meterRegistry);
+        Gauge.builder("retentie.laatste_geslaagde_run_epoch_seconds", laatsteGeslaagdeRunEpochSeconds, AtomicLong::get)
+                .description("Tijdstip (epoch seconds) van de laatste retentiescheduler-run op déze instance "
+                        + "waarin alle drie de fasen slaagden. Quartz is clustered: aggregeer met max() over de cluster.")
+                .register(meterRegistry);
+    }
+
+    // concurrentExecution = SKIP: een langlopende run (grote tabel) mag niet overlappen met de
+    // volgende vuring. Geen @Transactional hier: elke deel-fase heeft zijn eigen transactie zodat
+    // een fout in de ene de andere niet stil terugdraait of verbergt.
+    @Scheduled(cron = "{retentie.scheduler.cron}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    public void verwijderInactieveRecords() {
+        boolean alleFasenGeslaagd = true;
+
+        // anomalieCount vóór/ná i.p.v. alleen de catch: een fase kan ook zónder exception anomaal
+        // zijn (max-per-run, ontbrekende-identificatie, logboek-fout zetten alleen een teller op,
+        // ze gooien niets) — zonder deze vergelijking zou zo'n run alsnog als "geslaagd" gelden.
+        try {
+            double anomalieVoor = anomalieCount("voorkeur");
+            int verwijderd = verwijderInactieveVoorkeuren();
+            meterRegistry.counter("retentie.verwijderd", "type", "voorkeur").increment(verwijderd);
+            LOG.info("Retentiescheduler: " + verwijderd + " voorkeuren verwijderd");
+
+            if (anomalieCount("voorkeur") > anomalieVoor) {
+                alleFasenGeslaagd = false;
+            }
+        } catch (Exception e) {
+            LOG.error("Retentiescheduler: verwijderen van voorkeuren mislukt", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "fase-fout").increment();
+            alleFasenGeslaagd = false;
+        }
+
+        try {
+            double anomalieVoor = anomalieCount("contactgegeven");
+            int verwijderd = verwijderInactieveContactgegevens();
+            meterRegistry.counter("retentie.verwijderd", "type", "contactgegeven").increment(verwijderd);
+            LOG.info("Retentiescheduler: " + verwijderd + " contactgegevens verwijderd");
+
+            if (anomalieCount("contactgegeven") > anomalieVoor) {
+                alleFasenGeslaagd = false;
+            }
+        } catch (Exception e) {
+            LOG.error("Retentiescheduler: verwijderen van contactgegevens mislukt", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "fase-fout").increment();
+            alleFasenGeslaagd = false;
+        }
+
+        try {
+            double anomalieVoor = anomalieCount("partij");
+            boolean cascadeGeslaagd = cascadeDeleteLegePartijen();
+
+            if (!cascadeGeslaagd || anomalieCount("partij") > anomalieVoor) {
+                alleFasenGeslaagd = false;
+            }
+        } catch (Exception e) {
+            LOG.error("Retentiescheduler: cascade-verwijdering van lege partijen mislukt", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "fase-fout").increment();
+            alleFasenGeslaagd = false;
+        }
+
         Instant nu = Instant.now();
-        Instant grens = nu.atZone(ZoneOffset.UTC).minus(RETENTIE_GRENS).toInstant();
-        Instant teVerwijderenOp = nu.atZone(ZoneOffset.UTC).plus(RETENTIE_VENSTER).toInstant();
+        laatsteRunEpochSeconds.set(nu.getEpochSecond());
 
-        long voorkeurCount = Voorkeur.update(
-                "teVerwijderenOp = :tvop, teVerwijderenOpAutomatisch = true, lastUpdated = :nu " +
-                "WHERE teVerwijderenOp IS NULL " +
-                "AND COALESCE(lastUsedAt, createdAt) <= :grens",
-                Map.of("tvop", teVerwijderenOp, "nu", nu, "grens", grens));
+        if (alleFasenGeslaagd) {
+            laatsteGeslaagdeRunEpochSeconds.set(nu.getEpochSecond());
+        }
+    }
 
-        long contactCount = Contactgegeven.update(
-                "teVerwijderenOp = :tvop, teVerwijderenOpAutomatisch = true, lastUpdated = :nu " +
-                "WHERE teVerwijderenOp IS NULL " +
-                "AND COALESCE(lastUsedAt, createdAt) <= :grens",
-                Map.of("tvop", teVerwijderenOp, "nu", nu, "grens", grens));
+    private double anomalieCount(String entiteit) {
+        return meterRegistry.find("retentie.anomalie").tag("entiteit", entiteit).counters()
+                .stream().mapToDouble(Counter::count).sum();
+    }
 
-        LOG.info("Retentiescheduler: " + voorkeurCount + " voorkeuren, " + contactCount + " contactgegevens bijgewerkt");
+    // Niet private: @Transactional is een CDI interceptor binding, en ArC intercepteert door een
+    // subclass te genereren die de methode overridet. Dat kan niet bij een private methode,
+    // @Transactional zou dan niets doen, zonder dat dat uit de code zelf blijkt.
+    @Transactional
+    int verwijderInactieveVoorkeuren() {
+        Instant nu = Instant.now();
+        Instant grens = berekenGrens(nu);
+
+        long limiet = bepaalVerwerkingslimiet("voorkeur", Voorkeur.count(
+                ACTIEF + " AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
+
+        if (limiet == 0) {
+            return 0;
+        }
+
+        // Eerst id's ophalen, dan pas fetch-join: een collectiefetch met maxResults pagineert
+        // anders in-memory i.p.v. met een SQL LIMIT.
+        List<UUID> kandidaatIds = Voorkeur.getEntityManager()
+                .createQuery("SELECT v.id FROM Voorkeur v WHERE v." + ACTIEF + " "
+                        + "AND COALESCE(v.lastUsedAt, v.createdAt) <= :grens "
+                        + "ORDER BY COALESCE(v.lastUsedAt, v.createdAt)", UUID.class)
+                .setParameter("grens", grens)
+                .setMaxResults((int) limiet)
+                .getResultList();
+
+        if (kandidaatIds.isEmpty()) {
+            return 0;
+        }
+
+        // p.verwijderdOp IS NULL: vandaag onbereikbaar (een partij wordt pas soft-deleted als ze geen
+        // actieve voorkeuren/contactgegevens meer heeft), maar zonder deze filter zou een toekomstige
+        // schending van die aanname hier een rij onder een soft deleted partij laten hangen.
+        // p.identificaties blijft bewust ongefilterd: filteren van een fetched collectie zou hem
+        // stilzwijgend afkappen — primaireIdentificatie() filtert al in Java.
+        List<Voorkeur> kandidaten = Voorkeur.find(
+                "SELECT v FROM Voorkeur v JOIN FETCH v.partij p LEFT JOIN FETCH p.identificaties "
+                        + "WHERE v.id IN ?1 AND v." + ACTIEF + " AND p." + ACTIEF, kandidaatIds)
+                .list();
+
+        int verwijderd = 0;
+        List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
+
+        for (Voorkeur voorkeur : kandidaten) {
+            // De fetch-query filtert deze rijen al weg; deze check blijft staan zodat een rij die er
+            // toch doorheen komt wordt overgeslagen i.p.v. de hele batch te laten terugrollen.
+            if (voorkeur.isVerwijderd()) {
+                LOG.warn("Retentiescheduler: voorkeur " + voorkeur.id
+                        + " is tussen kandidaatselectie en verwerking al verwijderd; overgeslagen");
+                meterRegistry.counter("retentie.anomalie", "entiteit", "voorkeur", "reden", "gelijktijdig-verwijderd").increment();
+
+                continue;
+            }
+
+            Identificatie identificatie = resolveerIdentiteitOfSlaOver(voorkeur.getPartij(), voorkeur.id, "voorkeur");
+
+            if (identificatie == null) {
+                continue;
+            }
+
+            voorkeur.verwijder(nu);
+            teLoggen.add(new GeauditeerdeIdentiteit(identificatie.getIdentificatieNummer(), identificatie.getIdentificatieType()));
+            verwijderd++;
+        }
+
+        registreerLogboekNaCommit(teLoggen, "voorkeur", "verwijderVoorkeurRetentie", VOORKEUR_PROCESSING_ACTIVITY_ID);
+
+        return verwijderd;
+    }
+
+    // Niet private: zie toelichting bij verwijderInactieveVoorkeuren.
+    @Transactional
+    int verwijderInactieveContactgegevens() {
+        Instant nu = Instant.now();
+        Instant grens = berekenGrens(nu);
+
+        long limiet = bepaalVerwerkingslimiet("contactgegeven", Contactgegeven.count(
+                ACTIEF + " AND COALESCE(lastUsedAt, createdAt) <= ?1", grens));
+
+        if (limiet == 0) {
+            return 0;
+        }
+
+        // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde twee-staps aanpak tegen
+        // in-memory paginering bij een collectiefetch.
+        List<UUID> kandidaatIds = Contactgegeven.getEntityManager()
+                .createQuery("SELECT c.id FROM Contactgegeven c WHERE c." + ACTIEF + " "
+                        + "AND COALESCE(c.lastUsedAt, c.createdAt) <= :grens "
+                        + "ORDER BY COALESCE(c.lastUsedAt, c.createdAt)", UUID.class)
+                .setParameter("grens", grens)
+                .setMaxResults((int) limiet)
+                .getResultList();
+
+        if (kandidaatIds.isEmpty()) {
+            return 0;
+        }
+
+        // Zie toelichting bij verwijderInactieveVoorkeuren: zelfde p.verwijderdOp-filter en zelfde
+        // reden om p.identificaties ongefilterd te laten.
+        List<Contactgegeven> kandidaten = Contactgegeven.find(
+                "SELECT c FROM Contactgegeven c JOIN FETCH c.partij p LEFT JOIN FETCH p.identificaties "
+                        + "WHERE c.id IN ?1 AND c." + ACTIEF + " AND p." + ACTIEF, kandidaatIds)
+                .list();
+
+        int verwijderd = 0;
+        List<GeauditeerdeIdentiteit> teLoggen = new ArrayList<>();
+
+        for (Contactgegeven contact : kandidaten) {
+            // Zie verwijderInactieveVoorkeuren voor waarom deze check blijft staan.
+            if (contact.isVerwijderd()) {
+                LOG.warn("Retentiescheduler: contactgegeven " + contact.id
+                        + " is tussen kandidaatselectie en verwerking al verwijderd; overgeslagen");
+                meterRegistry.counter("retentie.anomalie", "entiteit", "contactgegeven", "reden", "gelijktijdig-verwijderd").increment();
+
+                continue;
+            }
+
+            Identificatie identificatie = resolveerIdentiteitOfSlaOver(contact.getPartij(), contact.id, "contactgegeven");
+
+            if (identificatie == null) {
+                continue;
+            }
+
+            contact.verwijder(nu);
+            teLoggen.add(new GeauditeerdeIdentiteit(identificatie.getIdentificatieNummer(), identificatie.getIdentificatieType()));
+            verwijderd++;
+        }
+
+        registreerLogboekNaCommit(teLoggen, "contactgegeven", "verwijderContactgegevenRetentie", CONTACTGEGEVEN_PROCESSING_ACTIVITY_ID);
+
+        return verwijderd;
+    }
+
+    // Eigen transactie per partij (i.p.v. één transactie voor de hele cascade): een falende
+    // partij mag de andere kandidaten niet terugdraaien.
+    private boolean cascadeDeleteLegePartijen() {
+        // Zelfde patroon als verwijderInactieveVoorkeuren/-Contactgegevens: eerst tellen, dan pas
+        // de begrensde id-lijst ophalen, zodat de cap ook het geheugen begrenst en niet alleen het
+        // aantal transacties hieronder.
+        long aantalKandidaten = Partij.getEntityManager()
+                .createQuery("SELECT COUNT(p) FROM Partij p WHERE " + LEGE_PARTIJ_WHERE, Long.class)
+                .getSingleResult();
+
+        long limiet = bepaalVerwerkingslimiet("partij", aantalKandidaten);
+
+        if (limiet == 0) {
+            return true;
+        }
+
+        List<UUID> kandidaatIds = Partij.getEntityManager()
+                .createQuery("SELECT p.id FROM Partij p WHERE " + LEGE_PARTIJ_WHERE, UUID.class)
+                .setMaxResults((int) limiet)
+                .getResultList();
+
+        Instant nu = Instant.now();
+        boolean alleGeslaagd = true;
+        int gecascadeerd = 0;
+
+        for (UUID id : kandidaatIds) {
+            try {
+                AtomicReference<PartijService.CascadeResultaat> resultaat = new AtomicReference<>();
+
+                QuarkusTransaction.requiringNew().run(() -> {
+                    Partij partij = Partij.findById(id);
+                    resultaat.set(partij == null
+                            ? PartijService.CascadeResultaat.NIET_GEVONDEN
+                            : partijService.deleteLegePartij(partij, nu));
+                });
+
+                // Bewust zonder default-tak: een zesde uitkomst hoort hier op te vallen in review,
+                // niet stilzwijgend als "niets aan de hand" te eindigen.
+                switch (resultaat.get()) {
+                    case GECASCADEERD -> gecascadeerd++;
+                    // Legitiem: een gebruiker voegde een nieuw actief kind toe tussen selectie en
+                    // verwerking. Geen anomalie — telt niet mee voor alleFasenGeslaagd.
+                    case HEEFT_ACTIEVE_KINDEREN -> LOG.info("Retentiescheduler: partij " + id
+                            + " heeft ondertussen weer een actief kind; niet gecascadeerd");
+                    case AL_VERWIJDERD -> meldOvergeslagenPartij(id, resultaat.get(), "gelijktijdig-verwijderd");
+                    case NIET_GEVONDEN -> meldOvergeslagenPartij(id, resultaat.get(), "kandidaat-verdwenen");
+                    case GEEN_IDENTIFICATIE -> meldOvergeslagenPartij(id, resultaat.get(), "geen-identificatie");
+                }
+            } catch (Exception e) {
+                LOG.error("Retentiescheduler: cascade-verwijdering van partij " + id + " mislukt", e);
+                meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", "cascade-fout").increment();
+                alleGeslaagd = false;
+            }
+        }
+
+        // Elke getelde partij is op dit punt al gecommit (eigen transactie per partij hierboven),
+        // dus deze teller kan geen verwijdering claimen die alsnog is teruggedraaid.
+        meterRegistry.counter("retentie.verwijderd", "type", "partij").increment(gecascadeerd);
+        LOG.info("Retentiescheduler: " + gecascadeerd + " partijen gecascadeerd");
+
+        return alleGeslaagd;
+    }
+
+    private void meldOvergeslagenPartij(UUID id, PartijService.CascadeResultaat resultaat, String reden) {
+        LOG.warn("Retentiescheduler: partij " + id + " niet gecascadeerd (" + resultaat + "); overgeslagen");
+        meterRegistry.counter("retentie.anomalie", "entiteit", "partij", "reden", reden).increment();
+    }
+
+    // Kalenderjaren (Period), verankerd op UTC: een vaste Duration zou schrikkeljaren negeren, en
+    // een lokale zone zou de grens per DST-overgang een uur laten schuiven.
+    private static Instant berekenGrens(Instant nu) {
+        return nu.atZone(ZoneOffset.UTC).minus(RETENTIE_GRENS).toInstant();
+    }
+
+    // Overschrijding wordt standaard overgeslagen i.p.v. gedeeltelijk verwerkt: zonder menselijke
+    // bevestiging dat dit een legitieme achterstand is (geen klok-/configuratiefout) zou
+    // automatisch verwerken de fout alsnog laten voltrekken, alleen verspreid over meerdere nachten.
+    private long bepaalVerwerkingslimiet(String type, long aantalKandidaten) {
+        final int grens = ConfigProvider.getConfig()
+                .getOptionalValue(MAX_PER_RUN_PROPERTY, Integer.class)
+                .orElse(MAX_PER_RUN_DEFAULT);
+
+        if (aantalKandidaten <= grens) {
+            return aantalKandidaten;
+        }
+
+        meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "max-per-run").increment();
+
+        boolean override = ConfigProvider.getConfig()
+                .getOptionalValue(MAX_PER_RUN_OVERRIDE_PROPERTY, Boolean.class)
+                .orElse(false);
+
+        if (!override) {
+            LOG.error("Retentiescheduler: " + aantalKandidaten + " kandidaat-" + type + " overschrijdt de grens van "
+                    + grens + "; fase overgeslagen. Kan een legitieme achterstand zijn of een klok-/"
+                    + "configuratiefout — controleer eerst, zet dan pas " + MAX_PER_RUN_OVERRIDE_PROPERTY
+                    + "=true om de eerste " + grens + " kandidaten alsnog te verwerken.");
+
+            return 0;
+        }
+
+        LOG.error("Retentiescheduler: " + aantalKandidaten + " kandidaat-" + type + " overschrijdt de grens van "
+                + grens + "; " + MAX_PER_RUN_OVERRIDE_PROPERTY + " staat aan, dus verwerking wordt beperkt tot "
+                + "de eerste " + grens + " kandidaten.");
+
+        return grens;
+    }
+
+    // Per rij overslaan i.p.v. te throwen: een throw draait de hele batch terug, waarna de
+    // corrupte rij elke volgende run opnieuw de andere kandidaten blokkeert.
+    private Identificatie resolveerIdentiteitOfSlaOver(Partij partij, UUID entityId, String type) {
+        Identificatie identificatie = partij.primaireIdentificatie();
+
+        if (identificatie == null) {
+            // findOrCreatePartij voegt altijd een identificatie toe; dit wijst op datacorruptie
+            // of een misgelopen migratie, niet op een routinegeval.
+            LOG.error("Retentiescheduler: partij " + partij.id + " heeft geen identificatie (invariant violation, "
+                    + "zie findOrCreatePartij); " + type + " " + entityId + " wordt overgeslagen, niet verwijderd");
+            meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "ontbrekende-identificatie").increment();
+
+            return null;
+        }
+
+        return identificatie;
+    }
+
+    // LogboekSpanEmitter isoleert al per identiteit (zie
+    // voorkeur_EenLogboekSpanFaaltInBatch_OverigeWordtTochGeemitteerdEnAnomalieOpgehoogd in
+    // RetentieSchedulerTest) — opFout voegt hier alleen de retentie-specifieke telemetrie toe.
+    private void registreerLogboekNaCommit(List<GeauditeerdeIdentiteit> identiteiten, String type, String naam, String processingActivityId) {
+        logboekSpanEmitter.registreerNaCommit(identiteiten, naam, processingActivityId, e -> {
+            LOG.error("Retentiescheduler: logboek-emissie voor " + naam + " mislukt ná commit "
+                    + "(de rij is al verwijderd; dit is dus een gemist audit-spoor)", e);
+            meterRegistry.counter("retentie.anomalie", "entiteit", type, "reden", "logboek-fout").increment();
+        });
     }
 }
