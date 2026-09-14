@@ -80,7 +80,10 @@ volledige toelichting per stuk):
 - `schemaMappings` wijst `Instant`, `NullableInstant`, `UUID`, de drie
   domein-enums en `HttpProblem` naar bestaande types, zodat er geen tweede
   gelijknamige klasse ontstaat.
-- `inputSpec` blijft **relatief**; absoluut breekt de build op Windows.
+- `inputSpec` is **absoluut** (`${project.basedir}`). Relatief wordt opgelost
+  tegen de cwd van Maven en breekt bij een aanroep met `-f` vanuit een andere
+  map. Het was relatief omdat generator 7.10.0 op Windows over de driveletter
+  struikelde; vanaf 7.24.0 niet meer.
 
 Naast het servercontract staat er een clientcontract in
 `src/main/resources/openapi/verificatie_service.yaml`, waaruit
