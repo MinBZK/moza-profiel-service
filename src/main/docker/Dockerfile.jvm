@@ -78,7 +78,7 @@
 #   accessed directly. (example: "foo.example.com,bar.example.com")
 #
 ###
-FROM registry.access.redhat.com/ubi9/openjdk-25:1.24@sha256:9f8d94ee5d35d415dfbb1c92d2f59d50a0804962386a635869a8460fc0dd67f0
+FROM registry.access.redhat.com/ubi9/openjdk-25:1.24@sha256:513275ae909d56667d30f3420dbb6e6384ee33ec24c7527b6cccd0f1f5d1d54b
 
 ENV LANGUAGE='en_US:en'
 
