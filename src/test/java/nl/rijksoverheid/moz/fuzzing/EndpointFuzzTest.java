@@ -205,12 +205,26 @@ public class EndpointFuzzTest {
                 .extract().response();
     }
 
+    /**
+     * De helft van de invoer gebruikt een bestaande dienstverlener, anders geeft elke aanroep een
+     * 404 voordat de dienstlogica draait. Per aanroep aangemaakt, omdat tearDown de database leegt.
+     */
     @FuzzTest
     public void fuzzAddDienstToDienstverlener(FuzzedDataProvider data) {
-        String dienstverlenerNaam = data.consumeString(50);
+        boolean bekendeDienstverlener = data.consumeBoolean();
+        String dienstverlenerNaam = bekendeDienstverlener ? "FuzzDienstverlener" : data.consumeString(50);
+        String naam = data.consumeString(50);
         String beschrijving = data.consumeString(100);
 
+        if (bekendeDienstverlener) {
+            RestAssured.given()
+                    .contentType(ContentType.JSON)
+                    .body("{\"naam\":\"FuzzDienstverlener\"}")
+                    .post("/api/profielservice/v1/dienstverlener");
+        }
+
         ObjectNode body = objectMapper.createObjectNode();
+        body.put("naam", naam);
         body.put("beschrijving", beschrijving);
 
         RestAssured.given()

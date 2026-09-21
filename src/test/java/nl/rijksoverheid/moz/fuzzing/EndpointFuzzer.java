@@ -3,11 +3,9 @@ package nl.rijksoverheid.moz.fuzzing;
 import com.code_intelligence.jazzer.api.BugDetectors;
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -22,10 +20,10 @@ public class EndpointFuzzer {
     private static final HttpClient client;
     private static final String BASE = "http://localhost:8081/api/profielservice/v1";
 
-    /** Zie fuzzAddDienstToDienstverlener: een naam die gegarandeerd bestaat. */
+    /** Zie fuzzAddDienstToDienstverlener: de naam die deze target zelf aanmaakt. */
     private static final String BEKENDE_DIENSTVERLENER = "FuzzDienstverlener";
 
-    /** Blijft false zolang het aanmaken niet is gelukt, zodat een mislukte POST opnieuw gaat. */
+    /** Pas true na een 2xx; tot dan probeert de volgende iteratie het aanmaken opnieuw. */
     private static final AtomicBoolean bekendeDienstverlenerBestaat = new AtomicBoolean();
 
     // Keep reference to prevent GC; allows network connections for the main thread.
@@ -60,9 +58,7 @@ public class EndpointFuzzer {
     }
 
     private static String enc(String s) {
-        // URLEncoder codeert voor een query: een spatie wordt '+', en in een padsegment is dat
-        // een letterlijke plus. Een plus in de invoer zelf komt er als %2B uit.
-        return URLEncoder.encode(s, StandardCharsets.UTF_8).replace("+", "%20");
+        return Padsegment.encode(s);
     }
 
     private static void get(String path) throws Exception {
@@ -71,12 +67,12 @@ public class EndpointFuzzer {
             HttpResponse.BodyHandlers.discarding());
     }
 
-    private static void post(String path, String body) throws Exception {
-        client.send(
+    private static int post(String path, String body) throws Exception {
+        return client.send(
             HttpRequest.newBuilder().uri(URI.create(BASE + path))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(),
-            HttpResponse.BodyHandlers.discarding());
+            HttpResponse.BodyHandlers.discarding()).statusCode();
     }
 
     private static void put(String path, String body) throws Exception {
@@ -152,9 +148,8 @@ public class EndpointFuzzer {
     }
 
     /**
-     * Een onbekende dienstverlener strandt sinds MinBZK/MijnOverheidZakelijk#967 op een 404 nog
-     * voordat de body wordt gelezen; de helft van de invoer gebruikt daarom een naam die bestaat,
-     * anders bereikt deze target de dienstlogica erachter nooit meer.
+     * Een onbekende dienstverlener geeft een 404 voordat de dienstlogica draait; de helft van de
+     * invoer gebruikt daarom een naam die bestaat.
      */
     private static void fuzzAddDienstToDienstverlener(FuzzedDataProvider data) throws Exception {
         boolean bekendeDienstverlener = data.consumeBoolean();
@@ -162,7 +157,12 @@ public class EndpointFuzzer {
         String json = data.consumeRemainingAsString();
 
         if (bekendeDienstverlener && !bekendeDienstverlenerBestaat.get()) {
-            post("/dienstverlener/", "{\"naam\":\"" + BEKENDE_DIENSTVERLENER + "\"}");
+            int status = post("/dienstverlener/", "{\"naam\":\"" + BEKENDE_DIENSTVERLENER + "\"}");
+
+            if (status / 100 != 2) {
+                return;
+            }
+
             bekendeDienstverlenerBestaat.set(true);
         }
 

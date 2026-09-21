@@ -181,9 +181,8 @@ public class PartijService {
         Dienstverlener dienstverlener = dienstverlenerService.getDienstverlener(scope.getDienstverlenerNaam());
 
         if (dienstverlener == null) {
-            // Zelfde titel als de andere endpoints die deze conditie melden.
-            throw BusinessException.withTitle(Kind.NOT_FOUND, "Dienstverlener niet gevonden",
-                    "Dienstverlener bestaat niet");
+            throw BusinessException.withTitle(Kind.NOT_FOUND,
+                    BusinessException.DIENSTVERLENER_NIET_GEVONDEN, "Dienstverlener bestaat niet");
         }
 
         if (scope.getDienstNaam() == null) {
@@ -196,7 +195,7 @@ public class PartijService {
         ).firstResult();
 
         if (link == null) {
-            throw new BusinessException(Kind.NOT_FOUND,
+            throw BusinessException.withTitle(Kind.NOT_FOUND, "Dienst niet gevonden",
                     "Dienst bestaat niet voor deze dienstverlener");
         }
 

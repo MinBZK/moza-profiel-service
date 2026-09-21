@@ -129,7 +129,7 @@ public class DienstverlenerServiceTest {
 
     /**
      * Een dienst hangen aan een dienstverlener die niet bestaat is een vergissing, geen opdracht
-     * om hem aan te maken (MinBZK/MijnOverheidZakelijk#967).
+     * om hem aan te maken.
      */
     @Test
     void addDienstToDienstverlener_OnbekendeDienstverlener_ThrowsNotFound() {
@@ -151,7 +151,7 @@ public class DienstverlenerServiceTest {
     }
 
     /**
-     * De lookup is case-insensitief en bepaalt sinds #967 het verschil tussen een 201 en een 404.
+     * De lookup is case-insensitief en bepaalt het verschil tussen een 201 en een 404.
      * {@code getDienstverlener} heeft daarvoor zijn eigen LOWER-query, los van die in
      * {@code findOrCreateDienstverlener}; deze test dekt de eerste.
      */

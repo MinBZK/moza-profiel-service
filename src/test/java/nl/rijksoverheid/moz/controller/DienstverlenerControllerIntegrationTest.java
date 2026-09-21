@@ -246,8 +246,8 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
     }
 
     /**
-     * De tellingen horen erbij: zonder die controle zou een implementatie die de dienstverlener
-     * aanmaakt en dáárna alsnog een 404 geeft er groen uitzien.
+     * De tellingen vangen een aanmaak die buiten de requesttransactie commit; binnen dezelfde
+     * transactie rolt die sowieso terug.
      */
     @Test
     void addDienstToDienstverlener_OnbekendeDienstverlener_Returns404() {
@@ -258,15 +258,14 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)
                 .body(request)
-                .post("/api/profielservice/v1/dienstverlener/BestaatNiet/diensten")
+                .post("/api/profielservice/v1/dienstverlener/Bestaat Niet/diensten")
                 .then()
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
-                // Zelfde titel als de GET op dezelfde resource, en de gevraagde naam in het
-                // detail: de lookup is case-insensitief, dus zonder de naam is een afwijking in
-                // witruimte of codering onzichtbaar.
+                // Zelfde titel als de GET op dezelfde resource. Het detail echoot de gedecodeerde
+                // naam, zodat een afwijking in witruimte of codering zichtbaar is.
                 .body("title", equalTo("Dienstverlener niet gevonden"))
-                .body("detail", containsString("'BestaatNiet'"));
+                .body("detail", containsString("'Bestaat Niet'"));
 
         QuarkusTransaction.requiringNew().run(() -> {
             Assertions.assertEquals(0, Dienstverlener.count());

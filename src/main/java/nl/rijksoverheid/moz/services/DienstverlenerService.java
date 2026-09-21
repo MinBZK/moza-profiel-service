@@ -31,16 +31,16 @@ public class DienstverlenerService {
 
     /**
      * Hangt een dienst aan een bestaande dienstverlener; bestaat die niet, dan volgt een 404 en
-     * wordt er niets aangemaakt (MinBZK/MijnOverheidZakelijk#967).
+     * wordt er niets aangemaakt.
      */
     @Transactional
     public Dienst addDienstToDienstverlener(String dienstverlenerNaam, DienstRequest request) {
         Dienstverlener dienstverlener = getDienstverlener(dienstverlenerNaam);
 
         if (dienstverlener == null) {
-            throw BusinessException.withTitle(Kind.NOT_FOUND, "Dienstverlener niet gevonden",
-                    ("Geen dienstverlener gevonden met naam '%s'."
-                            + " Maak hem eerst aan via POST /api/profielservice/v1/dienstverlener.")
+            throw BusinessException.withTitle(Kind.NOT_FOUND,
+                    BusinessException.DIENSTVERLENER_NIET_GEVONDEN,
+                    "Geen dienstverlener gevonden met naam '%s'. Maak de dienstverlener eerst aan."
                             .formatted(dienstverlenerNaam));
         }
 
@@ -77,8 +77,8 @@ public class DienstverlenerService {
      * stil te verdwijnen. Een {@code null}-beschrijving legt niets vast en botst nooit, zodat een
      * herhaalde aanroep zonder beschrijving de bestaande niet leegmaakt.
      *
-     * <p>Een dienstverlener ontstaat alleen op {@code POST /dienstverlener}
-     * (MinBZK/MijnOverheidZakelijk#967).
+     * <p>Enige plek waar een dienstverlener ontstaat; de enige aanroeper is
+     * {@link #addDienstverlener}.
      */
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {

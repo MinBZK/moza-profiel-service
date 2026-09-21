@@ -374,7 +374,8 @@ public class ProfielControllerIntegrationTest extends OpenApiValidationTest {
                 .statusCode(NOT_FOUND)
                 .contentType("application/problem+json")
                 // Dezelfde titel als de andere endpoints die een onbekende dienstverlener melden.
-                .body("title", equalTo("Dienstverlener niet gevonden"));
+                .body("title", equalTo("Dienstverlener niet gevonden"))
+                .body("detail", equalTo("Dienstverlener bestaat niet"));
     }
 
     @Test

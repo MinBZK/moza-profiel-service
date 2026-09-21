@@ -53,11 +53,7 @@ class PadparameterValidatieIntegrationTest extends OpenApiValidationTest {
                 .body("violations.field", hasItem("dienstverlenerNaam"));
     }
 
-    /**
-     * De leesactie erlangs. Die kon nooit data bederven — een onbekende naam gaf een 404 — maar
-     * zolang de constraint hier ontbreekt hangt het van de gekozen route af of dezelfde naam
-     * geldig heet te zijn.
-     */
+    /** De leesactie erlangs: ook hier geldt de pattern, zodat de route niet bepaalt wat geldig is. */
     @ParameterizedTest
     @ValueSource(strings = {"%20", "%09", "naam%0Aregel2"})
     void dienstverlenerOpvragenOnderOngeldigePadnaamWordtAfgewezen(String padnaam) {
@@ -76,7 +72,7 @@ class PadparameterValidatieIntegrationTest extends OpenApiValidationTest {
      */
     @Test
     void gewonePadnaamKomtGewoonDoor() {
-        // De dienstverlener moet bestaan: sinds #967 maakt deze POST hem niet meer impliciet aan.
+        // De dienstverlener moet bestaan: deze POST maakt hem niet aan.
         QuarkusTransaction.requiringNew().run(() -> {
             Dienstverlener dv = new Dienstverlener();
             dv.setNaam("Gemeente Amsterdam");

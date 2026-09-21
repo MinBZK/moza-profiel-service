@@ -733,6 +733,7 @@ public class PartijServiceTest {
                 BusinessException.class,
                 () -> partijService.addContactgegeven(IdentificatieType.BSN, "123456789", request));
         Assertions.assertEquals(BusinessException.Kind.NOT_FOUND, ex.getKind());
+        Assertions.assertEquals("Dienst niet gevonden", ex.getTitle());
     }
 
     @Test
