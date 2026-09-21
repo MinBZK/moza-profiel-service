@@ -18,8 +18,8 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 /**
- * De dienstverlenernaam in het pad moet aan dezelfde pattern voldoen als in de body
- * (MinBZK/MijnOverheidZakelijk#967). Dat is geen cosmetisch verschil: {@code POST
+ * De dienstverlenernaam in het pad moet aan dezelfde pattern voldoen als in de body. Dat is
+ * geen cosmetisch verschil: {@code POST
  * /dienstverlener/{dienstverlenerNaam}/diensten} maakt de dienstverlener aan als die nog niet
  * bestaat, dus zonder deze constraint ontstaat er via de padroute een rij met een naam die de
  * bodyroute zou hebben geweigerd.
