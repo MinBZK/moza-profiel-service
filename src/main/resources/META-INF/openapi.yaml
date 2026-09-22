@@ -201,6 +201,7 @@ paths:
           # Dezelfde pattern als DienstverlenerRequest.naam.
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+          maxLength: 200
       requestBody:
         content:
           application/json:
@@ -222,11 +223,7 @@ paths:
         "404":
           $ref: "#/components/responses/DienstverlenerNietGevonden"
         "409":
-          description: Dienst bestaat al met een andere beschrijving
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/HttpProblem"
+          $ref: "#/components/responses/DienstBestaatAlMetAndereBeschrijving"
         "500":
           $ref: "#/components/responses/InterneServerfout"
   /api/profielservice/v1/dienstverlener/{naam}:
@@ -244,6 +241,7 @@ paths:
         schema:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+          maxLength: 200
       responses:
         "200":
           headers:
@@ -563,6 +561,12 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/HttpProblem"
+    DienstBestaatAlMetAndereBeschrijving:
+      description: Dienst bestaat al met een andere beschrijving
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/HttpProblem"
     ContactgegevenOfScopeNietGevonden:
       description: "Contactgegeven of partij niet gevonden, of de dienstverlener of\
         \ dienst uit de opgegeven scope bestaat niet"
@@ -768,6 +772,7 @@ components:
         naam:
           type: string
           pattern: "^[^\\r\\n]*\\S[^\\r\\n]*$"
+          maxLength: 200
         beschrijving:
           type: [string, "null"]
     DienstverlenerResponse:

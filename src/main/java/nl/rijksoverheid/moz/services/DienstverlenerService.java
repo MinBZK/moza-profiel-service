@@ -82,7 +82,7 @@ public class DienstverlenerService {
      */
     @Transactional
     public Dienstverlener findOrCreateDienstverlener(String naam, String beschrijving) {
-        Dienstverlener dienstverlener = Dienstverlener.find("lower(naam) = lower(?1)", naam).firstResult();
+        Dienstverlener dienstverlener = getDienstverlener(naam);
 
         if (dienstverlener != null) {
             if (beschrijving != null

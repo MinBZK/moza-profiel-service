@@ -78,9 +78,13 @@ public class DienstverlenerController implements DienstverlenerApi {
         // Een lege body is al door RequireBodyReaderInterceptor afgewezen.
         Dienst created = dienstverlenerService.addDienstToDienstverlener(dienstverlenerNaam, dienstRequest);
         LOG.info("Dienst toegevoegd aan dienstverlener");
+        // De opgeslagen schrijfwijze in de Location, niet die van de aanroeper: de opzoeking is
+        // case-insensitief, dus de URL zou anders naar een andere schrijfwijze wijzen dan de
+        // resource draagt. De dienstverlener bestaat hier, anders had de service al geworpen.
+        String opgeslagenNaam = dienstverlenerService.getDienstverlener(dienstverlenerNaam).getNaam();
         URI uri = UriBuilder.fromResource(DienstverlenerApi.class)
                 .path("{dienstverlenerNaam}").path("diensten").path("{id}")
-                .build(dienstverlenerNaam, created.id);
+                .build(opgeslagenNaam, created.id);
         return Response.created(uri).entity(dienstMapper.toDienstResponse(created))
                 .type(MediaType.APPLICATION_JSON).build();
     }

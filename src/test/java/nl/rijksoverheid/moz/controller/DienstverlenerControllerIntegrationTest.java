@@ -311,4 +311,57 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .contentType("application/problem+json")
                 .body(containsString("Request body mag niet leeg zijn"));
     }
+
+    /**
+     * De naam is begrensd op 200 tekens. Zonder die grens herhaalt de 404-melding een naam van
+     * willekeurige lengte in de respons en in de logregel.
+     */
+    @Test
+    void dienstverlenerNaamLangerDan200WordtAfgewezen() {
+        String teLang = "a".repeat(201);
+
+        DienstverlenerRequest request = new DienstverlenerRequest();
+        request.setNaam(teLang);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"DienstA\"}")
+                .post("/api/profielservice/v1/dienstverlener/" + teLang + "/diensten")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json");
+    }
+
+    /**
+     * De opzoeking is case-insensitief, dus de aangeleverde schrijfwijze hoeft niet die van de
+     * resource te zijn. De Location wijst naar de opgeslagen naam.
+     */
+    @Test
+    void addDienstToDienstverlener_LocationDraagtDeOpgeslagenNaam() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("TestDV");
+            dv.persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("Parkeervergunning");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener/testdv/diensten")
+                .then()
+                .statusCode(CREATED)
+                .header("Location", containsString("/dienstverlener/TestDV/diensten/"));
+    }
 }
