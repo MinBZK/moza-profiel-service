@@ -1,11 +1,14 @@
 package nl.rijksoverheid.moz.controller;
 
+import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
+import nl.rijksoverheid.moz.UriInfoStub;
 import org.hibernate.exception.ConstraintViolationException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.net.URI;
 import java.sql.SQLException;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,7 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  */
 class DatabaseConstraintViolationMapperTest {
 
+    private static final String PAD = "/api/profielservice/v1/contactgegeven";
+
     private final DatabaseConstraintViolationMapper mapper = new DatabaseConstraintViolationMapper();
+
+    @BeforeEach
+    void setUp() {
+        mapper.uriInfo = UriInfoStub.voorPad(PAD);
+    }
 
     private static ConstraintViolationException violation(String constraintName) {
         return new ConstraintViolationException(
@@ -34,11 +44,11 @@ class DatabaseConstraintViolationMapperTest {
         assertEquals(409, response.getStatus());
         assertEquals("application/problem+json", response.getMediaType().toString());
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getEntity();
-        assertEquals("Conflict", body.get("title"));
-        assertEquals(409, body.get("status"));
-        assertEquals("Resource bestaat al of conflicteert met een unique constraint", body.get("detail"));
+        HttpProblem body = (HttpProblem) response.getEntity();
+        assertEquals("Conflict", body.getTitle());
+        assertEquals(409, body.getStatusCode());
+        assertEquals("Resource bestaat al of conflicteert met een unique constraint", body.getDetail());
+        assertEquals(URI.create(PAD), body.getInstance());
     }
 
     @Test
@@ -55,9 +65,8 @@ class DatabaseConstraintViolationMapperTest {
         // API-antwoord thuis, dus het detail moet de generieke tekst blijven.
         Response response = mapper.toResponse(violation("uq_geheime_tabel_kolom"));
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = (Map<String, Object>) response.getEntity();
-        String detail = String.valueOf(body.get("detail"));
+        HttpProblem body = (HttpProblem) response.getEntity();
+        String detail = String.valueOf(body.getDetail());
         assertFalse(detail.contains("uq_geheime_tabel_kolom"));
         assertFalse(detail.contains("duplicate key"));
     }

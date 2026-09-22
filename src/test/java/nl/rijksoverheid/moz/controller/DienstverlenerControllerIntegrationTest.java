@@ -13,6 +13,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -338,6 +340,45 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .then()
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json");
+    }
+
+    /**
+     * Beide 404-routes horen hetzelfde lichaam te leveren. De GET loopt via een geworpen
+     * HttpProblem, de POST via de exceptionmapper; die laatste bouwde zijn lichaam met de hand en
+     * miste daardoor {@code instance}.
+     */
+    @Test
+    void beide404RoutesDragenDezelfdeVelden() {
+        Map<String, Object> viaGeworpenProblem = given()
+                .filter(validationFilter)
+                .get("/api/profielservice/v1/dienstverlener/Onbekend")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .extract().body().jsonPath().getMap("");
+
+        Map<String, Object> viaExceptionMapper = given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"DienstA\"}")
+                .post("/api/profielservice/v1/dienstverlener/Onbekend/diensten")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .extract().body().jsonPath().getMap("");
+
+        // De velden zelf, niet alleen een handvol waarden: een lid dat maar op één route
+        // opduikt is precies wat hier mis kan gaan.
+        Assertions.assertEquals(viaGeworpenProblem.keySet(), viaExceptionMapper.keySet());
+
+        Assertions.assertEquals("Dienstverlener niet gevonden", viaGeworpenProblem.get("title"));
+        Assertions.assertEquals("Dienstverlener niet gevonden", viaExceptionMapper.get("title"));
+        Assertions.assertEquals(404, viaGeworpenProblem.get("status"));
+        Assertions.assertEquals(404, viaExceptionMapper.get("status"));
+        Assertions.assertEquals("/api/profielservice/v1/dienstverlener/Onbekend",
+                viaGeworpenProblem.get("instance"));
+        Assertions.assertEquals("/api/profielservice/v1/dienstverlener/Onbekend/diensten",
+                viaExceptionMapper.get("instance"));
     }
 
     /**
