@@ -6,7 +6,6 @@ import io.restassured.http.ContentType;
 import nl.rijksoverheid.moz.DatabaseCleanup;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -18,11 +17,10 @@ import static org.jboss.resteasy.reactive.RestResponse.StatusCode.CREATED;
 import static org.jboss.resteasy.reactive.RestResponse.StatusCode.OK;
 
 /**
- * De dienstverlenernaam in het pad moet aan dezelfde pattern voldoen als in de body. Dat is
- * geen cosmetisch verschil: {@code POST
- * /dienstverlener/{dienstverlenerNaam}/diensten} maakt de dienstverlener aan als die nog niet
- * bestaat, dus zonder deze constraint ontstaat er via de padroute een rij met een naam die de
- * bodyroute zou hebben geweigerd.
+ * De dienstverlenernaam in het pad moet aan dezelfde pattern voldoen als in de body. Zonder die
+ * constraint hangt het van de gekozen route af hoe dezelfde naam wordt beoordeeld: de bodyroute
+ * geeft een 400 met een violations-lijst, de padroute een 404 die naar het verkeerde probleem
+ * wijst.
  *
  * <p>{@code urlEncodingEnabled(false)}: anders codeert RestAssured het procentteken nog een keer
  * en komt {@code %2520} bij de server aan, waarmee de test een gewone naam zou versturen.
@@ -53,16 +51,9 @@ class PadparameterValidatieIntegrationTest extends OpenApiValidationTest {
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
                 .body("violations.field", hasItem("dienstverlenerNaam"));
-
-        QuarkusTransaction.requiringNew().run(() -> Assertions.assertEquals(0, Dienstverlener.count(),
-                "Een afgewezen request hoort geen dienstverlener achter te laten"));
     }
 
-    /**
-     * De leesactie erlangs. Die kon nooit data bederven — een onbekende naam gaf een 404 — maar
-     * zolang de constraint hier ontbreekt hangt het van de gekozen route af of dezelfde naam
-     * geldig heet te zijn.
-     */
+    /** De leesactie erlangs: ook hier geldt de pattern, zodat de route niet bepaalt wat geldig is. */
     @ParameterizedTest
     @ValueSource(strings = {"%20", "%09", "naam%0Aregel2"})
     void dienstverlenerOpvragenOnderOngeldigePadnaamWordtAfgewezen(String padnaam) {
@@ -81,6 +72,13 @@ class PadparameterValidatieIntegrationTest extends OpenApiValidationTest {
      */
     @Test
     void gewonePadnaamKomtGewoonDoor() {
+        // De dienstverlener moet bestaan: deze POST maakt hem niet aan.
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("Gemeente Amsterdam");
+            dv.persist();
+        });
+
         given()
                 .filter(validationFilter)
                 .contentType(ContentType.JSON)

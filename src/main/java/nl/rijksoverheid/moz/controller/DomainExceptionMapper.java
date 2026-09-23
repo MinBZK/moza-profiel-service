@@ -18,7 +18,9 @@ public class DomainExceptionMapper {
             case CONFLICT -> Response.Status.CONFLICT;
             case BAD_REQUEST -> Response.Status.BAD_REQUEST;
         };
-        LOG.warn("BusinessException: " + e.getMessage());
+        LOG.warnf("BusinessException %s (%s): %s", e.getKind(), e.getTitle(), e.getMessage());
+        // Stacktrace alleen op DEBUG: dit zijn clientfouten, die horen de log niet te vullen.
+        LOG.debug("Werpplek van de BusinessException", e);
 
         return Problems.problemResponse(status, e.getTitle(), e.getMessage());
     }

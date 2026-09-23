@@ -10,6 +10,7 @@ import nl.rijksoverheid.moz.api.generated.model.DienstverlenerRequest;
 import nl.rijksoverheid.moz.api.generated.model.DienstverlenerResponse;
 import nl.rijksoverheid.moz.entity.Dienst;
 import nl.rijksoverheid.moz.entity.Dienstverlener;
+import nl.rijksoverheid.moz.exception.BusinessException;
 import nl.rijksoverheid.moz.helper.Problems;
 import nl.rijksoverheid.moz.mapper.DienstMapper;
 import nl.rijksoverheid.moz.services.DienstverlenerService;
@@ -45,7 +46,8 @@ public class DienstverlenerController implements DienstverlenerApi {
 
         if (dv == null) {
             LOG.warn("Dienstverlener niet gevonden");
-            throw Problems.notFound("Dienstverlener niet gevonden", "Geen dienstverlener gevonden met de opgegeven naam.");
+            throw Problems.notFound(BusinessException.DIENSTVERLENER_NIET_GEVONDEN,
+                    "Geen dienstverlener gevonden met de opgegeven naam.");
         }
 
         DienstverlenerResponse response = dienstMapper.toDienstverlenerResponse(dv, dienstverlenerService.getDienstenVoorDienstverlener(dv));
