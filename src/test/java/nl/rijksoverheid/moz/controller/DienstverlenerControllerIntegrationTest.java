@@ -13,6 +13,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -310,5 +312,97 @@ public class DienstverlenerControllerIntegrationTest extends OpenApiValidationTe
                 .statusCode(BAD_REQUEST)
                 .contentType("application/problem+json")
                 .body(containsString("Request body mag niet leeg zijn"));
+    }
+
+    /**
+     * De naam is begrensd op 200 tekens. Zonder die grens herhaalt de 404-melding een naam van
+     * willekeurige lengte in de respons en in de logregel.
+     */
+    @Test
+    void dienstverlenerNaamLangerDan200WordtAfgewezen() {
+        String teLang = "a".repeat(201);
+
+        DienstverlenerRequest request = new DienstverlenerRequest();
+        request.setNaam(teLang);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json");
+
+        given()
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"DienstA\"}")
+                .post("/api/profielservice/v1/dienstverlener/" + teLang + "/diensten")
+                .then()
+                .statusCode(BAD_REQUEST)
+                .contentType("application/problem+json");
+    }
+
+    /**
+     * Beide 404-routes horen hetzelfde lichaam te leveren. De GET loopt via een geworpen
+     * HttpProblem, de POST via de exceptionmapper; die laatste bouwde zijn lichaam met de hand en
+     * miste daardoor {@code instance}.
+     */
+    @Test
+    void beide404RoutesDragenDezelfdeVelden() {
+        Map<String, Object> viaGeworpenProblem = given()
+                .filter(validationFilter)
+                .get("/api/profielservice/v1/dienstverlener/Onbekend")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .extract().body().jsonPath().getMap("");
+
+        Map<String, Object> viaExceptionMapper = given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body("{\"naam\":\"DienstA\"}")
+                .post("/api/profielservice/v1/dienstverlener/Onbekend/diensten")
+                .then()
+                .statusCode(NOT_FOUND)
+                .contentType("application/problem+json")
+                .extract().body().jsonPath().getMap("");
+
+        // De velden zelf, niet alleen een handvol waarden: een lid dat maar op één route
+        // opduikt is precies wat hier mis kan gaan.
+        Assertions.assertEquals(viaGeworpenProblem.keySet(), viaExceptionMapper.keySet());
+
+        Assertions.assertEquals("Dienstverlener niet gevonden", viaGeworpenProblem.get("title"));
+        Assertions.assertEquals("Dienstverlener niet gevonden", viaExceptionMapper.get("title"));
+        Assertions.assertEquals(404, viaGeworpenProblem.get("status"));
+        Assertions.assertEquals(404, viaExceptionMapper.get("status"));
+        Assertions.assertEquals("/api/profielservice/v1/dienstverlener/Onbekend",
+                viaGeworpenProblem.get("instance"));
+        Assertions.assertEquals("/api/profielservice/v1/dienstverlener/Onbekend/diensten",
+                viaExceptionMapper.get("instance"));
+    }
+
+    /**
+     * De opzoeking is case-insensitief, dus de aangeleverde schrijfwijze hoeft niet die van de
+     * resource te zijn. De Location wijst naar de opgeslagen naam.
+     */
+    @Test
+    void addDienstToDienstverlener_LocationDraagtDeOpgeslagenNaam() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dv = new Dienstverlener();
+            dv.setNaam("TestDV");
+            dv.persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("Parkeervergunning");
+
+        given()
+                .filter(validationFilter)
+                .contentType(ContentType.JSON)
+                .body(request)
+                .post("/api/profielservice/v1/dienstverlener/testdv/diensten")
+                .then()
+                .statusCode(CREATED)
+                .header("Location", containsString("/dienstverlener/TestDV/diensten/"));
     }
 }

@@ -1,6 +1,7 @@
 package nl.rijksoverheid.moz.controller;
 
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import nl.rijksoverheid.moz.helper.Problems;
@@ -19,6 +20,12 @@ public class DatabaseConstraintViolationMapper implements ExceptionMapper<Constr
 
     private static final Logger LOG = Logger.getLogger(DatabaseConstraintViolationMapper.class);
 
+    private final UriInfo uriInfo;
+
+    public DatabaseConstraintViolationMapper(UriInfo uriInfo) {
+        this.uriInfo = uriInfo;
+    }
+
     @Override
     public Response toResponse(ConstraintViolationException exception) {
         String constraintName = exception.getConstraintName();
@@ -26,6 +33,7 @@ public class DatabaseConstraintViolationMapper implements ExceptionMapper<Constr
         return Problems.problemResponse(
                 Response.Status.CONFLICT,
                 Response.Status.CONFLICT.getReasonPhrase(),
-                "Resource bestaat al of conflicteert met een unique constraint");
+                "Resource bestaat al of conflicteert met een unique constraint",
+                uriInfo);
     }
 }

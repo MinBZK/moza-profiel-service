@@ -292,6 +292,42 @@ public class DienstverlenerServiceTest {
     }
 
     /**
+     * De tegenhanger van de 409: dezelfde beschrijving meesturen botst niet, want er valt niets
+     * te overschrijven. Zonder dit geval blijft een conflict-tak die alleen op aanwezigheid van
+     * {@code beschrijving} toetst onopgemerkt.
+     */
+    @Test
+    void addDienstToDienstverlener_ExistingDienstMetZelfdeBeschrijving_GeenConflict() {
+        QuarkusTransaction.requiringNew().run(() -> {
+            Dienstverlener dvA = new Dienstverlener();
+            dvA.setNaam("DV-A");
+            dvA.persist();
+            Dienst shared = new Dienst();
+            shared.setNaam("Vergunning");
+            shared.setBeschrijving("originele beschrijving");
+            shared.persist();
+            new DienstverlenerDienst(dvA, shared).persist();
+
+            Dienstverlener dvB = new Dienstverlener();
+            dvB.setNaam("DV-B");
+            dvB.persist();
+        });
+
+        DienstRequest request = new DienstRequest();
+        request.setNaam("Vergunning");
+        request.setBeschrijving("originele beschrijving");
+
+        Dienst result = dienstverlenerService.addDienstToDienstverlener("DV-B", request);
+
+        Assertions.assertEquals("originele beschrijving", result.getBeschrijving());
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertEquals(1, Dienst.count("naam", "Vergunning"));
+            Assertions.assertEquals(2, DienstverlenerDienst.count());
+        });
+    }
+
+    /**
      * Tweemaal dezelfde dienst op dezelfde dienstverlener hoort de bestaande koppeling terug te
      * geven, niet een tweede rij of een botsing op de unique constraint.
      */
