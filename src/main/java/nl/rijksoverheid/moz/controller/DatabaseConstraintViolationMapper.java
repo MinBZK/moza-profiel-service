@@ -1,6 +1,5 @@
 package nl.rijksoverheid.moz.controller;
 
-import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 import jakarta.ws.rs.ext.ExceptionMapper;
@@ -21,8 +20,11 @@ public class DatabaseConstraintViolationMapper implements ExceptionMapper<Constr
 
     private static final Logger LOG = Logger.getLogger(DatabaseConstraintViolationMapper.class);
 
-    @Context
-    UriInfo uriInfo;
+    private final UriInfo uriInfo;
+
+    public DatabaseConstraintViolationMapper(UriInfo uriInfo) {
+        this.uriInfo = uriInfo;
+    }
 
     @Override
     public Response toResponse(ConstraintViolationException exception) {

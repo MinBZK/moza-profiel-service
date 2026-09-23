@@ -4,7 +4,6 @@ import io.quarkiverse.httpproblem.HttpProblem;
 import jakarta.ws.rs.core.Response;
 import nl.rijksoverheid.moz.UriInfoStub;
 import org.hibernate.exception.ConstraintViolationException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
@@ -23,12 +22,8 @@ class DatabaseConstraintViolationMapperTest {
 
     private static final String PAD = "/api/profielservice/v1/contactgegeven";
 
-    private final DatabaseConstraintViolationMapper mapper = new DatabaseConstraintViolationMapper();
-
-    @BeforeEach
-    void setUp() {
-        mapper.uriInfo = UriInfoStub.voorPad(PAD);
-    }
+    private final DatabaseConstraintViolationMapper mapper =
+            new DatabaseConstraintViolationMapper(UriInfoStub.voorPad(PAD));
 
     private static ConstraintViolationException violation(String constraintName) {
         return new ConstraintViolationException(
