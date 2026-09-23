@@ -22,6 +22,8 @@ class ContractHandhavingTest {
 
     private static final String PAD = "/api/profielservice/v1/contactgegeven";
 
+    private static final String DIENSTVERLENER = "/api/profielservice/v1/dienstverlener/";
+
     private static OpenApiInteractionValidator validator;
 
     @BeforeAll
@@ -157,5 +159,49 @@ class ContractHandhavingTest {
                         .build());
 
         return rapport.hasErrors();
+    }
+
+    /**
+     * De padparameters dragen dezelfde pattern als de body. Een blanco naam toetst die regel niet:
+     * die valt al onder {@code required}, waar de parameterkeuring terugkeert voordat het schema
+     * aan bod komt. Beide regeleindes horen erbij, anders blijft een pattern zonder {@code \r}
+     * ongemerkt groen.
+     */
+    @Test
+    void deNaamregelGeldtOokOpDePadparameters() {
+        Assertions.assertTrue(meldtPatroonfout(ophalen(DIENSTVERLENER + "naam%0A")),
+                "Het contract hoort een padnaam met een newline via de pattern af te wijzen");
+        Assertions.assertTrue(meldtPatroonfout(ophalen(DIENSTVERLENER + "naam%0D")),
+                "Een carriage return hoort er net zo goed onder te vallen");
+        Assertions.assertTrue(meldtPatroonfout(dienstToevoegen(DIENSTVERLENER + "naam%0A/diensten")),
+                "Dat geldt ook op de route die de dienst toevoegt");
+        Assertions.assertTrue(meldtPatroonfout(dienstToevoegen(DIENSTVERLENER + "naam%0D/diensten")),
+                "Ook daar hoort de carriage return erbij");
+        Assertions.assertFalse(meldtPatroonfout(ophalen(DIENSTVERLENER + "Gemeente%20Amsterdam")),
+                "Een naam met een spatie hoort de pattern niet te raken");
+        Assertions.assertFalse(meldtPatroonfout(dienstToevoegen(DIENSTVERLENER + "Gemeente%20Amsterdam/diensten")),
+                "Ook op de route die de dienst toevoegt");
+    }
+
+    private static ValidationReport ophalen(String pad) {
+        return validator.validateRequest(SimpleRequest.Builder.get(pad).build());
+    }
+
+    private static ValidationReport dienstToevoegen(String pad) {
+        return validator.validateRequest(
+                SimpleRequest.Builder.post(pad)
+                        .withContentType("application/json")
+                        .withBody("{\"naam\":\"DienstA\"}")
+                        .build());
+    }
+
+    /**
+     * Op de sleutel én op errorniveau. Alleen de sleutel laat een melding meetellen die tot
+     * waarschuwing is teruggebracht; alleen {@code hasErrors} laat elke andere fout meetellen,
+     * en een blanco naam meldt iets zonder de pattern te raken.
+     */
+    private static boolean meldtPatroonfout(ValidationReport rapport) {
+        return rapport.hasErrors() && rapport.getMessages().stream()
+                .anyMatch(m -> "validation.request.parameter.schema.pattern".equals(m.getKey()));
     }
 }
