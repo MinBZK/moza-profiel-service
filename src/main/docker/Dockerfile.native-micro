@@ -19,7 +19,7 @@
 # The `quay.io/quarkus/ubi9-quarkus-micro-image:2.0` base image is based on UBI 9.
 # To use UBI 8, switch to `quay.io/quarkus/quarkus-micro-image:2.0`.
 ###
-FROM quay.io/quarkus/ubi9-quarkus-micro-image:2.0@sha256:99640ba9ee1fc9a20e38ed125c990a697b0ef49e3432288fa7ce01f64aff857b
+FROM quay.io/quarkus/ubi9-quarkus-micro-image:2.0@sha256:9deb8d302950c046083ba4dd986a88d2ed162ec6fa022db5efdd13e817378891
 WORKDIR /work/
 RUN chown 1001 /work \
     && chmod "g+rwX" /work \
